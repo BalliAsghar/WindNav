@@ -48,7 +48,7 @@ WindNav writes structured logs to stdout:
 [07:10:13] Navigation -> Focused target window 52403
 ```
 
-## Run
+## Run (Dev)
 
 ```bash
 cd /Users/balli/code/WindNav
@@ -56,3 +56,50 @@ swift run WindNav
 ```
 
 On first launch, grant Accessibility permission when prompted.
+
+## Build (Release Binary)
+
+```bash
+cd /Users/balli/code/WindNav
+swift build -c release --product WindNav
+```
+
+Binary output:
+
+```text
+/Users/balli/code/WindNav/.build/arm64-apple-macosx/release/WindNav
+```
+
+## Build App Bundle With Icon
+
+WindNav uses repo-owned icon assets:
+
+```text
+/Users/balli/code/WindNav/Packaging/windnav.svg
+/Users/balli/code/WindNav/Packaging/windnav.icns
+```
+
+Build app bundle (no args):
+
+```bash
+cd /Users/balli/code/WindNav
+./scripts/build_app.sh
+```
+
+Bundle output:
+
+```text
+/Users/balli/code/WindNav/dist/WindNav.app
+```
+
+Launch:
+
+```bash
+open /Users/balli/code/WindNav/dist/WindNav.app
+```
+
+Defaults:
+
+- `Bundle ID`: `com.windnav.app`
+- signing: skipped
+- app type: background agent (`LSUIElement=true`)
