@@ -274,8 +274,11 @@ final class NavigationCoordinator {
         guard hudConfig.enabled else { return }
 
         let items = groups.enumerated().map { index, group in
-            CycleHUDItem(
+            let representative = group.windows.first
+            return CycleHUDItem(
                 label: group.label,
+                iconPID: representative?.pid ?? 0,
+                iconBundleId: representative?.bundleId,
                 isPinned: group.isPinned,
                 isCurrent: index == selectedIndex
             )

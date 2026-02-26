@@ -3,6 +3,8 @@ import Foundation
 
 struct CycleHUDItem: Sendable {
     let label: String
+    let iconPID: pid_t
+    let iconBundleId: String?
     let isPinned: Bool
     let isCurrent: Bool
 }
@@ -18,6 +20,7 @@ final class CycleHUDController {
     private var panel: NSPanel?
     private var labelField: NSTextField?
     private var hideWorkItem: DispatchWorkItem?
+    private var iconCache: [String: NSImage] = [:]
 
     func show(model: CycleHUDModel, config: HUDConfig, timeoutMs: Int) {
         guard config.enabled, !model.items.isEmpty else {
@@ -27,7 +30,7 @@ final class CycleHUDController {
 
         let panel = ensurePanel()
         let labelField = ensureLabelField(in: panel)
-        labelField.attributedStringValue = attributedString(for: model)
+        labelField.attributedStringValue = attributedString(for: model, config: config)
         labelField.sizeToFit()
 
         let contentSize = CGSize(
@@ -106,7 +109,7 @@ final class CycleHUDController {
         field.frame = contentView.bounds.insetBy(dx: inset, dy: 8)
     }
 
-    private func attributedString(for model: CycleHUDModel) -> NSAttributedString {
+    private func attributedString(for model: CycleHUDModel, config: HUDConfig) -> NSAttributedString {
         let result = NSMutableAttributedString()
         for (index, item) in model.items.enumerated() {
             if index > 0 {
@@ -117,6 +120,12 @@ final class CycleHUDController {
             }
 
             let text = item.label
+            if config.showIcons, let icon = iconAttachment(for: item) {
+                result.append(icon)
+                result.append(NSAttributedString(string: " ", attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
+                ]))
+            }
 
             let attrs: [NSAttributedString.Key: Any] = item.isCurrent
                 ? [
@@ -136,13 +145,20 @@ final class CycleHUDController {
     }
 
     private func position(panel: NSPanel, monitorID: NSNumber, position: HUDPosition) {
-        guard position == .topCenter else { return }
         let screen = screen(for: monitorID) ?? NSScreen.main
         guard let screen else { return }
 
         let frame = screen.visibleFrame
         let x = frame.midX - panel.frame.width / 2
-        let y = frame.maxY - panel.frame.height - 24
+        let y: CGFloat
+        switch position {
+            case .topCenter:
+                y = frame.maxY - panel.frame.height - 24
+            case .middleCenter:
+                y = frame.midY - panel.frame.height / 2
+            case .bottomCenter:
+                y = frame.minY + 24
+        }
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
@@ -162,5 +178,42 @@ final class CycleHUDController {
         }
         hideWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeoutMs), execute: item)
+    }
+
+    private func iconAttachment(for item: CycleHUDItem) -> NSAttributedString? {
+        guard let icon = resolvedAppIcon(for: item) else { return nil }
+        let attachment = NSTextAttachment()
+        attachment.image = icon
+        attachment.bounds = NSRect(x: 0, y: -2, width: 16, height: 16)
+        return NSAttributedString(attachment: attachment)
+    }
+
+    private func resolvedAppIcon(for item: CycleHUDItem) -> NSImage? {
+        let cacheKey = item.iconBundleId.map { "bundle:\($0)" } ?? "pid:\(item.iconPID)"
+        if let cached = iconCache[cacheKey] {
+            return cached
+        }
+
+        guard let app = NSRunningApplication(processIdentifier: item.iconPID),
+              let image = app.icon else {
+            return nil
+        }
+
+        let scaled = scaledIcon(image, size: 16)
+        iconCache[cacheKey] = scaled
+        return scaled
+    }
+
+    private func scaledIcon(_ image: NSImage, size: CGFloat) -> NSImage {
+        let scaled = NSImage(size: NSSize(width: size, height: size))
+        scaled.lockFocus()
+        defer { scaled.unlockFocus() }
+        image.draw(
+            in: NSRect(x: 0, y: 0, width: size, height: size),
+            from: NSRect(origin: .zero, size: image.size),
+            operation: .sourceOver,
+            fraction: 1.0
+        )
+        return scaled
     }
 }

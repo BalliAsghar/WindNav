@@ -37,6 +37,7 @@ launch-on-login = false
 
 [hud]
 enabled = false
+show-icons = false
 position = "top-center"
 ```
 
@@ -44,6 +45,7 @@ position = "top-center"
 `up/down` are intentionally not bound in v1.1.
 Config changes are applied on startup. Restart WindNav after editing `config.toml`.
 `launch-on-login` is applied on startup.
+HUD positions: `top-center`, `middle-center`, `bottom-center`.
 
 ## Log Output
 

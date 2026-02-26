@@ -193,6 +193,16 @@ final class ConfigLoader {
                 )
             }
 
+            if let showIcons = hudTable["show-icons"]?.bool {
+                hud.showIcons = showIcons
+            } else if let raw = hudTable["show-icons"] {
+                throw ConfigError.invalidValue(
+                    key: "hud.show-icons",
+                    expected: "true|false",
+                    actual: renderedValue(raw)
+                )
+            }
+
             Self.logIgnoredRemovedKeys([
                 hudTable["show-window-count"] != nil ? "hud.show-window-count" : nil,
             ])
@@ -201,7 +211,7 @@ final class ConfigLoader {
                 guard let value = HUDPosition(rawValue: positionRaw) else {
                     throw ConfigError.invalidValue(
                         key: "hud.position",
-                        expected: "top-center",
+                        expected: "top-center|middle-center|bottom-center",
                         actual: positionRaw
                     )
                 }

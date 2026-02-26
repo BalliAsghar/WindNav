@@ -29,6 +29,8 @@ public enum GroupingMode: String, Sendable {
 
 public enum HUDPosition: String, Sendable {
     case topCenter = "top-center"
+    case middleCenter = "middle-center"
+    case bottomCenter = "bottom-center"
 }
 
 public struct WindowSnapshot: Equatable, Sendable {

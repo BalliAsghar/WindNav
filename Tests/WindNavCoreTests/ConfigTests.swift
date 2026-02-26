@@ -22,6 +22,7 @@ final class ConfigTests: XCTestCase {
 
             [hud]
             enabled = true
+            show-icons = true
             position = "top-center"
             """
         )
@@ -33,6 +34,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.logging.color, .auto)
         XCTAssertEqual(cfg.startup.launchOnLogin, true)
         XCTAssertTrue(cfg.hud.enabled)
+        XCTAssertTrue(cfg.hud.showIcons)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -50,6 +52,7 @@ final class ConfigTests: XCTestCase {
 
             [hud]
             enabled = true
+            show-icons = false
             position = "top-center"
             """
         )
@@ -60,6 +63,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.fixedAppRing.inAppWindow, .lastFocusedOnMonitor)
         XCTAssertEqual(cfg.navigation.fixedAppRing.grouping, .oneStopPerApp)
         XCTAssertTrue(cfg.hud.enabled)
+        XCTAssertFalse(cfg.hud.showIcons)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -91,6 +95,7 @@ final class ConfigTests: XCTestCase {
 
             [hud]
             enabled = true
+            show-icons = true
             show-window-count = "yes"
             position = "top-center"
             """
@@ -100,6 +105,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.hotkeys.focusRight, "cmd-right")
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 900)
         XCTAssertTrue(cfg.hud.enabled)
+        XCTAssertTrue(cfg.hud.showIcons)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -168,6 +174,28 @@ final class ConfigTests: XCTestCase {
                 """
             )
         )
+    }
+
+    func testParseHUDMiddleCenterPosition() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [hud]
+            position = "middle-center"
+            """
+        )
+
+        XCTAssertEqual(cfg.hud.position, .middleCenter)
+    }
+
+    func testParseHUDBottomCenterPosition() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [hud]
+            position = "bottom-center"
+            """
+        )
+
+        XCTAssertEqual(cfg.hud.position, .bottomCenter)
     }
 
     func testParseNonArrayPinnedAppsThrows() {
