@@ -52,6 +52,7 @@ final class ConfigLoader {
         var navigation = NavigationConfig.default
         var logging = LoggingConfig.default
         var startup = StartupConfig.default
+        var hud = HUDConfig.default
 
         if let hotkeysTable = table["hotkeys"]?.table {
             hotkeys.focusLeft = hotkeysTable["focus-left"]?.string ?? hotkeys.focusLeft
@@ -75,7 +76,11 @@ final class ConfigLoader {
                 } else if let value = NavigationPolicy(rawValue: policyRaw) {
                     navigation.policy = value
                 } else {
-                    throw ConfigError.invalidValue(key: "navigation.policy", expected: "mru-cycle", actual: policyRaw)
+                    throw ConfigError.invalidValue(
+                        key: "navigation.policy",
+                        expected: "mru-cycle|fixed-app-ring",
+                        actual: policyRaw
+                    )
                 }
             }
             if let behaviorRaw = navTable["no-candidate"]?.string {
@@ -99,6 +104,64 @@ final class ConfigLoader {
                     )
                 }
                 navigation.cycleTimeoutMs = cycleTimeout
+            }
+
+            if let fixedAppRingTable = navTable["fixed-app-ring"]?.table {
+                if let pinnedAppsValue = fixedAppRingTable["pinned-apps"] {
+                    guard let array = pinnedAppsValue.array else {
+                        throw ConfigError.invalidValue(
+                            key: "navigation.fixed-app-ring.pinned-apps",
+                            expected: "array of strings",
+                            actual: renderedValue(pinnedAppsValue)
+                        )
+                    }
+
+                    var parsed: [String] = []
+                    for element in array {
+                        guard let string = element.string else {
+                            throw ConfigError.invalidValue(
+                                key: "navigation.fixed-app-ring.pinned-apps",
+                                expected: "array of strings",
+                                actual: renderedValue(pinnedAppsValue)
+                            )
+                        }
+                        parsed.append(string)
+                    }
+                    navigation.fixedAppRing.pinnedApps = parsed
+                }
+
+                if let unpinnedRaw = fixedAppRingTable["unpinned-apps"]?.string {
+                    guard let value = UnpinnedAppsPolicy(rawValue: unpinnedRaw) else {
+                        throw ConfigError.invalidValue(
+                            key: "navigation.fixed-app-ring.unpinned-apps",
+                            expected: "append|ignore|alphabetical-tail",
+                            actual: unpinnedRaw
+                        )
+                    }
+                    navigation.fixedAppRing.unpinnedApps = value
+                }
+
+                if let inAppRaw = fixedAppRingTable["in-app-window"]?.string {
+                    guard let value = InAppWindowSelectionPolicy(rawValue: inAppRaw) else {
+                        throw ConfigError.invalidValue(
+                            key: "navigation.fixed-app-ring.in-app-window",
+                            expected: "last-focused|last-focused-on-monitor|spatial",
+                            actual: inAppRaw
+                        )
+                    }
+                    navigation.fixedAppRing.inAppWindow = value
+                }
+
+                if let groupingRaw = fixedAppRingTable["grouping"]?.string {
+                    guard let value = GroupingMode(rawValue: groupingRaw) else {
+                        throw ConfigError.invalidValue(
+                            key: "navigation.fixed-app-ring.grouping",
+                            expected: "one-stop-per-app",
+                            actual: groupingRaw
+                        )
+                    }
+                    navigation.fixedAppRing.grouping = value
+                }
             }
         }
 
@@ -131,7 +194,40 @@ final class ConfigLoader {
             }
         }
 
-        return WindNavConfig(hotkeys: hotkeys, navigation: navigation, logging: logging, startup: startup)
+        if let hudTable = table["hud"]?.table {
+            if let enabled = hudTable["enabled"]?.bool {
+                hud.enabled = enabled
+            } else if let raw = hudTable["enabled"] {
+                throw ConfigError.invalidValue(
+                    key: "hud.enabled",
+                    expected: "true|false",
+                    actual: renderedValue(raw)
+                )
+            }
+
+            if let showWindowCount = hudTable["show-window-count"]?.bool {
+                hud.showWindowCount = showWindowCount
+            } else if let raw = hudTable["show-window-count"] {
+                throw ConfigError.invalidValue(
+                    key: "hud.show-window-count",
+                    expected: "true|false",
+                    actual: renderedValue(raw)
+                )
+            }
+
+            if let positionRaw = hudTable["position"]?.string {
+                guard let value = HUDPosition(rawValue: positionRaw) else {
+                    throw ConfigError.invalidValue(
+                        key: "hud.position",
+                        expected: "top-center",
+                        actual: positionRaw
+                    )
+                }
+                hud.position = value
+            }
+        }
+
+        return WindNavConfig(hotkeys: hotkeys, navigation: navigation, logging: logging, startup: startup, hud: hud)
     }
 
     private static func renderedValue(_ value: any TOMLValueConvertible) -> String {

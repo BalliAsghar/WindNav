@@ -12,6 +12,7 @@ public enum NavigationScope: String, Sendable {
 
 public enum NavigationPolicy: String, Sendable {
     case mruCycle = "mru-cycle"
+    case fixedAppRing = "fixed-app-ring"
 }
 
 public enum NoCandidateBehavior: String, Sendable {
@@ -20,6 +21,26 @@ public enum NoCandidateBehavior: String, Sendable {
 
 public enum FilteringMode: String, Sendable {
     case conservative
+}
+
+public enum UnpinnedAppsPolicy: String, Sendable {
+    case append
+    case ignore
+    case alphabeticalTail = "alphabetical-tail"
+}
+
+public enum InAppWindowSelectionPolicy: String, Sendable {
+    case lastFocused = "last-focused"
+    case lastFocusedOnMonitor = "last-focused-on-monitor"
+    case spatial
+}
+
+public enum GroupingMode: String, Sendable {
+    case oneStopPerApp = "one-stop-per-app"
+}
+
+public enum HUDPosition: String, Sendable {
+    case topCenter = "top-center"
 }
 
 public struct WindowSnapshot: Equatable, Sendable {

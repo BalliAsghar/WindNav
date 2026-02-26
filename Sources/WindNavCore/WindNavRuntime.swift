@@ -4,15 +4,17 @@ import Foundation
 @MainActor
 public final class WindNavRuntime {
     private let configLoader: ConfigLoader
-    private let configWatcher: ConfigWatcher
     private let windowProvider: AXWindowProvider
     private let focusPerformer: AXFocusPerformer
     private let observerHub: AXEventObserverHub
     private let cache: WindowStateCache
     private let navigator: LogicalCycleNavigator
     private let mruOrderStore: MRUWindowOrderStore
+    private let appRingStateStore: AppRingStateStore
+    private let appFocusMemoryStore: AppFocusMemoryStore
     private let hotkeys: CarbonHotkeyRegistrar
     private let launchAtLoginManager: any LaunchAtLoginManaging
+    private let hudController: CycleHUDController
 
     private var coordinator: NavigationCoordinator?
 
@@ -23,15 +25,17 @@ public final class WindNavRuntime {
     init(configURL: URL?, launchAtLoginManager: any LaunchAtLoginManaging) {
         let resolvedURL = configURL ?? Self.defaultConfigURL()
         configLoader = ConfigLoader(configURL: resolvedURL)
-        configWatcher = ConfigWatcher(configURL: resolvedURL)
         windowProvider = AXWindowProvider()
         focusPerformer = AXFocusPerformer()
         observerHub = AXEventObserverHub()
         cache = WindowStateCache(provider: windowProvider)
         navigator = LogicalCycleNavigator()
         mruOrderStore = MRUWindowOrderStore()
+        appRingStateStore = AppRingStateStore()
+        appFocusMemoryStore = AppFocusMemoryStore()
         hotkeys = CarbonHotkeyRegistrar()
         self.launchAtLoginManager = launchAtLoginManager
+        hudController = CycleHUDController()
     }
 
     public func start() {
@@ -42,6 +46,7 @@ public final class WindNavRuntime {
             let config = try configLoader.loadOrCreate()
             Logger.info(.config, "Loaded config from \(configLoader.configURL.path)")
             try apply(config: config)
+            Logger.info(.config, "Config changes require restarting WindNav (live reload disabled)")
         } catch {
             Logger.error(.config, "Failed to load config: \(error.localizedDescription)")
             NSApp.terminate(nil)
@@ -60,6 +65,7 @@ public final class WindNavRuntime {
             guard let self else { return }
             Task { @MainActor in
                 await self.cache.refresh()
+                await self.coordinator?.recordCurrentSystemFocusIfAvailable()
             }
         }
         Logger.info(.observer, "Starting AX/Workspace observers")
@@ -69,24 +75,7 @@ public final class WindNavRuntime {
             await cache.refresh()
         }
 
-        Logger.info(.config, "Starting config watcher")
-        configWatcher.start { [weak self] in
-            guard let self else { return }
-            Logger.info(.config, "Config file change detected")
-            self.reloadConfig()
-        }
-
         Logger.info(.runtime, "WindNav is running")
-    }
-
-    private func reloadConfig() {
-        do {
-            let config = try configLoader.loadOrCreate()
-            try apply(config: config)
-            Logger.info(.config, "Config reloaded")
-        } catch {
-            Logger.error(.config, "Config reload failed: \(error.localizedDescription)")
-        }
     }
 
     private func apply(config: WindNavConfig) throws {
@@ -104,10 +93,14 @@ public final class WindNavRuntime {
                 focusPerformer: focusPerformer,
                 navigator: navigator,
                 mruOrderStore: mruOrderStore,
-                navigationConfig: config.navigation
+                appRingStateStore: appRingStateStore,
+                appFocusMemoryStore: appFocusMemoryStore,
+                hudController: hudController,
+                navigationConfig: config.navigation,
+                hudConfig: config.hud
             )
         } else {
-            coordinator?.updateConfig(config.navigation)
+            coordinator?.updateConfig(navigation: config.navigation, hud: config.hud)
             Logger.info(.navigation, "Navigation config updated")
         }
 

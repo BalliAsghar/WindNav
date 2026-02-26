@@ -22,6 +22,11 @@ final class ConfigTests: XCTestCase {
 
             [startup]
             launch-on-login = true
+
+            [hud]
+            enabled = true
+            show-window-count = false
+            position = "top-center"
             """
         )
 
@@ -34,6 +39,38 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.logging.level, .info)
         XCTAssertEqual(cfg.logging.color, .auto)
         XCTAssertEqual(cfg.startup.launchOnLogin, true)
+        XCTAssertTrue(cfg.hud.enabled)
+        XCTAssertFalse(cfg.hud.showWindowCount)
+        XCTAssertEqual(cfg.hud.position, .topCenter)
+    }
+
+    func testParseFixedAppRingAndHUDConfig() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [navigation]
+            policy = "fixed-app-ring"
+
+            [navigation.fixed-app-ring]
+            pinned-apps = ["com.google.Chrome", "com.apple.Terminal"]
+            unpinned-apps = "append"
+            in-app-window = "last-focused-on-monitor"
+            grouping = "one-stop-per-app"
+
+            [hud]
+            enabled = true
+            show-window-count = true
+            position = "top-center"
+            """
+        )
+
+        XCTAssertEqual(cfg.navigation.policy, .fixedAppRing)
+        XCTAssertEqual(cfg.navigation.fixedAppRing.pinnedApps, ["com.google.Chrome", "com.apple.Terminal"])
+        XCTAssertEqual(cfg.navigation.fixedAppRing.unpinnedApps, .append)
+        XCTAssertEqual(cfg.navigation.fixedAppRing.inAppWindow, .lastFocusedOnMonitor)
+        XCTAssertEqual(cfg.navigation.fixedAppRing.grouping, .oneStopPerApp)
+        XCTAssertTrue(cfg.hud.enabled)
+        XCTAssertTrue(cfg.hud.showWindowCount)
+        XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
     func testParseNaturalPolicyAliasMapsToMruCycle() throws {
@@ -91,6 +128,61 @@ final class ConfigTests: XCTestCase {
                 """
                 [navigation]
                 policy = "spatial"
+                """
+            )
+        )
+    }
+
+    func testParseInvalidFixedAppRingUnpinnedAppsThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation.fixed-app-ring]
+                unpinned-apps = "random"
+                """
+            )
+        )
+    }
+
+    func testParseInvalidFixedAppRingInAppWindowThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation.fixed-app-ring]
+                in-app-window = "mru"
+                """
+            )
+        )
+    }
+
+    func testParseInvalidFixedAppRingGroupingThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation.fixed-app-ring]
+                grouping = "per-window"
+                """
+            )
+        )
+    }
+
+    func testParseInvalidHUDPositionThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [hud]
+                position = "bottom-left"
+                """
+            )
+        )
+    }
+
+    func testParseNonArrayPinnedAppsThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation.fixed-app-ring]
+                pinned-apps = "com.apple.Terminal"
                 """
             )
         )

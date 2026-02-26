@@ -5,19 +5,28 @@ public struct WindNavConfig: Equatable, Sendable {
     public var navigation: NavigationConfig
     public var logging: LoggingConfig
     public var startup: StartupConfig
+    public var hud: HUDConfig
 
-    public init(hotkeys: HotkeysConfig, navigation: NavigationConfig, logging: LoggingConfig, startup: StartupConfig) {
+    public init(
+        hotkeys: HotkeysConfig,
+        navigation: NavigationConfig,
+        logging: LoggingConfig,
+        startup: StartupConfig,
+        hud: HUDConfig
+    ) {
         self.hotkeys = hotkeys
         self.navigation = navigation
         self.logging = logging
         self.startup = startup
+        self.hud = hud
     }
 
     public static let `default` = WindNavConfig(
         hotkeys: .default,
         navigation: .default,
         logging: .default,
-        startup: .default
+        startup: .default,
+        hud: .default
     )
 }
 
@@ -42,19 +51,22 @@ public struct NavigationConfig: Equatable, Sendable {
     public var noCandidate: NoCandidateBehavior
     public var filtering: FilteringMode
     public var cycleTimeoutMs: Int
+    public var fixedAppRing: FixedAppRingConfig
 
     public init(
         scope: NavigationScope,
         policy: NavigationPolicy,
         noCandidate: NoCandidateBehavior,
         filtering: FilteringMode,
-        cycleTimeoutMs: Int
+        cycleTimeoutMs: Int,
+        fixedAppRing: FixedAppRingConfig
     ) {
         self.scope = scope
         self.policy = policy
         self.noCandidate = noCandidate
         self.filtering = filtering
         self.cycleTimeoutMs = cycleTimeoutMs
+        self.fixedAppRing = fixedAppRing
     }
 
     public static let `default` = NavigationConfig(
@@ -62,7 +74,34 @@ public struct NavigationConfig: Equatable, Sendable {
         policy: .mruCycle,
         noCandidate: .noop,
         filtering: .conservative,
-        cycleTimeoutMs: 900
+        cycleTimeoutMs: 900,
+        fixedAppRing: .default
+    )
+}
+
+public struct FixedAppRingConfig: Equatable, Sendable {
+    public var pinnedApps: [String]
+    public var unpinnedApps: UnpinnedAppsPolicy
+    public var inAppWindow: InAppWindowSelectionPolicy
+    public var grouping: GroupingMode
+
+    public init(
+        pinnedApps: [String],
+        unpinnedApps: UnpinnedAppsPolicy,
+        inAppWindow: InAppWindowSelectionPolicy,
+        grouping: GroupingMode
+    ) {
+        self.pinnedApps = pinnedApps
+        self.unpinnedApps = unpinnedApps
+        self.inAppWindow = inAppWindow
+        self.grouping = grouping
+    }
+
+    public static let `default` = FixedAppRingConfig(
+        pinnedApps: [],
+        unpinnedApps: .append,
+        inAppWindow: .lastFocused,
+        grouping: .oneStopPerApp
     )
 }
 
@@ -90,6 +129,24 @@ public struct StartupConfig: Equatable, Sendable {
 
     public static let `default` = StartupConfig(
         launchOnLogin: false
+    )
+}
+
+public struct HUDConfig: Equatable, Sendable {
+    public var enabled: Bool
+    public var showWindowCount: Bool
+    public var position: HUDPosition
+
+    public init(enabled: Bool, showWindowCount: Bool, position: HUDPosition) {
+        self.enabled = enabled
+        self.showWindowCount = showWindowCount
+        self.position = position
+    }
+
+    public static let `default` = HUDConfig(
+        enabled: false,
+        showWindowCount: true,
+        position: .topCenter
     )
 }
 
@@ -123,11 +180,25 @@ extension WindNavConfig {
     filtering = "conservative"
     cycle-timeout-ms = 900
 
+    # To enable predictable app-level cycling:
+    # policy = "fixed-app-ring"
+    #
+    # [navigation.fixed-app-ring]
+    # pinned-apps = ["com.google.Chrome", "com.apple.Terminal", "com.microsoft.VSCode"]
+    # unpinned-apps = "append"
+    # in-app-window = "last-focused"
+    # grouping = "one-stop-per-app"
+
     [logging]
     level = "info"
     color = "auto"
 
     [startup]
     launch-on-login = false
+
+    [hud]
+    enabled = false
+    show-window-count = true
+    position = "top-center"
     """
 }

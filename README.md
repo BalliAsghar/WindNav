@@ -13,7 +13,7 @@ It preserves your current window layout and only changes focus.
 - AX window discovery for visible standard windows
 - Logical focus cycling (`left/right`) using MRU order
 - Current-monitor-only targeting
-- TOML config with auto-reload
+- TOML config (loaded on startup)
 
 ## Config
 
@@ -41,7 +41,8 @@ launch-on-login = false
 
 `left` means previous window in the logical cycle, and `right` means next.
 `up/down` are intentionally not bound in v1.1.
-`launch-on-login` is applied on startup and on config reload.
+Config changes are applied on startup. Restart WindNav after editing `config.toml`.
+`launch-on-login` is applied on startup.
 
 ## Log Output
 
