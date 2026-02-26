@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="Packaging/windnav.svg" alt="FeatherFlow Icon" width="128" height="128">
+</p>
+
 # WindNav
 
 WindNav is a lightweight macOS keyboard navigation agent.
