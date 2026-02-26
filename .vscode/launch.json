@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:WindNav}",
+            "name": "Debug WindNav",
+            "target": "WindNav",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug WindNav"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:WindNav}",
+            "name": "Release WindNav",
+            "target": "WindNav",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release WindNav"
+        }
+    ]
+}
