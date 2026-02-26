@@ -284,6 +284,7 @@ final class NavigationCoordinator {
             )
         }
         let model = CycleHUDModel(items: items, selectedIndex: selectedIndex, monitorID: monitorID)
-        hudController.show(model: model, config: hudConfig, timeoutMs: navigationConfig.cycleTimeoutMs)
+        let hideDelayMs = hudConfig.hideDelayMs ?? navigationConfig.cycleTimeoutMs
+        hudController.show(model: model, config: hudConfig, timeoutMs: hideDelayMs)
     }
 }

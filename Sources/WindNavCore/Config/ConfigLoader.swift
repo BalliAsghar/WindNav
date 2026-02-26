@@ -203,6 +203,23 @@ final class ConfigLoader {
                 )
             }
 
+            if let hideDelay = hudTable["hide-delay-ms"]?.int {
+                guard hideDelay > 0 else {
+                    throw ConfigError.invalidValue(
+                        key: "hud.hide-delay-ms",
+                        expected: "positive integer",
+                        actual: "\(hideDelay)"
+                    )
+                }
+                hud.hideDelayMs = hideDelay
+            } else if let raw = hudTable["hide-delay-ms"] {
+                throw ConfigError.invalidValue(
+                    key: "hud.hide-delay-ms",
+                    expected: "positive integer",
+                    actual: renderedValue(raw)
+                )
+            }
+
             Self.logIgnoredRemovedKeys([
                 hudTable["show-window-count"] != nil ? "hud.show-window-count" : nil,
             ])

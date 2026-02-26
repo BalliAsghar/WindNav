@@ -38,6 +38,7 @@ launch-on-login = false
 [hud]
 enabled = false
 show-icons = false
+hide-delay-ms = 900
 position = "top-center"
 ```
 

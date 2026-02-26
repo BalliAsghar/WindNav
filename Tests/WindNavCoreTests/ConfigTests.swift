@@ -23,6 +23,7 @@ final class ConfigTests: XCTestCase {
             [hud]
             enabled = true
             show-icons = true
+            hide-delay-ms = 1200
             position = "top-center"
             """
         )
@@ -35,6 +36,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.startup.launchOnLogin, true)
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertTrue(cfg.hud.showIcons)
+        XCTAssertEqual(cfg.hud.hideDelayMs, 1200)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -53,6 +55,7 @@ final class ConfigTests: XCTestCase {
             [hud]
             enabled = true
             show-icons = false
+            hide-delay-ms = 600
             position = "top-center"
             """
         )
@@ -64,6 +67,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.fixedAppRing.grouping, .oneStopPerApp)
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertFalse(cfg.hud.showIcons)
+        XCTAssertEqual(cfg.hud.hideDelayMs, 600)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -171,6 +175,17 @@ final class ConfigTests: XCTestCase {
                 """
                 [hud]
                 position = "bottom-left"
+                """
+            )
+        )
+    }
+
+    func testParseInvalidHUDHideDelayThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [hud]
+                hide-delay-ms = 0
                 """
             )
         )

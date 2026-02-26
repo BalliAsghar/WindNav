@@ -123,17 +123,20 @@ public struct StartupConfig: Equatable, Sendable {
 public struct HUDConfig: Equatable, Sendable {
     public var enabled: Bool
     public var showIcons: Bool
+    public var hideDelayMs: Int?
     public var position: HUDPosition
 
-    public init(enabled: Bool, showIcons: Bool, position: HUDPosition) {
+    public init(enabled: Bool, showIcons: Bool, hideDelayMs: Int?, position: HUDPosition) {
         self.enabled = enabled
         self.showIcons = showIcons
+        self.hideDelayMs = hideDelayMs
         self.position = position
     }
 
     public static let `default` = HUDConfig(
         enabled: false,
         showIcons: false,
+        hideDelayMs: nil,
         position: .topCenter
     )
 }
@@ -184,6 +187,7 @@ extension WindNavConfig {
     [hud]
     enabled = false
     show-icons = false
+    # hide-delay-ms = 900
     position = "top-center"
     """
 }
