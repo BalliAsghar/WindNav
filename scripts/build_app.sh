@@ -9,18 +9,13 @@ if [[ "$#" -ne 0 ]]; then
 fi
 
 BUNDLE_ID="com.windnav.app"
-ICON_ICNS_PATH="$ROOT_DIR/Packaging/windnav.icns"
-ICON_SVG_PATH="$ROOT_DIR/Packaging/windnav.svg"
+ICON_ICNS_PATH="$ROOT_DIR/Packaging/WindNav-Icon.icns"
 
 if [[ ! -f "$ICON_ICNS_PATH" ]]; then
     echo "error: missing icon file: $ICON_ICNS_PATH" >&2
     exit 1
 fi
 
-if [[ ! -f "$ICON_SVG_PATH" ]]; then
-    echo "error: missing source icon file: $ICON_SVG_PATH" >&2
-    exit 1
-fi
 
 PLIST_TEMPLATE="$ROOT_DIR/Packaging/Info.plist.template"
 if [[ ! -f "$PLIST_TEMPLATE" ]]; then

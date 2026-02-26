@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="Packaging/windnav.svg" alt="FeatherFlow Icon" width="128" height="128">
+    <img src="Packaging/WindNav-Icon.png" alt="FeatherFlow Icon" width="128" height="128">
 </p>
 
 # WindNav
