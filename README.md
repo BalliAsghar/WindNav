@@ -72,6 +72,7 @@ swift run WindNav
 On first launch, grant Accessibility permission when prompted.
 If `launch-on-login` is enabled, run as bundled app (`dist/WindNav.app`) for `SMAppService.mainApp` registration behavior.
 When running with `swift run WindNav`, launch-at-login registration can fail and is logged but non-fatal.
+When running as `dist/WindNav.app`, stdout/stderr are redirected to `/tmp/windnav.log`.
 
 ## Build (Release Binary)
 
