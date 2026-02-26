@@ -51,6 +51,7 @@ final class ConfigLoader {
         var hotkeys = HotkeysConfig.default
         var navigation = NavigationConfig.default
         var logging = LoggingConfig.default
+        var startup = StartupConfig.default
 
         if let hotkeysTable = table["hotkeys"]?.table {
             hotkeys.focusLeft = hotkeysTable["focus-left"]?.string ?? hotkeys.focusLeft
@@ -117,6 +118,23 @@ final class ConfigLoader {
             }
         }
 
-        return WindNavConfig(hotkeys: hotkeys, navigation: navigation, logging: logging)
+        if let startupTable = table["startup"]?.table {
+            if let launchOnLoginValue = startupTable["launch-on-login"] {
+                guard let launchOnLogin = launchOnLoginValue.bool else {
+                    throw ConfigError.invalidValue(
+                        key: "startup.launch-on-login",
+                        expected: "true|false",
+                        actual: renderedValue(launchOnLoginValue)
+                    )
+                }
+                startup.launchOnLogin = launchOnLogin
+            }
+        }
+
+        return WindNavConfig(hotkeys: hotkeys, navigation: navigation, logging: logging, startup: startup)
+    }
+
+    private static func renderedValue(_ value: any TOMLValueConvertible) -> String {
+        String(describing: value).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

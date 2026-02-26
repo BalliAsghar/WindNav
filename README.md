@@ -30,10 +30,14 @@ cycle-timeout-ms = 900
 [logging]
 level = "info" # info|error
 color = "auto" # auto|always|never
+
+[startup]
+launch-on-login = false
 ```
 
 `left` means previous window in the logical cycle, and `right` means next.
 `up/down` are intentionally not bound in v1.1.
+`launch-on-login` is applied on startup and on config reload.
 
 ## Log Output
 
@@ -42,10 +46,20 @@ WindNav writes structured logs to stdout:
 ```text
 [07:10:11] Runtime    -> Starting WindNav
 [07:10:11] Config     -> Loaded config from /Users/balli/.config/windnav/config.toml
+[07:10:11] Startup    -> Launch-on-login already disabled (status=notRegistered)
 [07:10:11] Hotkey     -> Registered left (keyCode=123, modifiers=256)
 [07:10:13] Hotkey     -> Hotkey pressed: right
 [07:10:13] Navigation -> Direction=right focused=52361 candidates=5
 [07:10:13] Navigation -> Focused target window 52403
+```
+
+Launch-at-login can additionally log:
+
+```text
+[07:10:11] Startup    -> Applying launch-on-login=true (status-before=notRegistered)
+[07:10:11] Startup    -> Launch-on-login set requested=true status-after=enabled
+[07:10:11] Startup    -> Launch-on-login set requested=true status-after=requiresApproval
+[07:10:11] Startup    -> Failed to apply launch-on-login=true; continuing startup: <error>
 ```
 
 ## Run (Dev)
@@ -56,6 +70,8 @@ swift run WindNav
 ```
 
 On first launch, grant Accessibility permission when prompted.
+If `launch-on-login` is enabled, run as bundled app (`dist/WindNav.app`) for `SMAppService.mainApp` registration behavior.
+When running with `swift run WindNav`, launch-at-login registration can fail and is logged but non-fatal.
 
 ## Build (Release Binary)
 

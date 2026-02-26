@@ -4,17 +4,20 @@ public struct WindNavConfig: Equatable, Sendable {
     public var hotkeys: HotkeysConfig
     public var navigation: NavigationConfig
     public var logging: LoggingConfig
+    public var startup: StartupConfig
 
-    public init(hotkeys: HotkeysConfig, navigation: NavigationConfig, logging: LoggingConfig) {
+    public init(hotkeys: HotkeysConfig, navigation: NavigationConfig, logging: LoggingConfig, startup: StartupConfig) {
         self.hotkeys = hotkeys
         self.navigation = navigation
         self.logging = logging
+        self.startup = startup
     }
 
     public static let `default` = WindNavConfig(
         hotkeys: .default,
         navigation: .default,
-        logging: .default
+        logging: .default,
+        startup: .default
     )
 }
 
@@ -78,6 +81,18 @@ public struct LoggingConfig: Equatable, Sendable {
     )
 }
 
+public struct StartupConfig: Equatable, Sendable {
+    public var launchOnLogin: Bool
+
+    public init(launchOnLogin: Bool) {
+        self.launchOnLogin = launchOnLogin
+    }
+
+    public static let `default` = StartupConfig(
+        launchOnLogin: false
+    )
+}
+
 enum ConfigError: LocalizedError, Equatable {
     case invalidToml(String)
     case invalidValue(key: String, expected: String, actual: String)
@@ -111,5 +126,8 @@ extension WindNavConfig {
     [logging]
     level = "info"
     color = "auto"
+
+    [startup]
+    launch-on-login = false
     """
 }

@@ -15,6 +15,7 @@ public enum LogColorMode: String, Sendable {
 public enum LogSystem: String, Sendable {
     case runtime = "Runtime"
     case config = "Config"
+    case startup = "Startup"
     case hotkey = "Hotkey"
     case navigation = "Navigation"
     case ax = "AX"
@@ -27,6 +28,8 @@ public enum LogSystem: String, Sendable {
                 ANSIColor.cyan
             case .config:
                 ANSIColor.yellow
+            case .startup:
+                ANSIColor.brightYellow
             case .hotkey:
                 ANSIColor.magenta
             case .navigation:
@@ -174,6 +177,7 @@ private enum ANSIColor {
     static let gray = "\u{001B}[90m"
     static let cyan = "\u{001B}[36m"
     static let yellow = "\u{001B}[33m"
+    static let brightYellow = "\u{001B}[93m"
     static let magenta = "\u{001B}[35m"
     static let blue = "\u{001B}[34m"
     static let green = "\u{001B}[32m"

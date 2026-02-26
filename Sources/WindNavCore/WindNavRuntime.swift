@@ -12,10 +12,15 @@ public final class WindNavRuntime {
     private let navigator: LogicalCycleNavigator
     private let mruOrderStore: MRUWindowOrderStore
     private let hotkeys: CarbonHotkeyRegistrar
+    private let launchAtLoginManager: any LaunchAtLoginManaging
 
     private var coordinator: NavigationCoordinator?
 
-    public init(configURL: URL? = nil) {
+    public convenience init(configURL: URL? = nil) {
+        self.init(configURL: configURL, launchAtLoginManager: LaunchAtLoginManager())
+    }
+
+    init(configURL: URL?, launchAtLoginManager: any LaunchAtLoginManaging) {
         let resolvedURL = configURL ?? Self.defaultConfigURL()
         configLoader = ConfigLoader(configURL: resolvedURL)
         configWatcher = ConfigWatcher(configURL: resolvedURL)
@@ -26,6 +31,7 @@ public final class WindNavRuntime {
         navigator = LogicalCycleNavigator()
         mruOrderStore = MRUWindowOrderStore()
         hotkeys = CarbonHotkeyRegistrar()
+        self.launchAtLoginManager = launchAtLoginManager
     }
 
     public func start() {
@@ -86,6 +92,7 @@ public final class WindNavRuntime {
     private func apply(config: WindNavConfig) throws {
         Logger.configure(level: config.logging.level, colorMode: config.logging.color)
         Logger.info(.config, "Logging configured (level=\(config.logging.level.rawValue), color=\(config.logging.color.rawValue))")
+        applyLaunchAtLogin(config.startup.launchOnLogin)
 
         let parsedBindings = try parseBindings(config.hotkeys)
         Logger.info(.hotkey, "Parsed hotkey bindings")
@@ -122,5 +129,26 @@ public final class WindNavRuntime {
             .appending(path: ".config", directoryHint: .isDirectory)
             .appending(path: "windnav", directoryHint: .isDirectory)
             .appending(path: "config.toml", directoryHint: .notDirectory)
+    }
+
+    func applyLaunchAtLogin(_ enabled: Bool) {
+        let requested = enabled ? "true" : "false"
+        let statusBefore = launchAtLoginManager.statusDescription
+
+        if launchAtLoginManager.isEnabled == enabled {
+            Logger.info(
+                .startup,
+                "Launch-on-login already \(enabled ? "enabled" : "disabled") (status=\(statusBefore))"
+            )
+            return
+        }
+
+        Logger.info(.startup, "Applying launch-on-login=\(requested) (status-before=\(statusBefore))")
+
+        do {
+            try launchAtLoginManager.setEnabled(enabled)
+        } catch {
+            Logger.error(.startup, "Failed to apply launch-on-login=\(requested); continuing startup: \(error.localizedDescription)")
+        }
     }
 }

@@ -19,6 +19,9 @@ final class ConfigTests: XCTestCase {
             [logging]
             level = "info"
             color = "auto"
+
+            [startup]
+            launch-on-login = true
             """
         )
 
@@ -30,6 +33,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
         XCTAssertEqual(cfg.logging.level, .info)
         XCTAssertEqual(cfg.logging.color, .auto)
+        XCTAssertEqual(cfg.startup.launchOnLogin, true)
     }
 
     func testParseNaturalPolicyAliasMapsToMruCycle() throws {
@@ -56,6 +60,18 @@ final class ConfigTests: XCTestCase {
 
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
         XCTAssertEqual(cfg.hotkeys.focusRight, "cmd-right")
+    }
+
+    func testMissingStartupSectionDefaultsToFalse() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [hotkeys]
+            focus-left = "cmd-left"
+            focus-right = "cmd-right"
+            """
+        )
+
+        XCTAssertFalse(cfg.startup.launchOnLogin)
     }
 
     func testParseInvalidNavigationScopeThrows() {
@@ -111,5 +127,30 @@ final class ConfigTests: XCTestCase {
                 """
             )
         )
+    }
+
+    func testParseInvalidStartupLaunchOnLoginTypeThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [startup]
+                launch-on-login = "yes"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "startup.launch-on-login")
+                    XCTAssertEqual(expected, "true|false")
+                    XCTAssertEqual(actual, "\"yes\"")
+                default:
+                    XCTFail("Expected invalidValue for startup.launch-on-login, got \(configError)")
+            }
+        }
     }
 }
