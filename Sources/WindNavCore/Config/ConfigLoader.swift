@@ -57,18 +57,18 @@ final class ConfigLoader {
         if let hotkeysTable = table["hotkeys"]?.table {
             hotkeys.focusLeft = hotkeysTable["focus-left"]?.string ?? hotkeys.focusLeft
             hotkeys.focusRight = hotkeysTable["focus-right"]?.string ?? hotkeys.focusRight
-            if hotkeysTable["focus-up"] != nil || hotkeysTable["focus-down"] != nil {
-                Logger.info(.config, "Ignoring deprecated hotkeys focus-up/focus-down (up/down are unsupported)")
-            }
+            Self.logIgnoredRemovedKeys([
+                hotkeysTable["focus-up"] != nil ? "hotkeys.focus-up" : nil,
+                hotkeysTable["focus-down"] != nil ? "hotkeys.focus-down" : nil,
+            ])
         }
 
         if let navTable = table["navigation"]?.table {
-            if let scopeRaw = navTable["scope"]?.string {
-                guard let value = NavigationScope(rawValue: scopeRaw) else {
-                    throw ConfigError.invalidValue(key: "navigation.scope", expected: "current-monitor", actual: scopeRaw)
-                }
-                navigation.scope = value
-            }
+            Self.logIgnoredRemovedKeys([
+                navTable["scope"] != nil ? "navigation.scope" : nil,
+                navTable["no-candidate"] != nil ? "navigation.no-candidate" : nil,
+                navTable["filtering"] != nil ? "navigation.filtering" : nil,
+            ])
             if let policyRaw = navTable["policy"]?.string {
                 if policyRaw == "natural" {
                     Logger.info(.config, "Deprecated navigation.policy='natural' treated as 'mru-cycle'")
@@ -82,18 +82,6 @@ final class ConfigLoader {
                         actual: policyRaw
                     )
                 }
-            }
-            if let behaviorRaw = navTable["no-candidate"]?.string {
-                guard let value = NoCandidateBehavior(rawValue: behaviorRaw) else {
-                    throw ConfigError.invalidValue(key: "navigation.no-candidate", expected: "noop", actual: behaviorRaw)
-                }
-                navigation.noCandidate = value
-            }
-            if let filteringRaw = navTable["filtering"]?.string {
-                guard let value = FilteringMode(rawValue: filteringRaw) else {
-                    throw ConfigError.invalidValue(key: "navigation.filtering", expected: "conservative", actual: filteringRaw)
-                }
-                navigation.filtering = value
             }
             if let cycleTimeout = navTable["cycle-timeout-ms"]?.int {
                 guard cycleTimeout > 0 else {
@@ -205,15 +193,9 @@ final class ConfigLoader {
                 )
             }
 
-            if let showWindowCount = hudTable["show-window-count"]?.bool {
-                hud.showWindowCount = showWindowCount
-            } else if let raw = hudTable["show-window-count"] {
-                throw ConfigError.invalidValue(
-                    key: "hud.show-window-count",
-                    expected: "true|false",
-                    actual: renderedValue(raw)
-                )
-            }
+            Self.logIgnoredRemovedKeys([
+                hudTable["show-window-count"] != nil ? "hud.show-window-count" : nil,
+            ])
 
             if let positionRaw = hudTable["position"]?.string {
                 guard let value = HUDPosition(rawValue: positionRaw) else {
@@ -232,5 +214,12 @@ final class ConfigLoader {
 
     private static func renderedValue(_ value: any TOMLValueConvertible) -> String {
         String(describing: value).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func logIgnoredRemovedKeys(_ keys: [String?]) {
+        let present = keys.compactMap { $0 }
+        guard !present.isEmpty else { return }
+        let rendered = present.joined(separator: ", ")
+        Logger.info(.config, "Ignoring removed config key(s): \(rendered)")
     }
 }

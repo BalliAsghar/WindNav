@@ -10,10 +10,7 @@ final class ConfigTests: XCTestCase {
             focus-right = "cmd-right"
 
             [navigation]
-            scope = "current-monitor"
             policy = "mru-cycle"
-            no-candidate = "noop"
-            filtering = "conservative"
             cycle-timeout-ms = 900
 
             [logging]
@@ -25,22 +22,17 @@ final class ConfigTests: XCTestCase {
 
             [hud]
             enabled = true
-            show-window-count = false
             position = "top-center"
             """
         )
 
-        XCTAssertEqual(cfg.navigation.scope, .currentMonitor)
         XCTAssertEqual(cfg.navigation.policy, .mruCycle)
-        XCTAssertEqual(cfg.navigation.noCandidate, .noop)
-        XCTAssertEqual(cfg.navigation.filtering, .conservative)
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 900)
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
         XCTAssertEqual(cfg.logging.level, .info)
         XCTAssertEqual(cfg.logging.color, .auto)
         XCTAssertEqual(cfg.startup.launchOnLogin, true)
         XCTAssertTrue(cfg.hud.enabled)
-        XCTAssertFalse(cfg.hud.showWindowCount)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -58,7 +50,6 @@ final class ConfigTests: XCTestCase {
 
             [hud]
             enabled = true
-            show-window-count = true
             position = "top-center"
             """
         )
@@ -69,7 +60,6 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.fixedAppRing.inAppWindow, .lastFocusedOnMonitor)
         XCTAssertEqual(cfg.navigation.fixedAppRing.grouping, .oneStopPerApp)
         XCTAssertTrue(cfg.hud.enabled)
-        XCTAssertTrue(cfg.hud.showWindowCount)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -84,7 +74,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.policy, .mruCycle)
     }
 
-    func testParseDeprecatedUpDownHotkeysIsTolerated() throws {
+    func testRemovedConfigKeysAreIgnored() throws {
         let cfg = try ConfigLoader.parse(
             """
             [hotkeys]
@@ -92,11 +82,25 @@ final class ConfigTests: XCTestCase {
             focus-right = "cmd-right"
             focus-up = "cmd-up"
             focus-down = "cmd-down"
+
+            [navigation]
+            scope = "all-monitors"
+            no-candidate = "anything"
+            filtering = "aggressive"
+            cycle-timeout-ms = 900
+
+            [hud]
+            enabled = true
+            show-window-count = "yes"
+            position = "top-center"
             """
         )
 
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
         XCTAssertEqual(cfg.hotkeys.focusRight, "cmd-right")
+        XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 900)
+        XCTAssertTrue(cfg.hud.enabled)
+        XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
     func testMissingStartupSectionDefaultsToFalse() throws {
@@ -109,17 +113,6 @@ final class ConfigTests: XCTestCase {
         )
 
         XCTAssertFalse(cfg.startup.launchOnLogin)
-    }
-
-    func testParseInvalidNavigationScopeThrows() {
-        XCTAssertThrowsError(
-            try ConfigLoader.parse(
-                """
-                [navigation]
-                scope = "all-monitors"
-                """
-            )
-        )
     }
 
     func testParseInvalidNavigationPolicyThrows() {

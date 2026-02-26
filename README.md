@@ -25,10 +25,7 @@ focus-left = "cmd-left"
 focus-right = "cmd-right"
 
 [navigation]
-scope = "current-monitor"
 policy = "mru-cycle"
-no-candidate = "noop"
-filtering = "conservative"
 cycle-timeout-ms = 900
 
 [logging]
@@ -37,6 +34,10 @@ color = "auto" # auto|always|never
 
 [startup]
 launch-on-login = false
+
+[hud]
+enabled = false
+position = "top-center"
 ```
 
 `left` means previous window in the logical cycle, and `right` means next.

@@ -6,21 +6,9 @@ public enum Direction: String, CaseIterable, Sendable {
     case right
 }
 
-public enum NavigationScope: String, Sendable {
-    case currentMonitor = "current-monitor"
-}
-
 public enum NavigationPolicy: String, Sendable {
     case mruCycle = "mru-cycle"
     case fixedAppRing = "fixed-app-ring"
-}
-
-public enum NoCandidateBehavior: String, Sendable {
-    case noop
-}
-
-public enum FilteringMode: String, Sendable {
-    case conservative
 }
 
 public enum UnpinnedAppsPolicy: String, Sendable {

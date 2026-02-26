@@ -156,11 +156,8 @@ final class NavigationCoordinator {
         let orderedCandidates = resolution.orderedWindowIDs.compactMap { candidateByID[$0] }
 
         guard let target = navigator.target(from: focused, direction: direction, orderedCandidates: orderedCandidates) else {
-            switch navigationConfig.noCandidate {
-                case .noop:
-                    Logger.info(.navigation, "No target window in direction \(direction.rawValue)")
-                    return
-            }
+            Logger.info(.navigation, "No target window in direction \(direction.rawValue)")
+            return
         }
         Logger.info(.navigation, "Selected target window \(target.windowId)")
 
@@ -279,7 +276,6 @@ final class NavigationCoordinator {
         let items = groups.enumerated().map { index, group in
             CycleHUDItem(
                 label: group.label,
-                count: group.windows.count,
                 isPinned: group.isPinned,
                 isCurrent: index == selectedIndex
             )

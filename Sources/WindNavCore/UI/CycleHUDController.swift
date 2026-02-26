@@ -3,7 +3,6 @@ import Foundation
 
 struct CycleHUDItem: Sendable {
     let label: String
-    let count: Int
     let isPinned: Bool
     let isCurrent: Bool
 }
@@ -28,7 +27,7 @@ final class CycleHUDController {
 
         let panel = ensurePanel()
         let labelField = ensureLabelField(in: panel)
-        labelField.attributedStringValue = attributedString(for: model, showWindowCount: config.showWindowCount)
+        labelField.attributedStringValue = attributedString(for: model)
         labelField.sizeToFit()
 
         let contentSize = CGSize(
@@ -107,7 +106,7 @@ final class CycleHUDController {
         field.frame = contentView.bounds.insetBy(dx: inset, dy: 8)
     }
 
-    private func attributedString(for model: CycleHUDModel, showWindowCount: Bool) -> NSAttributedString {
+    private func attributedString(for model: CycleHUDModel) -> NSAttributedString {
         let result = NSMutableAttributedString()
         for (index, item) in model.items.enumerated() {
             if index > 0 {
@@ -117,10 +116,7 @@ final class CycleHUDController {
                 ]))
             }
 
-            var text = item.label
-            if showWindowCount, item.count > 1 {
-                text += " (\(item.count))"
-            }
+            let text = item.label
 
             let attrs: [NSAttributedString.Key: Any] = item.isCurrent
                 ? [

@@ -46,34 +46,22 @@ public struct HotkeysConfig: Equatable, Sendable {
 }
 
 public struct NavigationConfig: Equatable, Sendable {
-    public var scope: NavigationScope
     public var policy: NavigationPolicy
-    public var noCandidate: NoCandidateBehavior
-    public var filtering: FilteringMode
     public var cycleTimeoutMs: Int
     public var fixedAppRing: FixedAppRingConfig
 
     public init(
-        scope: NavigationScope,
         policy: NavigationPolicy,
-        noCandidate: NoCandidateBehavior,
-        filtering: FilteringMode,
         cycleTimeoutMs: Int,
         fixedAppRing: FixedAppRingConfig
     ) {
-        self.scope = scope
         self.policy = policy
-        self.noCandidate = noCandidate
-        self.filtering = filtering
         self.cycleTimeoutMs = cycleTimeoutMs
         self.fixedAppRing = fixedAppRing
     }
 
     public static let `default` = NavigationConfig(
-        scope: .currentMonitor,
         policy: .mruCycle,
-        noCandidate: .noop,
-        filtering: .conservative,
         cycleTimeoutMs: 900,
         fixedAppRing: .default
     )
@@ -134,18 +122,15 @@ public struct StartupConfig: Equatable, Sendable {
 
 public struct HUDConfig: Equatable, Sendable {
     public var enabled: Bool
-    public var showWindowCount: Bool
     public var position: HUDPosition
 
-    public init(enabled: Bool, showWindowCount: Bool, position: HUDPosition) {
+    public init(enabled: Bool, position: HUDPosition) {
         self.enabled = enabled
-        self.showWindowCount = showWindowCount
         self.position = position
     }
 
     public static let `default` = HUDConfig(
         enabled: false,
-        showWindowCount: true,
         position: .topCenter
     )
 }
@@ -174,10 +159,7 @@ extension WindNavConfig {
     focus-right = "cmd-right"
 
     [navigation]
-    scope = "current-monitor"
     policy = "mru-cycle"
-    no-candidate = "noop"
-    filtering = "conservative"
     cycle-timeout-ms = 900
 
     # To enable predictable app-level cycling:
@@ -198,7 +180,6 @@ extension WindNavConfig {
 
     [hud]
     enabled = false
-    show-window-count = true
     position = "top-center"
     """
 }
