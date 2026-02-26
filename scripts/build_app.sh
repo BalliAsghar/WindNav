@@ -9,7 +9,7 @@ if [[ "$#" -ne 0 ]]; then
 fi
 
 BUNDLE_ID="com.windnav.app"
-ICON_ICNS_PATH="$ROOT_DIR/Packaging/WindNav-Icon.icns"
+ICON_ICNS_PATH="$ROOT_DIR/Packaging/Windnav.icns"
 
 if [[ ! -f "$ICON_ICNS_PATH" ]]; then
     echo "error: missing icon file: $ICON_ICNS_PATH" >&2
