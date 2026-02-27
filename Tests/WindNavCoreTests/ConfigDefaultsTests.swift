@@ -11,10 +11,13 @@ final class ConfigDefaultsTests: XCTestCase {
     func testRenderedDefaultsTomlIncludesDynamicMetadataComments() {
         let rendered = WindNavDefaultsCatalog.renderedToml
         XCTAssertTrue(rendered.contains("# Whether to show the cycle HUD while navigating."))
+        XCTAssertTrue(rendered.contains("# Pixel size for app icons shown in the HUD."))
         XCTAssertTrue(rendered.contains("# Whether minimized windows should be included in navigation."))
         XCTAssertTrue(rendered.contains("# Whether app windows from hidden apps should be included in navigation."))
         XCTAssertTrue(rendered.contains("# Allowed: true|false"))
+        XCTAssertTrue(rendered.contains("# Allowed: positive integer pixels"))
         XCTAssertTrue(rendered.contains("# Default: \"middle-center\""))
+        XCTAssertTrue(rendered.contains("icon-size = 22"))
         XCTAssertTrue(rendered.contains("# Default: true"))
     }
 
@@ -22,6 +25,7 @@ final class ConfigDefaultsTests: XCTestCase {
         let hud = WindNavConfig.default.hud
         XCTAssertTrue(hud.enabled)
         XCTAssertTrue(hud.showIcons)
+        XCTAssertEqual(hud.iconSize, 22)
         XCTAssertEqual(hud.position, .middleCenter)
     }
 

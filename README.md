@@ -93,12 +93,14 @@ color = "auto"
 [hud]
 enabled = true
 show-icons = true
+icon-size = 22
 position = "middle-center"
 ```
 
 ## Tips
 
 - Set `cycle-timeout-ms = 0` to keep immediate cycling sessions active until you release the shortcut modifiers.
+- Set `hud.icon-size` to a pixel value like `18`, `22`, or `32` to change HUD app icon size. Omitting it keeps the current default size of `22`.
 - The window-number pill counts all standard windows for the selected app, including off-screen / Stage Manager windows.
 - If the exact selected window slot cannot be resolved, the HUD falls back to highlighting window `1`.
 - Bundle ID tip for `navigation.standard.pinned-apps`:

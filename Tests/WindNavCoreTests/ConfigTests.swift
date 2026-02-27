@@ -43,6 +43,7 @@ final class ConfigTests: XCTestCase {
             [hud]
             enabled = true
             show-icons = true
+            icon-size = 22
             position = "top-center"
             """
         )
@@ -59,6 +60,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.startup.launchOnLogin, true)
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertTrue(cfg.hud.showIcons)
+        XCTAssertEqual(cfg.hud.iconSize, 22)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -79,6 +81,7 @@ final class ConfigTests: XCTestCase {
             [hud]
             enabled = true
             show-icons = false
+            icon-size = 30
             position = "top-center"
             """
         )
@@ -92,6 +95,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.fixedAppRing.grouping, .oneStopPerApp)
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertFalse(cfg.hud.showIcons)
+        XCTAssertEqual(cfg.hud.iconSize, 30)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -188,6 +192,7 @@ final class ConfigTests: XCTestCase {
             [hud]
             enabled = true
             show-icons = true
+            icon-size = 26
             show-window-count = "yes"
             position = "top-center"
             """
@@ -201,6 +206,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertTrue(cfg.navigation.includeHiddenApps)
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertTrue(cfg.hud.showIcons)
+        XCTAssertEqual(cfg.hud.iconSize, 26)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -227,6 +233,7 @@ final class ConfigTests: XCTestCase {
 
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertTrue(cfg.hud.showIcons)
+        XCTAssertEqual(cfg.hud.iconSize, 22)
         XCTAssertEqual(cfg.hud.position, .middleCenter)
     }
 
@@ -299,6 +306,89 @@ final class ConfigTests: XCTestCase {
         )
     }
 
+    func testParseInvalidHUDIconSizeValueThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [hud]
+                icon-size = 0
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "hud.icon-size")
+                    XCTAssertEqual(expected, "positive integer pixels")
+                    XCTAssertEqual(actual, "0")
+                default:
+                    XCTFail("Expected invalidValue for hud.icon-size, got \(configError)")
+            }
+        }
+    }
+
+    func testParseInvalidHUDIconSizeTypeThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [hud]
+                icon-size = "large"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "hud.icon-size")
+                    XCTAssertEqual(expected, "positive integer pixels")
+                    XCTAssertEqual(actual, "\"large\"")
+                default:
+                    XCTFail("Expected invalidValue for hud.icon-size, got \(configError)")
+            }
+        }
+    }
+
+    func testParseHUDIconSizeCustomSmall() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [hud]
+            icon-size = 18
+            """
+        )
+
+        XCTAssertEqual(cfg.hud.iconSize, 18)
+    }
+
+    func testParseHUDIconSizeCustomMedium() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [hud]
+            icon-size = 26
+            """
+        )
+
+        XCTAssertEqual(cfg.hud.iconSize, 26)
+    }
+
+    func testParseHUDIconSizeCustomLarge() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [hud]
+            icon-size = 40
+            """
+        )
+
+        XCTAssertEqual(cfg.hud.iconSize, 40)
+    }
+
     func testUnknownHUDHideDelayIsLoggedAndIgnored() throws {
         let lines = SinkLines()
         Logger._setTestSink { line in
@@ -311,11 +401,13 @@ final class ConfigTests: XCTestCase {
             [hud]
             enabled = true
             hide-delay-ms = 0
+            icon-size = 22
             position = "top-center"
             """
         )
 
         XCTAssertTrue(cfg.hud.enabled)
+        XCTAssertEqual(cfg.hud.iconSize, 22)
         XCTAssertTrue(lines.contains("Unknown Key: [hud].hide-delay-ms"))
     }
 

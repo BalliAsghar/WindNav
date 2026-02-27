@@ -110,11 +110,13 @@ public struct StartupConfig: Equatable, Sendable {
 public struct HUDConfig: Equatable, Sendable {
     public var enabled: Bool
     public var showIcons: Bool
+    public var iconSize: Int
     public var position: HUDPosition
 
-    public init(enabled: Bool, showIcons: Bool, position: HUDPosition) {
+    public init(enabled: Bool, showIcons: Bool, iconSize: Int, position: HUDPosition) {
         self.enabled = enabled
         self.showIcons = showIcons
+        self.iconSize = iconSize
         self.position = position
     }
 

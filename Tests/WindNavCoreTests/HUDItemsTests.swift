@@ -3,6 +3,18 @@ import CoreGraphics
 import XCTest
 
 final class HUDItemsTests: XCTestCase {
+    func testHUDIconFrameSizeMapping() {
+        XCTAssertEqual(hudIconFrameSize(for: 18), 18)
+        XCTAssertEqual(hudIconFrameSize(for: 22), 22)
+        XCTAssertEqual(hudIconFrameSize(for: 30), 30)
+    }
+
+    func testHUDFallbackIconFontSizeMapping() {
+        XCTAssertEqual(hudFallbackIconFontSize(for: 8), 12)
+        XCTAssertEqual(hudFallbackIconFontSize(for: 22), 18)
+        XCTAssertEqual(hudFallbackIconFontSize(for: 30), 26)
+    }
+
     func testHUDOverlayAnchorMappingForTopCenterUsesBottom() {
         XCTAssertEqual(hudOverlayAnchor(for: .topCenter), .bottom)
     }

@@ -74,6 +74,7 @@ enum WindNavDefaultsCatalog {
     static let hud = HUDConfig(
         enabled: true,
         showIcons: true,
+        iconSize: 22,
         position: .middleCenter
     )
 
@@ -215,6 +216,12 @@ enum WindNavDefaultsCatalog {
                     defaultValue: .bool(hud.showIcons),
                     allowedValues: "true|false",
                     description: "Whether app icons are shown in the HUD."
+                ),
+                ConfigSettingSpec(
+                    key: "icon-size",
+                    defaultValue: .int(hud.iconSize),
+                    allowedValues: "positive integer pixels",
+                    description: "Pixel size for app icons shown in the HUD."
                 ),
                 ConfigSettingSpec(
                     key: "position",

@@ -229,7 +229,7 @@ final class ConfigLoader {
         }
 
         if let hudTable = table["hud"]?.table {
-            Self.logUnknownKeys(in: hudTable, section: "hud", known: ["enabled", "show-icons", "position"])
+            Self.logUnknownKeys(in: hudTable, section: "hud", known: ["enabled", "show-icons", "icon-size", "position"])
             if let enabled = hudTable["enabled"]?.bool {
                 hud.enabled = enabled
             } else if let raw = hudTable["enabled"] {
@@ -246,6 +246,23 @@ final class ConfigLoader {
                 throw ConfigError.invalidValue(
                     key: "hud.show-icons",
                     expected: "true|false",
+                    actual: renderedValue(raw)
+                )
+            }
+
+            if let iconSize = hudTable["icon-size"]?.int {
+                guard iconSize > 0 else {
+                    throw ConfigError.invalidValue(
+                        key: "hud.icon-size",
+                        expected: "positive integer pixels",
+                        actual: "\(iconSize)"
+                    )
+                }
+                hud.iconSize = iconSize
+            } else if let raw = hudTable["icon-size"] {
+                throw ConfigError.invalidValue(
+                    key: "hud.icon-size",
+                    expected: "positive integer pixels",
                     actual: renderedValue(raw)
                 )
             }

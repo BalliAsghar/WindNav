@@ -66,6 +66,14 @@ func hudVerticalPositionCompensation(
     }
 }
 
+func hudIconFrameSize(for iconSize: Int) -> CGFloat {
+    CGFloat(iconSize)
+}
+
+func hudFallbackIconFontSize(for iconSize: Int) -> CGFloat {
+    max(hudIconFrameSize(for: iconSize) - 4, 12)
+}
+
 // MARK: - SwiftUI HUD View
 
 private struct CurrentItemBoundsPreferenceKey: PreferenceKey {
@@ -95,6 +103,14 @@ private struct ModernHUDView: View {
 
     private var outsideBandInsets: (top: CGFloat, bottom: CGFloat) {
         hudOutsideBandInsets(for: config.position)
+    }
+
+    private var iconFrameSize: CGFloat {
+        hudIconFrameSize(for: config.iconSize)
+    }
+
+    private var fallbackIconFontSize: CGFloat {
+        hudFallbackIconFontSize(for: config.iconSize)
     }
 
     private var openAnimation: Animation {
@@ -154,11 +170,11 @@ private struct ModernHUDView: View {
                         Image(nsImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 22, height: 22)
+                            .frame(width: iconFrameSize, height: iconFrameSize)
                     } else {
                         Image(systemName: "app.fill")
-                            .font(.system(size: 18, weight: .medium))
-                            .frame(width: 22, height: 22)
+                            .font(.system(size: fallbackIconFontSize, weight: .medium))
+                            .frame(width: iconFrameSize, height: iconFrameSize)
                     }
                 }
                 .padding(.horizontal, 12)
