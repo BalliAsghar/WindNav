@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Background gradient - Golden Yellow (warm sunset) -->
+    <linearGradient id="skyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFD54F"/>
+      <stop offset="40%" stop-color="#FFB74D"/>
+      <stop offset="100%" stop-color="#FF9800"/>
+    </linearGradient>
+
+    <!-- Window gradients (deep blacks) -->
+    <linearGradient id="windowGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A1A1A"/>
+      <stop offset="100%" stop-color="#0A0A0A"/>
+    </linearGradient>
+    <linearGradient id="windowGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#202020"/>
+      <stop offset="100%" stop-color="#0D0D0D"/>
+    </linearGradient>
+    <linearGradient id="windowGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#282828"/>
+      <stop offset="100%" stop-color="#121212"/>
+    </linearGradient>
+    <linearGradient id="windowGradient4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#333333"/>
+      <stop offset="100%" stop-color="#1A1A1A"/>
+    </linearGradient>
+
+    <!-- Atmospheric cloud gradient - subtle warm tones -->
+    <linearGradient id="cloudGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFE082" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FFE082" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#FFE082" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- iOS Squircle clip path -->
+    <clipPath id="squircle">
+      <path d="M186.7,0C83.5,0,0,83.5,0,186.7v650.7C0,940.5,83.5,1024,186.7,1024h650.7
+        c103.2,0,186.7-83.5,186.7-186.7V186.7C1024,83.5,940.5,0,837.3,0H186.7z"/>
+    </clipPath>
+
+    <!-- Drop shadow for panels -->
+    <filter id="panelShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Main container with iOS squircle mask -->
+  <g clip-path="url(#squircle)">
+    <!-- Background -->
+    <rect width="1024" height="1024" fill="url(#skyGradient)"/>
+
+    <!-- Atmospheric clouds -->
+    <g fill="url(#cloudGradient)">
+      <ellipse cx="300" cy="200" rx="180" ry="40"/>
+      <ellipse cx="700" cy="280" rx="200" ry="50"/>
+      <ellipse cx="500" cy="150" rx="150" ry="35"/>
+    </g>
+
+    <!-- Window panels (moved down to sit more naturally) -->
+    <g filter="url(#panelShadow)">
+      <rect x="140" y="247.5" width="440" height="275" rx="26" ry="26" fill="url(#windowGradient1)"/>
+    </g>
+
+    <g filter="url(#panelShadow)">
+      <rect x="292" y="352.5" width="440" height="275" rx="26" ry="26" fill="url(#windowGradient2)"/>
+    </g>
+
+    <g filter="url(#panelShadow)">
+      <rect x="444" y="457.5" width="440" height="275" rx="26" ry="26" fill="url(#windowGradient3)"/>
+    </g>
+
+    <g filter="url(#panelShadow)">
+      <rect x="303" y="563" width="418" height="264" rx="24" ry="24" fill="url(#windowGradient4)"/>
+    </g>
+  </g>
+
+  <!-- Outer edge subtle highlight -->
+  <rect x="4" y="4" width="1016" height="1016" rx="180" ry="180" fill="none" stroke="#FFE082" stroke-width="1" opacity="0.3"/>
+</svg>

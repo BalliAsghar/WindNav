@@ -9,7 +9,8 @@ if [[ "$#" -ne 0 ]]; then
 fi
 
 BUNDLE_ID="com.windnav.app"
-ICON_ICNS_PATH="$ROOT_DIR/Packaging/Windnav.icns"
+ICON_ICNS_PATH="$ROOT_DIR/Packaging/AppIcon.icns"
+ICON_FILENAME="$(basename "$ICON_ICNS_PATH")"
 
 if [[ ! -f "$ICON_ICNS_PATH" ]]; then
     echo "error: missing icon file: $ICON_ICNS_PATH" >&2
@@ -47,10 +48,13 @@ cp "$BIN_PATH" "$MACOS_DIR/WindNav"
 chmod +x "$MACOS_DIR/WindNav"
 
 echo "Using packaged icon: $ICON_ICNS_PATH"
-cp "$ICON_ICNS_PATH" "$RESOURCES_DIR/WindNav.icns"
+cp "$ICON_ICNS_PATH" "$RESOURCES_DIR/$ICON_FILENAME"
 
 INFO_PLIST="$CONTENTS_DIR/Info.plist"
-sed "s|__BUNDLE_ID__|$BUNDLE_ID|g" "$PLIST_TEMPLATE" > "$INFO_PLIST"
+sed \
+    -e "s|__BUNDLE_ID__|$BUNDLE_ID|g" \
+    -e "s|__ICON_FILE__|$ICON_FILENAME|g" \
+    "$PLIST_TEMPLATE" > "$INFO_PLIST"
 
 echo
 echo "Built app bundle:"

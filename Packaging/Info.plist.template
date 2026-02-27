@@ -9,7 +9,7 @@
     <key>CFBundleIdentifier</key>
     <string>__BUNDLE_ID__</string>
     <key>CFBundleIconFile</key>
-    <string>WindNav.icns</string>
+    <string>__ICON_FILE__</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
