@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 
 struct CycleHUDItem: Sendable, Identifiable {
-    let id = UUID()
+    let id: String
     let label: String
     let iconPID: pid_t
     let iconBundleId: String?
@@ -17,6 +17,47 @@ struct CycleHUDModel: Sendable {
     let items: [CycleHUDItem]
     let selectedIndex: Int
     let monitorID: NSNumber
+}
+
+enum HUDOverlayAnchor: String, Sendable {
+    case top
+    case bottom
+}
+
+let hudOutsideBandHeight: CGFloat = 40
+let hudOutsideBandGap: CGFloat = 8
+
+func hudOverlayAnchor(for position: HUDPosition) -> HUDOverlayAnchor {
+    switch position {
+        case .topCenter:
+            return .bottom
+        case .middleCenter, .bottomCenter:
+            return .top
+    }
+}
+
+func hudOutsideBandInsets(
+    for position: HUDPosition,
+    bandHeight: CGFloat = hudOutsideBandHeight
+) -> (top: CGFloat, bottom: CGFloat) {
+    switch position {
+        case .topCenter:
+            return (top: 0, bottom: bandHeight)
+        case .middleCenter, .bottomCenter:
+            return (top: bandHeight, bottom: 0)
+    }
+}
+
+func hudVerticalPositionCompensation(
+    for position: HUDPosition,
+    bandHeight: CGFloat = hudOutsideBandHeight
+) -> CGFloat {
+    switch position {
+        case .middleCenter:
+            return bandHeight / 2
+        case .topCenter, .bottomCenter:
+            return 0
+    }
 }
 
 // MARK: - SwiftUI HUD View
@@ -33,12 +74,8 @@ private struct ModernHUDView: View {
     let model: CycleHUDModel
     let config: HUDConfig
 
-    private let overlayLaneHeight: CGFloat = 38
-
-    private enum OverlayLanePlacement {
-        case top
-        case bottom
-    }
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Namespace private var overlaySelectionNamespace
 
     private var overlayItem: CycleHUDItem? {
         model.items.first {
@@ -46,42 +83,60 @@ private struct ModernHUDView: View {
         }
     }
 
-    private var overlayLanePlacement: OverlayLanePlacement {
-        switch config.position {
-            case .topCenter:
-                return .bottom
-            case .middleCenter, .bottomCenter:
-                return .top
-        }
+    private var overlayAnchor: HUDOverlayAnchor {
+        hudOverlayAnchor(for: config.position)
+    }
+
+    private var outsideBandInsets: (top: CGFloat, bottom: CGFloat) {
+        hudOutsideBandInsets(for: config.position)
+    }
+
+    private var openAnimation: Animation {
+        accessibilityReduceMotion
+            ? .easeOut(duration: 0.10)
+            : .spring(response: 0.26, dampingFraction: 0.86, blendDuration: 0.08)
+    }
+
+    private var selectionAnimation: Animation {
+        accessibilityReduceMotion
+            ? .easeOut(duration: 0.10)
+            : .spring(response: 0.20, dampingFraction: 0.90, blendDuration: 0.05)
     }
 
     var body: some View {
         let overlayItem = self.overlayItem
-        let hasOverlayLane = overlayItem != nil
-        let overlayLanePlacement = self.overlayLanePlacement
+        let overlayAnchor = self.overlayAnchor
+        let outsideBandInsets = self.outsideBandInsets
 
         return VStack(spacing: 0) {
-            if hasOverlayLane, overlayLanePlacement == .top {
-                Color.clear
-                    .frame(height: overlayLaneHeight)
-            }
+            Color.clear
+                .frame(height: outsideBandInsets.top)
             hudCapsule
-            if hasOverlayLane, overlayLanePlacement == .bottom {
-                Color.clear
-                    .frame(height: overlayLaneHeight)
-            }
+            Color.clear
+                .frame(height: outsideBandInsets.bottom)
         }
         .overlayPreferenceValue(CurrentItemBoundsPreferenceKey.self) { anchor in
             GeometryReader { proxy in
                 if let anchor, let overlayItem {
                     let rect = proxy[anchor]
-                    let overlayY = overlayLanePlacement == .top
-                        ? overlayLaneHeight / 2
-                        : (proxy.size.height - (overlayLaneHeight / 2))
+                    let overlayY = overlayYPosition(in: proxy.size, anchor: overlayAnchor)
                     windowOverlay(for: overlayItem)
+                        .transition(overlayTransition(for: overlayAnchor))
                         .position(x: rect.midX, y: overlayY)
                 }
             }
+        }
+        .animation(openAnimation, value: overlayItem?.id)
+        .animation(selectionAnimation, value: overlayItem?.currentWindowIndex)
+    }
+
+    private func overlayYPosition(in size: CGSize, anchor: HUDOverlayAnchor) -> CGFloat {
+        let directionalOffset = hudOutsideBandGap / 4
+        switch anchor {
+            case .top:
+                return (hudOutsideBandHeight / 2) - directionalOffset
+            case .bottom:
+                return size.height - (hudOutsideBandHeight / 2) + directionalOffset
         }
     }
 
@@ -114,7 +169,10 @@ private struct ModernHUDView: View {
                     (item.isPinned ? .primary : .secondary)
                 )
                 .scaleEffect(item.isCurrent ? 1.02 : 1.0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: item.isCurrent)
+                .animation(
+                    accessibilityReduceMotion ? .easeOut(duration: 0.10) : .spring(response: 0.3, dampingFraction: 0.6),
+                    value: item.isCurrent
+                )
                 .anchorPreference(
                     key: CurrentItemBoundsPreferenceKey.self,
                     value: .bounds,
@@ -132,6 +190,21 @@ private struct ModernHUDView: View {
         .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
     }
 
+    private func overlayTransition(for anchor: HUDOverlayAnchor) -> AnyTransition {
+        if accessibilityReduceMotion {
+            return .opacity
+        }
+
+        let insertionEdge: Edge = switch anchor {
+            case .top: .top
+            case .bottom: .bottom
+        }
+        let insertion = AnyTransition.move(edge: insertionEdge)
+            .combined(with: .opacity)
+            .combined(with: .scale(scale: 0.96))
+        return .asymmetric(insertion: insertion, removal: .opacity)
+    }
+
     @ViewBuilder
     private func windowOverlay(for item: CycleHUDItem) -> some View {
         let selectedIndex = item.currentWindowIndex ?? 0
@@ -143,8 +216,19 @@ private struct ModernHUDView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(index == selectedIndex ? Color(NSColor.controlAccentColor) : Color.clear)
+                        if index == selectedIndex {
+                            if accessibilityReduceMotion {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color(NSColor.controlAccentColor))
+                            } else {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color(NSColor.controlAccentColor))
+                                    .matchedGeometryEffect(
+                                        id: "overlay-highlight-\(item.id)",
+                                        in: overlaySelectionNamespace
+                                    )
+                            }
+                        }
                     }
             }
         }
@@ -159,7 +243,7 @@ private struct ModernHUDView: View {
                 .stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
-        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: item.currentWindowIndex)
+        .animation(selectionAnimation, value: item.currentWindowIndex)
     }
 
     private func resolvedAppIcon(for item: CycleHUDItem) -> NSImage? {
@@ -194,6 +278,7 @@ private struct VisualEffectBackground: NSViewRepresentable {
 @MainActor
 final class CycleHUDController {
     private var panel: NSPanel?
+    private var hostingView: NSHostingView<ModernHUDView>?
     private var hideWorkItem: DispatchWorkItem?
 
     func show(model: CycleHUDModel, config: HUDConfig, timeoutMs: Int) {
@@ -204,34 +289,36 @@ final class CycleHUDController {
 
         let panel = ensurePanel()
 
-        let hostingView = NSHostingView(rootView: ModernHUDView(model: model, config: config))
-        hostingView.sizingOptions = .standardBounds
-        panel.contentView = hostingView
+        let hudHostingView: NSHostingView<ModernHUDView>
+        if let existing = self.hostingView {
+            existing.rootView = ModernHUDView(model: model, config: config)
+            hudHostingView = existing
+        } else {
+            let created = NSHostingView(rootView: ModernHUDView(model: model, config: config))
+            created.sizingOptions = .standardBounds
+            self.hostingView = created
+            hudHostingView = created
+        }
+        if panel.contentView !== hudHostingView {
+            panel.contentView = hudHostingView
+        }
 
-        hostingView.layout()
-        let fittingSize = hostingView.fittingSize
+        hudHostingView.layout()
+        let fittingSize = hudHostingView.fittingSize
         let contentSize = CGSize(
             width: max(fittingSize.width, 220),
             height: max(fittingSize.height, 44)
         )
 
         #if DEBUG
-        let overlayLaneActive = model.items.contains {
+        let overlayActive = model.items.contains {
             $0.isCurrent && $0.windowCount > 1 && $0.currentWindowIndex != nil
         }
-        let overlayLanePlacement = if overlayLaneActive {
-            switch config.position {
-                case .topCenter:
-                    "bottom"
-                case .middleCenter, .bottomCenter:
-                    "top"
-            }
-        } else {
-            "none"
-        }
+        let outsideInsets = hudOutsideBandInsets(for: config.position)
+        let overlayAnchor = hudOverlayAnchor(for: config.position).rawValue
         Logger.info(
             .navigation,
-            "HUD sizing debug fitting=\(fittingSize.width)x\(fittingSize.height) content=\(contentSize.width)x\(contentSize.height) overlay-lane=\(overlayLaneActive) lane-placement=\(overlayLanePlacement)"
+            "HUD sizing debug fitting=\(fittingSize.width)x\(fittingSize.height) content=\(contentSize.width)x\(contentSize.height) overlay=\(overlayActive) overlay-anchor=\(overlayAnchor) outside-band=\(hudOutsideBandHeight) outside-inset-top=\(outsideInsets.top) outside-inset-bottom=\(outsideInsets.bottom)"
         )
         #endif
 
@@ -315,7 +402,8 @@ final class CycleHUDController {
             case .bottomCenter:
                 y = frame.minY + 24
         }
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
+        let compensation = hudVerticalPositionCompensation(for: position)
+        panel.setFrameOrigin(NSPoint(x: x, y: y + compensation))
     }
 
     private func screen(for monitorID: NSNumber) -> NSScreen? {

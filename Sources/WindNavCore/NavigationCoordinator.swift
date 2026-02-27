@@ -1,6 +1,35 @@
 import AppKit
 import Foundation
 
+func cycleHUDWindowSort(_ lhs: WindowSnapshot, _ rhs: WindowSnapshot) -> Bool {
+    if lhs.frame.minX != rhs.frame.minX { return lhs.frame.minX < rhs.frame.minX }
+    if lhs.frame.minY != rhs.frame.minY { return lhs.frame.minY < rhs.frame.minY }
+    return lhs.windowId < rhs.windowId
+}
+
+func buildCycleHUDItems(
+    groups: [AppRingGroup],
+    selectedIndex: Int,
+    selectedWindowID: UInt32
+) -> [CycleHUDItem] {
+    groups.enumerated().map { index, group in
+        let representative = group.windows.first
+        let orderedWindows = group.windows.sorted(by: cycleHUDWindowSort)
+        return CycleHUDItem(
+            id: group.key.rawValue,
+            label: group.label,
+            iconPID: representative?.pid ?? 0,
+            iconBundleId: representative?.bundleId,
+            isPinned: group.isPinned,
+            isCurrent: index == selectedIndex,
+            windowCount: orderedWindows.count,
+            currentWindowIndex: index == selectedIndex
+                ? orderedWindows.firstIndex(where: { $0.windowId == selectedWindowID })
+                : nil
+        )
+    }
+}
+
 @MainActor
 final class NavigationCoordinator {
     private let cache: WindowStateCache
@@ -261,29 +290,17 @@ final class NavigationCoordinator {
     }
 
     private func spatialWindowSort(_ lhs: WindowSnapshot, _ rhs: WindowSnapshot) -> Bool {
-        if lhs.frame.minX != rhs.frame.minX { return lhs.frame.minX < rhs.frame.minX }
-        if lhs.frame.minY != rhs.frame.minY { return lhs.frame.minY < rhs.frame.minY }
-        return lhs.windowId < rhs.windowId
+        cycleHUDWindowSort(lhs, rhs)
     }
 
     private func showHUD(for groups: [AppRingGroup], selectedIndex: Int, selectedWindowID: UInt32, monitorID: NSNumber) {
         guard hudConfig.enabled else { return }
 
-        let items = groups.enumerated().map { index, group in
-            let representative = group.windows.first
-            let orderedWindows = group.windows.sorted(by: spatialWindowSort)
-            return CycleHUDItem(
-                label: group.label,
-                iconPID: representative?.pid ?? 0,
-                iconBundleId: representative?.bundleId,
-                isPinned: group.isPinned,
-                isCurrent: index == selectedIndex,
-                windowCount: orderedWindows.count,
-                currentWindowIndex: index == selectedIndex
-                    ? orderedWindows.firstIndex(where: { $0.windowId == selectedWindowID })
-                    : nil
-            )
-        }
+        let items = buildCycleHUDItems(
+            groups: groups,
+            selectedIndex: selectedIndex,
+            selectedWindowID: selectedWindowID
+        )
         let model = CycleHUDModel(items: items, selectedIndex: selectedIndex, monitorID: monitorID)
         hudController.show(model: model, config: hudConfig, timeoutMs: navigationConfig.cycleTimeoutMs)
     }
