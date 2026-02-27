@@ -35,18 +35,10 @@ enum HotkeyParser {
 
         var modifiers: UInt32 = 0
         for modifier in parts.dropLast() {
-            switch modifier {
-                case "cmd", "command":
-                    modifiers |= UInt32(cmdKey)
-                case "ctrl", "control":
-                    modifiers |= UInt32(controlKey)
-                case "alt", "option":
-                    modifiers |= UInt32(optionKey)
-                case "shift":
-                    modifiers |= UInt32(shiftKey)
-                default:
-                    throw HotkeyParserError.invalidModifier(modifier)
+            guard let mask = modifierMaskByToken[modifier] else {
+                throw HotkeyParserError.invalidModifier(modifier)
             }
+            modifiers |= mask
         }
 
         guard let keyCode = keyCodeByToken[keyRaw] else {
@@ -119,4 +111,16 @@ enum HotkeyParser {
 
         return map
     }()
+
+    private static let modifierMaskByToken: [String: UInt32] = [
+        "cmd": UInt32(cmdKey),
+        "command": UInt32(cmdKey),
+        "ctrl": UInt32(controlKey),
+        "control": UInt32(controlKey),
+        "ctl": UInt32(controlKey),
+        "opt": UInt32(optionKey),
+        "option": UInt32(optionKey),
+        "alt": UInt32(optionKey),
+        "shift": UInt32(shiftKey),
+    ]
 }

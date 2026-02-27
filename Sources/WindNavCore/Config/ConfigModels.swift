@@ -21,13 +21,7 @@ public struct WindNavConfig: Equatable, Sendable {
         self.hud = hud
     }
 
-    public static let `default` = WindNavConfig(
-        hotkeys: .default,
-        navigation: .default,
-        logging: .default,
-        startup: .default,
-        hud: .default
-    )
+    public static let `default` = WindNavDefaultsCatalog.config
 }
 
 public struct HotkeysConfig: Equatable, Sendable {
@@ -43,12 +37,7 @@ public struct HotkeysConfig: Equatable, Sendable {
         self.focusDown = focusDown
     }
 
-    public static let `default` = HotkeysConfig(
-        focusLeft: "cmd-left",
-        focusRight: "cmd-right",
-        focusUp: "cmd-up",
-        focusDown: "cmd-down"
-    )
+    public static let `default` = WindNavDefaultsCatalog.hotkeys
 }
 
 public struct NavigationConfig: Equatable, Sendable {
@@ -66,11 +55,7 @@ public struct NavigationConfig: Equatable, Sendable {
         self.fixedAppRing = fixedAppRing
     }
 
-    public static let `default` = NavigationConfig(
-        policy: .fixedAppRing,
-        cycleTimeoutMs: 900,
-        fixedAppRing: .default
-    )
+    public static let `default` = WindNavDefaultsCatalog.navigation
 }
 
 public struct FixedAppRingConfig: Equatable, Sendable {
@@ -91,12 +76,7 @@ public struct FixedAppRingConfig: Equatable, Sendable {
         self.grouping = grouping
     }
 
-    public static let `default` = FixedAppRingConfig(
-        pinnedApps: [],
-        unpinnedApps: .append,
-        inAppWindow: .lastFocused,
-        grouping: .oneStopPerApp
-    )
+    public static let `default` = WindNavDefaultsCatalog.fixedAppRing
 }
 
 public struct LoggingConfig: Equatable, Sendable {
@@ -108,10 +88,7 @@ public struct LoggingConfig: Equatable, Sendable {
         self.color = color
     }
 
-    public static let `default` = LoggingConfig(
-        level: .info,
-        color: .auto
-    )
+    public static let `default` = WindNavDefaultsCatalog.logging
 }
 
 public struct StartupConfig: Equatable, Sendable {
@@ -121,9 +98,7 @@ public struct StartupConfig: Equatable, Sendable {
         self.launchOnLogin = launchOnLogin
     }
 
-    public static let `default` = StartupConfig(
-        launchOnLogin: false
-    )
+    public static let `default` = WindNavDefaultsCatalog.startup
 }
 
 public struct HUDConfig: Equatable, Sendable {
@@ -137,11 +112,7 @@ public struct HUDConfig: Equatable, Sendable {
         self.position = position
     }
 
-    public static let `default` = HUDConfig(
-        enabled: false,
-        showIcons: false,
-        position: .topCenter
-    )
+    public static let `default` = WindNavDefaultsCatalog.hud
 }
 
 enum ConfigError: LocalizedError, Equatable {
@@ -162,36 +133,5 @@ enum ConfigError: LocalizedError, Equatable {
 }
 
 extension WindNavConfig {
-    static let defaultToml = """
-    [hotkeys]
-    focus-left = "cmd-left"
-    focus-right = "cmd-right"
-    # Used when navigation.policy = "fixed-app-ring" to cycle windows inside selected app.
-    focus-up = "cmd-up"
-    focus-down = "cmd-down"
-
-    [navigation]
-    policy = "fixed-app-ring"
-    cycle-timeout-ms = 900
-    # Set cycle-timeout-ms = 0 to keep cycling active until the hotkey modifiers are released.
-
-    # Predictable app-level cycling configuration:
-    # [navigation.fixed-app-ring]
-    # pinned-apps = ["com.google.Chrome", "com.apple.Terminal", "com.microsoft.VSCode"]
-    # unpinned-apps = "append"
-    # in-app-window = "last-focused"
-    # grouping = "one-stop-per-app"
-
-    [logging]
-    level = "info"
-    color = "auto"
-
-    [startup]
-    launch-on-login = false
-
-    [hud]
-    enabled = false
-    show-icons = false
-    position = "top-center"
-    """
+    static let defaultToml = WindNavDefaultsCatalog.renderedToml
 }

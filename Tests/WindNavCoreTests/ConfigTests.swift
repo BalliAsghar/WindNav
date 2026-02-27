@@ -164,6 +164,20 @@ final class ConfigTests: XCTestCase {
         XCTAssertFalse(cfg.startup.launchOnLogin)
     }
 
+    func testMissingHUDSectionUsesDefaultHUDValues() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [hotkeys]
+            focus-left = "cmd-left"
+            focus-right = "cmd-right"
+            """
+        )
+
+        XCTAssertTrue(cfg.hud.enabled)
+        XCTAssertTrue(cfg.hud.showIcons)
+        XCTAssertEqual(cfg.hud.position, .middleCenter)
+    }
+
     func testParseInvalidNavigationPolicyDefaultsToFixedAppRing() throws {
         let cfg = try ConfigLoader.parse(
             """

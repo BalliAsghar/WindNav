@@ -39,13 +39,15 @@ color = "auto" # auto|always|never
 launch-on-login = false
 
 [hud]
-enabled = false
-show-icons = false
-position = "top-center"
+enabled = true
+show-icons = true
+position = "middle-center"
 ```
 
 `left/right` cycle apps in the configured ring.
 `up/down` cycle windows within the selected app.
+Hotkey modifiers support short and full names: `cmd|command`, `opt|option|alt`, `ctrl|control|ctl`, `shift`.
+Multiple modifiers are supported, e.g. `cmd-shift-left` or `ctrl-opt-right`.
 Set `navigation.cycle-timeout-ms = 0` to disable time-based session reset and end cycling (and hide HUD) when modifiers are released.
 Config changes are applied on startup. Restart WindNav after editing `config.toml`.
 `launch-on-login` is applied on startup.
