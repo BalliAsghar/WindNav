@@ -25,6 +25,8 @@ xattr -cr /Applications/WindNav.app
 - Window selection with `up` / `down` in both immediate and browse flows.
 - Flow lock per modifier hold for predictable behavior.
 
+Watch demo: [Demo.mp4](https://github.com/BalliAsghar/WindNav/blob/main/docs/Demo.mp4)
+
 ## How It Works (Quick Guide)
 
 1. Hold your modifier key (default: `Command`).
