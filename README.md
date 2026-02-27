@@ -6,10 +6,6 @@
 
 WindNav is a macOS keyboard navigation tool for fast app and window switching without rearranging your workspace.
 
-## Demo
-
-![WindNav demo](docs/Demo.mp4)
-
 ## Features
 
 - Fast directional app switching with `left` / `right`.
