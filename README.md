@@ -4,36 +4,82 @@
 
 # WindNav
 
-WindNav is a lightweight macOS keyboard navigation agent.
-It preserves your current window layout and only changes focus.
+WindNav is a macOS keyboard navigation tool that helps you move between apps and windows without disturbing your layout.
 
-## Features (v1)
+## Why Use WindNav
 
-- Global hotkeys via Carbon (`RegisterEventHotKey`)
-- AX window discovery for visible standard windows
-- Predictable app-level focus cycling (`left/right`) with in-app window cycling (`up/down`)
-- Current-monitor-only targeting
-- TOML config (loaded on startup)
+- **Directional focus movement**
+  - `left` / `right` moves between apps.
+  - `up` / `down` cycles windows inside the current app.
+- **Current-monitor awareness**
+  - Navigation stays on the monitor you are actively using.
+- **Predictable switching**
+  - Optional app pinning gives you a stable app order.
+- **Visual feedback**
+  - Optional HUD shows where you are in the cycle.
+- **Fully customizable shortcuts**
+  - Pick any modifier + key combination you prefer.
+- **Launch on login support**
+  - Start WindNav automatically after sign in.
 
-## Config
+## Quick Start
 
-Path: `~/.config/windnav/config.toml`
+1. Build the app bundle:
+
+```bash
+cd /path/to/WindNav
+./scripts/build_app.sh
+```
+
+2. Move WindNav into your Applications folder:
+
+```bash
+mv dist/WindNav.app /Applications/
+```
+
+3. Launch from Applications:
+
+```bash
+open -a WindNav
+```
+
+4. On first launch, grant **Accessibility** permission when macOS prompts you.
+
+## Default Shortcuts
+
+- `cmd-left`: previous app
+- `cmd-right`: next app
+- `cmd-up`: next window in current app
+- `cmd-down`: previous window in current app
+
+## Personalize WindNav
+
+Config file location:
+
+```text
+~/.config/windnav/config.toml
+```
+
+WindNav creates this file automatically on first launch.
+
+Example configuration:
 
 ```toml
 [hotkeys]
 focus-left = "cmd-left"
 focus-right = "cmd-right"
-focus-up = "cmd-up"     # in-app window cycling (forward)
-focus-down = "cmd-down" # in-app window cycling (reverse)
+focus-up = "cmd-up"
+focus-down = "cmd-down"
 
 [navigation]
-policy = "fixed-app-ring" # currently fixed-app-ring is the only active policy
+policy = "fixed-app-ring"
 cycle-timeout-ms = 900
-# set to 0 to keep cycling active until you release hotkey modifiers
 
-[logging]
-level = "info" # info|error
-color = "auto" # auto|always|never
+[navigation.fixed-app-ring]
+pinned-apps = ["com.apple.Safari", "com.microsoft.VSCode"]
+unpinned-apps = "append"
+in-app-window = "last-focused"
+grouping = "one-stop-per-app"
 
 [startup]
 launch-on-login = false
@@ -44,93 +90,21 @@ show-icons = true
 position = "middle-center"
 ```
 
-`left/right` cycle apps in the configured ring.
-`up/down` cycle windows within the selected app.
-Hotkey modifiers support short and full names: `cmd|command`, `opt|option|alt`, `ctrl|control|ctl`, `shift`.
-Multiple modifiers are supported, e.g. `cmd-shift-left` or `ctrl-opt-right`.
-Set `navigation.cycle-timeout-ms = 0` to disable time-based session reset and end cycling (and hide HUD) when modifiers are released.
-Config changes are applied on startup. Restart WindNav after editing `config.toml`.
-`launch-on-login` is applied on startup.
-HUD positions: `top-center`, `middle-center`, `bottom-center`.
+Notes:
 
-## Log Output
+- Set `cycle-timeout-ms = 0` to keep a cycling session active until you release the shortcut modifiers.
+- Restart WindNav after editing `config.toml` (live reload is currently disabled).
+- `launch-on-login` is most reliable when running the bundled app (`dist/WindNav.app`).
 
-WindNav writes structured logs to stdout:
+## Troubleshooting
 
-```text
-[07:10:11] Runtime    -> Starting WindNav
-[07:10:11] Config     -> Loaded config from /Users/balli/.config/windnav/config.toml
-[07:10:11] Startup    -> Launch-on-login already disabled (status=notRegistered)
-[07:10:11] Hotkey     -> Registered left (keyCode=123, modifiers=256)
-[07:10:13] Hotkey     -> Hotkey pressed: right
-[07:10:13] Navigation -> Direction=right focused=52361 candidates=5
-[07:10:13] Navigation -> Focused target window 52403
-```
+- **Shortcuts do nothing**: Re-check macOS Accessibility permission for WindNav.
+- **Config changes not applied**: Quit and relaunch WindNav.
+- **Launch-on-login not sticking**: Run WindNav from the app bundle, not only with `swift run`.
 
-Launch-at-login can additionally log:
-
-```text
-[07:10:11] Startup    -> Applying launch-on-login=true (status-before=notRegistered)
-[07:10:11] Startup    -> Launch-on-login set requested=true status-after=enabled
-[07:10:11] Startup    -> Launch-on-login set requested=true status-after=requiresApproval
-[07:10:11] Startup    -> Failed to apply launch-on-login=true; continuing startup: <error>
-```
-
-## Run (Dev)
+## Development Run (Optional)
 
 ```bash
-cd /Users/balli/code/WindNav
+cd /path/to/WindNav
 swift run WindNav
 ```
-
-On first launch, grant Accessibility permission when prompted.
-If `launch-on-login` is enabled, run as bundled app (`dist/WindNav.app`) for `SMAppService.mainApp` registration behavior.
-When running with `swift run WindNav`, launch-at-login registration can fail and is logged but non-fatal.
-When running as `dist/WindNav.app`, stdout/stderr are redirected to `/tmp/windnav.log`.
-
-## Build (Release Binary)
-
-```bash
-cd /Users/balli/code/WindNav
-swift build -c release --product WindNav
-```
-
-Binary output:
-
-```text
-/Users/balli/code/WindNav/.build/arm64-apple-macosx/release/WindNav
-```
-
-## Build App Bundle With Icon
-
-WindNav uses repo-owned icon assets:
-
-```text
-/Users/balli/code/WindNav/Packaging/windnav.svg
-/Users/balli/code/WindNav/Packaging/windnav.icns
-```
-
-Build app bundle (no args):
-
-```bash
-cd /Users/balli/code/WindNav
-./scripts/build_app.sh
-```
-
-Bundle output:
-
-```text
-/Users/balli/code/WindNav/dist/WindNav.app
-```
-
-Launch:
-
-```bash
-open /Users/balli/code/WindNav/dist/WindNav.app
-```
-
-Defaults:
-
-- `Bundle ID`: `com.windnav.app`
-- signing: skipped
-- app type: background agent (`LSUIElement=true`)
