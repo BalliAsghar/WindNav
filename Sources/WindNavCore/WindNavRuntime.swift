@@ -8,8 +8,6 @@ public final class WindNavRuntime {
     private let focusPerformer: AXFocusPerformer
     private let observerHub: AXEventObserverHub
     private let cache: WindowStateCache
-    private let navigator: LogicalCycleNavigator
-    private let mruOrderStore: MRUWindowOrderStore
     private let appRingStateStore: AppRingStateStore
     private let appFocusMemoryStore: AppFocusMemoryStore
     private let hotkeys: CarbonHotkeyRegistrar
@@ -32,8 +30,6 @@ public final class WindNavRuntime {
         focusPerformer = AXFocusPerformer()
         observerHub = AXEventObserverHub()
         cache = WindowStateCache(provider: windowProvider)
-        navigator = LogicalCycleNavigator()
-        mruOrderStore = MRUWindowOrderStore()
         appRingStateStore = AppRingStateStore()
         appFocusMemoryStore = AppFocusMemoryStore()
         hotkeys = CarbonHotkeyRegistrar()
@@ -86,7 +82,7 @@ public final class WindNavRuntime {
         Logger.info(.config, "Logging configured (level=\(config.logging.level.rawValue), color=\(config.logging.color.rawValue))")
         applyLaunchAtLogin(config.startup.launchOnLogin)
 
-        let parsedBindings = try parseBindings(config.hotkeys, policy: config.navigation.policy)
+        let parsedBindings = try parseBindings(config.hotkeys)
         Logger.info(.hotkey, "Parsed hotkey bindings")
 
         if coordinator == nil {
@@ -94,8 +90,6 @@ public final class WindNavRuntime {
                 cache: cache,
                 focusedWindowProvider: windowProvider,
                 focusPerformer: focusPerformer,
-                navigator: navigator,
-                mruOrderStore: mruOrderStore,
                 appRingStateStore: appRingStateStore,
                 appFocusMemoryStore: appFocusMemoryStore,
                 hudController: hudController,
@@ -125,18 +119,13 @@ public final class WindNavRuntime {
         Logger.info(.hotkey, "Hotkeys registered")
     }
 
-    private func parseBindings(_ hotkeys: HotkeysConfig, policy: NavigationPolicy) throws -> [Direction: ParsedHotkey] {
-        var bindings: [Direction: ParsedHotkey] = [
+    private func parseBindings(_ hotkeys: HotkeysConfig) throws -> [Direction: ParsedHotkey] {
+        [
             .left: try HotkeyParser.parse(hotkeys.focusLeft),
             .right: try HotkeyParser.parse(hotkeys.focusRight),
+            .up: try HotkeyParser.parse(hotkeys.focusUp),
+            .down: try HotkeyParser.parse(hotkeys.focusDown),
         ]
-
-        if policy == .fixedAppRing {
-            bindings[.up] = try HotkeyParser.parse(hotkeys.focusUp)
-            bindings[.down] = try HotkeyParser.parse(hotkeys.focusDown)
-        }
-
-        return bindings
     }
 
     private static func defaultConfigURL() -> URL {

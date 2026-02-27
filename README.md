@@ -11,7 +11,7 @@ It preserves your current window layout and only changes focus.
 
 - Global hotkeys via Carbon (`RegisterEventHotKey`)
 - AX window discovery for visible standard windows
-- Logical focus cycling (`left/right`) using MRU order
+- Predictable app-level focus cycling (`left/right`) with in-app window cycling (`up/down`)
 - Current-monitor-only targeting
 - TOML config (loaded on startup)
 
@@ -23,11 +23,11 @@ Path: `~/.config/windnav/config.toml`
 [hotkeys]
 focus-left = "cmd-left"
 focus-right = "cmd-right"
-focus-up = "cmd-up"     # used for in-app window cycling in fixed-app-ring mode
-focus-down = "cmd-down" # reverse in-app window cycling in fixed-app-ring mode
+focus-up = "cmd-up"     # in-app window cycling (forward)
+focus-down = "cmd-down" # in-app window cycling (reverse)
 
 [navigation]
-policy = "mru-cycle"
+policy = "fixed-app-ring" # currently fixed-app-ring is the only active policy
 cycle-timeout-ms = 900
 # set to 0 to keep cycling active until you release hotkey modifiers
 
@@ -44,8 +44,8 @@ show-icons = false
 position = "top-center"
 ```
 
-`left` means previous window in the logical cycle, and `right` means next.
-In `fixed-app-ring` mode, `up/down` cycle windows within the selected app.
+`left/right` cycle apps in the configured ring.
+`up/down` cycle windows within the selected app.
 Set `navigation.cycle-timeout-ms = 0` to disable time-based session reset and end cycling (and hide HUD) when modifiers are released.
 Config changes are applied on startup. Restart WindNav after editing `config.toml`.
 `launch-on-login` is applied on startup.

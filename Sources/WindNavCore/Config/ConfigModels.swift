@@ -67,7 +67,7 @@ public struct NavigationConfig: Equatable, Sendable {
     }
 
     public static let `default` = NavigationConfig(
-        policy: .mruCycle,
+        policy: .fixedAppRing,
         cycleTimeoutMs: 900,
         fixedAppRing: .default
     )
@@ -171,13 +171,11 @@ extension WindNavConfig {
     focus-down = "cmd-down"
 
     [navigation]
-    policy = "mru-cycle"
+    policy = "fixed-app-ring"
     cycle-timeout-ms = 900
     # Set cycle-timeout-ms = 0 to keep cycling active until the hotkey modifiers are released.
 
-    # To enable predictable app-level cycling:
-    # policy = "fixed-app-ring"
-    #
+    # Predictable app-level cycling configuration:
     # [navigation.fixed-app-ring]
     # pinned-apps = ["com.google.Chrome", "com.apple.Terminal", "com.microsoft.VSCode"]
     # unpinned-apps = "append"

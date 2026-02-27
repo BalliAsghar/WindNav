@@ -9,7 +9,6 @@ public enum Direction: String, CaseIterable, Sendable {
 }
 
 public enum NavigationPolicy: String, Sendable {
-    case mruCycle = "mru-cycle"
     case fixedAppRing = "fixed-app-ring"
 }
 

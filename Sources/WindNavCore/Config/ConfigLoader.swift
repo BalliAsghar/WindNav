@@ -67,17 +67,11 @@ final class ConfigLoader {
         if let navTable = table["navigation"]?.table {
             Self.logUnknownKeys(in: navTable, section: "navigation", known: ["policy", "cycle-timeout-ms", "fixed-app-ring"])
             if let policyRaw = navTable["policy"]?.string {
-                if policyRaw == "natural" {
-                    Logger.info(.config, "Deprecated navigation.policy='natural' treated as 'mru-cycle'")
-                    navigation.policy = .mruCycle
-                } else if let value = NavigationPolicy(rawValue: policyRaw) {
+                if let value = NavigationPolicy(rawValue: policyRaw) {
                     navigation.policy = value
                 } else {
-                    throw ConfigError.invalidValue(
-                        key: "navigation.policy",
-                        expected: "mru-cycle|fixed-app-ring",
-                        actual: policyRaw
-                    )
+                    Logger.info(.config, "Invalid navigation.policy='\(policyRaw)'; defaulting to 'fixed-app-ring'")
+                    navigation.policy = .fixedAppRing
                 }
             }
             if let cycleTimeout = navTable["cycle-timeout-ms"]?.int {

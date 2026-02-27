@@ -28,7 +28,7 @@ final class ConfigTests: XCTestCase {
             focus-right = "cmd-right"
 
             [navigation]
-            policy = "mru-cycle"
+            policy = "fixed-app-ring"
             cycle-timeout-ms = 900
 
             [logging]
@@ -45,7 +45,7 @@ final class ConfigTests: XCTestCase {
             """
         )
 
-        XCTAssertEqual(cfg.navigation.policy, .mruCycle)
+        XCTAssertEqual(cfg.navigation.policy, .fixedAppRing)
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 900)
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
         XCTAssertEqual(cfg.hotkeys.focusUp, "cmd-up")
@@ -87,15 +87,39 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
-    func testParseNaturalPolicyAliasMapsToMruCycle() throws {
-        let cfg = try ConfigLoader.parse(
+    func testInvalidPolicyFallsBackToFixedAppRingAndLogs() throws {
+        let lines = SinkLines()
+        Logger._setTestSink { line in
+            lines.append(line)
+        }
+        defer { Logger._resetForTests() }
+
+        let cfgMru = try ConfigLoader.parse(
+            """
+            [navigation]
+            policy = "mru-cycle"
+            """
+        )
+        XCTAssertEqual(cfgMru.navigation.policy, .fixedAppRing)
+        XCTAssertTrue(lines.contains("Invalid navigation.policy='mru-cycle'; defaulting to 'fixed-app-ring'"))
+
+        let cfgNatural = try ConfigLoader.parse(
             """
             [navigation]
             policy = "natural"
             """
         )
+        XCTAssertEqual(cfgNatural.navigation.policy, .fixedAppRing)
+        XCTAssertTrue(lines.contains("Invalid navigation.policy='natural'; defaulting to 'fixed-app-ring'"))
 
-        XCTAssertEqual(cfg.navigation.policy, .mruCycle)
+        let cfgUnknown = try ConfigLoader.parse(
+            """
+            [navigation]
+            policy = "some-future-name"
+            """
+        )
+        XCTAssertEqual(cfgUnknown.navigation.policy, .fixedAppRing)
+        XCTAssertTrue(lines.contains("Invalid navigation.policy='some-future-name'; defaulting to 'fixed-app-ring'"))
     }
 
     func testUnknownConfigKeysAreIgnored() throws {
@@ -140,15 +164,14 @@ final class ConfigTests: XCTestCase {
         XCTAssertFalse(cfg.startup.launchOnLogin)
     }
 
-    func testParseInvalidNavigationPolicyThrows() {
-        XCTAssertThrowsError(
-            try ConfigLoader.parse(
-                """
-                [navigation]
-                policy = "spatial"
-                """
-            )
+    func testParseInvalidNavigationPolicyDefaultsToFixedAppRing() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [navigation]
+            policy = "spatial"
+            """
         )
+        XCTAssertEqual(cfg.navigation.policy, .fixedAppRing)
     }
 
     func testParseInvalidFixedAppRingUnpinnedAppsThrows() {

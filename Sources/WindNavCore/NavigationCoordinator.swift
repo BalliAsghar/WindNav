@@ -6,15 +6,12 @@ final class NavigationCoordinator {
     private let cache: WindowStateCache
     private let focusedWindowProvider: FocusedWindowProvider
     private let focusPerformer: FocusPerformer
-    private let navigator: LogicalCycleNavigator
-    private let mruOrderStore: MRUWindowOrderStore
     private let appRingStateStore: AppRingStateStore
     private let appFocusMemoryStore: AppFocusMemoryStore
     private let hudController: CycleHUDController
 
     private var navigationConfig: NavigationConfig
     private var hudConfig: HUDConfig
-    private var cycleSession: CycleSessionState?
 
     private var pendingDirections: [Direction] = []
     private var isProcessing = false
@@ -23,8 +20,6 @@ final class NavigationCoordinator {
         cache: WindowStateCache,
         focusedWindowProvider: FocusedWindowProvider,
         focusPerformer: FocusPerformer,
-        navigator: LogicalCycleNavigator,
-        mruOrderStore: MRUWindowOrderStore,
         appRingStateStore: AppRingStateStore,
         appFocusMemoryStore: AppFocusMemoryStore,
         hudController: CycleHUDController,
@@ -34,8 +29,6 @@ final class NavigationCoordinator {
         self.cache = cache
         self.focusedWindowProvider = focusedWindowProvider
         self.focusPerformer = focusPerformer
-        self.navigator = navigator
-        self.mruOrderStore = mruOrderStore
         self.appRingStateStore = appRingStateStore
         self.appFocusMemoryStore = appFocusMemoryStore
         self.hudController = hudController
@@ -46,7 +39,6 @@ final class NavigationCoordinator {
     func updateConfig(navigation: NavigationConfig, hud: HUDConfig) {
         navigationConfig = navigation
         hudConfig = hud
-        cycleSession = nil
         if !hud.enabled {
             hudController.hide()
         }
@@ -54,12 +46,8 @@ final class NavigationCoordinator {
     }
 
     func endCycleSessionOnModifierRelease() {
-        let hadSession = cycleSession != nil
-        cycleSession = nil
         hudController.hide()
-        if hadSession {
-            Logger.info(.navigation, "Cycle session ended on modifier release")
-        }
+        Logger.info(.navigation, "Cycle session ended on modifier release")
     }
 
     func recordCurrentSystemFocusIfAvailable() async {
@@ -100,7 +88,6 @@ final class NavigationCoordinator {
             return
         }
         appFocusMemoryStore.prune(using: snapshots)
-        mruOrderStore.syncVisibleWindowIDs(snapshots.map(\.windowId))
 
         guard let focusedID = await focusedWindowProvider.focusedWindowID() else {
             Logger.info(.navigation, "No focused window detected")
@@ -110,7 +97,6 @@ final class NavigationCoordinator {
             Logger.info(.navigation, "Focused window \(focusedID) is not in current snapshot")
             return
         }
-        mruOrderStore.promote(focused.windowId)
 
         guard let focusedScreen = ScreenLocator.screenID(containing: focused.center) else {
             Logger.info(.navigation, "Focused window \(focused.windowId) is not on an active screen")
@@ -122,61 +108,7 @@ final class NavigationCoordinator {
         }
         Logger.info(.navigation, "Direction=\(direction.rawValue) focused=\(focused.windowId) candidates=\(candidates.count)")
         appFocusMemoryStore.recordFocused(window: focused, monitorID: focusedScreen)
-
-        switch navigationConfig.policy {
-            case .mruCycle:
-                hudController.hide()
-                await handleMRUCycle(direction: direction, focused: focused, candidates: candidates, focusedScreen: focusedScreen)
-            case .fixedAppRing:
-                cycleSession = nil
-                await handleFixedAppRing(direction: direction, focused: focused, candidates: candidates, focusedScreen: focusedScreen)
-        }
-    }
-
-    private func handleMRUCycle(
-        direction: Direction,
-        focused: WindowSnapshot,
-        candidates: [WindowSnapshot],
-        focusedScreen: NSNumber
-    ) async {
-        let candidateSet = Set(candidates.map(\.windowId))
-        let freshOrderedIDs = mruOrderStore.orderedIDs(within: candidateSet)
-        let now = Date()
-        let resolution = CycleSessionResolver.resolve(
-            existing: cycleSession,
-            monitorID: focusedScreen,
-            candidateSet: candidateSet,
-            now: now,
-            timeoutMs: navigationConfig.cycleTimeoutMs,
-            freshOrderedWindowIDs: freshOrderedIDs
-        )
-        cycleSession = resolution.state
-
-        if let reason = resolution.resetReason {
-            Logger.info(.navigation, "Cycle session reset reason=\(reason.rawValue)")
-        } else if resolution.reusedSession {
-            Logger.info(.navigation, "Cycle session reused")
-        } else {
-            Logger.info(.navigation, "Cycle session started")
-        }
-        Logger.info(.navigation, "Ordered candidate count=\(resolution.orderedWindowIDs.count)")
-
-        let candidateByID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.windowId, $0) })
-        let orderedCandidates = resolution.orderedWindowIDs.compactMap { candidateByID[$0] }
-
-        guard let target = navigator.target(from: focused, direction: direction, orderedCandidates: orderedCandidates) else {
-            Logger.info(.navigation, "No target window in direction \(direction.rawValue)")
-            return
-        }
-        Logger.info(.navigation, "Selected target window \(target.windowId)")
-
-        do {
-            try await focusPerformer.focus(windowId: target.windowId, pid: target.pid)
-            mruOrderStore.promote(target.windowId)
-            Logger.info(.navigation, "Focused target window \(target.windowId)")
-        } catch {
-            Logger.error(.navigation, "Failed to focus window \(target.windowId): \(error.localizedDescription)")
-        }
+        await handleFixedAppRing(direction: direction, focused: focused, candidates: candidates, focusedScreen: focusedScreen)
     }
 
     private func handleFixedAppRing(
@@ -257,7 +189,6 @@ final class NavigationCoordinator {
 
         do {
             try await focusPerformer.focus(windowId: target.windowId, pid: target.pid)
-            mruOrderStore.promote(target.windowId)
             appFocusMemoryStore.recordFocused(window: target, monitorID: focusedScreen)
             Logger.info(.navigation, "Focused target window \(target.windowId)")
         } catch {
