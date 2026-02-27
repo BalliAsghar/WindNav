@@ -33,15 +33,21 @@ public struct WindNavConfig: Equatable, Sendable {
 public struct HotkeysConfig: Equatable, Sendable {
     public var focusLeft: String
     public var focusRight: String
+    public var focusUp: String
+    public var focusDown: String
 
-    public init(focusLeft: String, focusRight: String) {
+    public init(focusLeft: String, focusRight: String, focusUp: String, focusDown: String) {
         self.focusLeft = focusLeft
         self.focusRight = focusRight
+        self.focusUp = focusUp
+        self.focusDown = focusDown
     }
 
     public static let `default` = HotkeysConfig(
         focusLeft: "cmd-left",
-        focusRight: "cmd-right"
+        focusRight: "cmd-right",
+        focusUp: "cmd-up",
+        focusDown: "cmd-down"
     )
 }
 
@@ -160,6 +166,9 @@ extension WindNavConfig {
     [hotkeys]
     focus-left = "cmd-left"
     focus-right = "cmd-right"
+    # Used when navigation.policy = "fixed-app-ring" to cycle windows inside selected app.
+    focus-up = "cmd-up"
+    focus-down = "cmd-down"
 
     [navigation]
     policy = "mru-cycle"

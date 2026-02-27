@@ -48,6 +48,8 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.policy, .mruCycle)
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 900)
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
+        XCTAssertEqual(cfg.hotkeys.focusUp, "cmd-up")
+        XCTAssertEqual(cfg.hotkeys.focusDown, "cmd-down")
         XCTAssertEqual(cfg.logging.level, .info)
         XCTAssertEqual(cfg.logging.color, .auto)
         XCTAssertEqual(cfg.startup.launchOnLogin, true)
@@ -102,8 +104,7 @@ final class ConfigTests: XCTestCase {
             [hotkeys]
             focus-left = "cmd-left"
             focus-right = "cmd-right"
-            focus-up = "cmd-up"
-            focus-down = "cmd-down"
+            focus-diagonal = "cmd-k"
 
             [navigation]
             scope = "all-monitors"
@@ -236,14 +237,27 @@ final class ConfigTests: XCTestCase {
             [hotkeys]
             focus-left = "cmd-left"
             focus-right = "cmd-right"
-            focus-up = "cmd-up"
+            focus-diagonal = "cmd-k"
             """
         )
 
         XCTAssertTrue(lines.contains("Unknown Key: [root].random"))
         XCTAssertTrue(lines.contains("Unknown Key: [navigation].scope"))
         XCTAssertTrue(lines.contains("Unknown Key: [navigation.fixed-app-ring].extra"))
-        XCTAssertTrue(lines.contains("Unknown Key: [hotkeys].focus-up"))
+        XCTAssertTrue(lines.contains("Unknown Key: [hotkeys].focus-diagonal"))
+    }
+
+    func testParseCustomUpDownHotkeys() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [hotkeys]
+            focus-up = "alt-up"
+            focus-down = "alt-down"
+            """
+        )
+
+        XCTAssertEqual(cfg.hotkeys.focusUp, "alt-up")
+        XCTAssertEqual(cfg.hotkeys.focusDown, "alt-down")
     }
 
     func testParseHUDMiddleCenterPosition() throws {

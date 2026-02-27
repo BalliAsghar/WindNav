@@ -197,33 +197,63 @@ final class NavigationCoordinator {
             return
         }
 
-        guard orderedGroups.count > 1 else {
-            Logger.info(.navigation, "Fixed app ring has only one app group")
-            return
-        }
-
         let focusedAppKey = AppRingKey(window: focused)
         guard let currentIndex = orderedGroups.firstIndex(where: { $0.key == focusedAppKey }) else {
             Logger.info(.navigation, "Focused app \(focusedAppKey.rawValue) not found in fixed app ring")
             return
         }
 
-        let step = direction == .right ? 1 : -1
-        let targetIndex = (currentIndex + step + orderedGroups.count) % orderedGroups.count
+        let targetIndex: Int
+        switch direction {
+            case .right:
+                guard orderedGroups.count > 1 else {
+                    Logger.info(.navigation, "Fixed app ring has only one app group")
+                    return
+                }
+                targetIndex = (currentIndex + 1) % orderedGroups.count
+            case .left:
+                guard orderedGroups.count > 1 else {
+                    Logger.info(.navigation, "Fixed app ring has only one app group")
+                    return
+                }
+                targetIndex = (currentIndex - 1 + orderedGroups.count) % orderedGroups.count
+            case .up, .down:
+                targetIndex = currentIndex
+        }
         let targetGroup = orderedGroups[targetIndex]
 
-        guard let target = selectWindow(in: targetGroup, monitorID: focusedScreen) else {
+        guard let target = selectWindow(
+            in: targetGroup,
+            monitorID: focusedScreen,
+            direction: direction,
+            focusedWindowID: focused.windowId
+        ) else {
             Logger.info(.navigation, "No target window in app group \(targetGroup.key.rawValue)")
             return
         }
 
-        Logger.info(
-            .navigation,
-            "Fixed app ring direction=\(direction.rawValue) apps=\(orderedGroups.count) focused-app=\(orderedGroups[currentIndex].label) target-app=\(targetGroup.label)"
-        )
-        Logger.info(.navigation, "Fixed app ring selected window \(target.windowId) policy=\(navigationConfig.fixedAppRing.inAppWindow.rawValue)")
+        if direction == .left || direction == .right {
+            Logger.info(
+                .navigation,
+                "Fixed app ring direction=\(direction.rawValue) apps=\(orderedGroups.count) focused-app=\(orderedGroups[currentIndex].label) target-app=\(targetGroup.label)"
+            )
+        } else {
+            Logger.info(
+                .navigation,
+                "Fixed app ring in-app cycle direction=\(direction.rawValue) app=\(targetGroup.label) windows=\(targetGroup.windows.count)"
+            )
+        }
 
-        showHUD(for: orderedGroups, selectedIndex: targetIndex, monitorID: focusedScreen)
+        if let slot = windowOrdinal(in: targetGroup, windowID: target.windowId) {
+            Logger.info(
+                .navigation,
+                "Fixed app ring selected window \(target.windowId) slot=\(slot)/\(targetGroup.windows.count) policy=\(navigationConfig.fixedAppRing.inAppWindow.rawValue)"
+            )
+        } else {
+            Logger.info(.navigation, "Fixed app ring selected window \(target.windowId) policy=\(navigationConfig.fixedAppRing.inAppWindow.rawValue)")
+        }
+
+        showHUD(for: orderedGroups, selectedIndex: targetIndex, selectedWindowID: target.windowId, monitorID: focusedScreen)
 
         do {
             try await focusPerformer.focus(windowId: target.windowId, pid: target.pid)
@@ -260,17 +290,43 @@ final class NavigationCoordinator {
         return "pid:\(key.representativePID)"
     }
 
-    private func selectWindow(in group: AppRingGroup, monitorID: NSNumber) -> WindowSnapshot? {
+    private func selectWindow(
+        in group: AppRingGroup,
+        monitorID: NSNumber,
+        direction: Direction,
+        focusedWindowID: UInt32
+    ) -> WindowSnapshot? {
+        let orderedWindows = group.windows.sorted(by: spatialWindowSort)
+        guard !orderedWindows.isEmpty else { return nil }
+
+        if direction == .up || direction == .down {
+            guard orderedWindows.count > 1 else { return orderedWindows.first }
+
+            let preferredID = appFocusMemoryStore.preferredWindowID(
+                appKey: group.key,
+                candidateWindows: orderedWindows,
+                monitorID: monitorID,
+                policy: navigationConfig.fixedAppRing.inAppWindow
+            )
+            let baseID = orderedWindows.contains(where: { $0.windowId == focusedWindowID })
+                ? focusedWindowID
+                : (preferredID ?? orderedWindows[0].windowId)
+            let baseIndex = orderedWindows.firstIndex(where: { $0.windowId == baseID }) ?? 0
+            let step = direction == .up ? 1 : -1
+            let nextIndex = (baseIndex + step + orderedWindows.count) % orderedWindows.count
+            return orderedWindows[nextIndex]
+        }
+
         if let preferredID = appFocusMemoryStore.preferredWindowID(
             appKey: group.key,
-            candidateWindows: group.windows,
+            candidateWindows: orderedWindows,
             monitorID: monitorID,
             policy: navigationConfig.fixedAppRing.inAppWindow
-        ), let match = group.windows.first(where: { $0.windowId == preferredID }) {
+        ), let match = orderedWindows.first(where: { $0.windowId == preferredID }) {
             return match
         }
 
-        return group.windows.sorted(by: spatialWindowSort).first
+        return orderedWindows.first
     }
 
     private func spatialWindowSort(_ lhs: WindowSnapshot, _ rhs: WindowSnapshot) -> Bool {
@@ -279,20 +335,33 @@ final class NavigationCoordinator {
         return lhs.windowId < rhs.windowId
     }
 
-    private func showHUD(for groups: [AppRingGroup], selectedIndex: Int, monitorID: NSNumber) {
+    private func showHUD(for groups: [AppRingGroup], selectedIndex: Int, selectedWindowID: UInt32, monitorID: NSNumber) {
         guard hudConfig.enabled else { return }
 
         let items = groups.enumerated().map { index, group in
             let representative = group.windows.first
+            let orderedWindows = group.windows.sorted(by: spatialWindowSort)
             return CycleHUDItem(
                 label: group.label,
                 iconPID: representative?.pid ?? 0,
                 iconBundleId: representative?.bundleId,
                 isPinned: group.isPinned,
-                isCurrent: index == selectedIndex
+                isCurrent: index == selectedIndex,
+                windowCount: orderedWindows.count,
+                currentWindowIndex: index == selectedIndex
+                    ? orderedWindows.firstIndex(where: { $0.windowId == selectedWindowID })
+                    : nil
             )
         }
         let model = CycleHUDModel(items: items, selectedIndex: selectedIndex, monitorID: monitorID)
         hudController.show(model: model, config: hudConfig, timeoutMs: navigationConfig.cycleTimeoutMs)
+    }
+
+    private func windowOrdinal(in group: AppRingGroup, windowID: UInt32) -> Int? {
+        let orderedWindows = group.windows.sorted(by: spatialWindowSort)
+        guard let index = orderedWindows.firstIndex(where: { $0.windowId == windowID }) else {
+            return nil
+        }
+        return index + 1
     }
 }

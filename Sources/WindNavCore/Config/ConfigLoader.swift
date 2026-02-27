@@ -57,9 +57,11 @@ final class ConfigLoader {
         Self.logUnknownKeys(in: table, section: "root", known: ["hotkeys", "navigation", "logging", "startup", "hud"])
 
         if let hotkeysTable = table["hotkeys"]?.table {
-            Self.logUnknownKeys(in: hotkeysTable, section: "hotkeys", known: ["focus-left", "focus-right"])
+            Self.logUnknownKeys(in: hotkeysTable, section: "hotkeys", known: ["focus-left", "focus-right", "focus-up", "focus-down"])
             hotkeys.focusLeft = hotkeysTable["focus-left"]?.string ?? hotkeys.focusLeft
             hotkeys.focusRight = hotkeysTable["focus-right"]?.string ?? hotkeys.focusRight
+            hotkeys.focusUp = hotkeysTable["focus-up"]?.string ?? hotkeys.focusUp
+            hotkeys.focusDown = hotkeysTable["focus-down"]?.string ?? hotkeys.focusDown
         }
 
         if let navTable = table["navigation"]?.table {

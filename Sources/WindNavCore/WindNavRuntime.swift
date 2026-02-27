@@ -86,7 +86,7 @@ public final class WindNavRuntime {
         Logger.info(.config, "Logging configured (level=\(config.logging.level.rawValue), color=\(config.logging.color.rawValue))")
         applyLaunchAtLogin(config.startup.launchOnLogin)
 
-        let parsedBindings = try parseBindings(config.hotkeys)
+        let parsedBindings = try parseBindings(config.hotkeys, policy: config.navigation.policy)
         Logger.info(.hotkey, "Parsed hotkey bindings")
 
         if coordinator == nil {
@@ -125,11 +125,18 @@ public final class WindNavRuntime {
         Logger.info(.hotkey, "Hotkeys registered")
     }
 
-    private func parseBindings(_ hotkeys: HotkeysConfig) throws -> [Direction: ParsedHotkey] {
-        [
+    private func parseBindings(_ hotkeys: HotkeysConfig, policy: NavigationPolicy) throws -> [Direction: ParsedHotkey] {
+        var bindings: [Direction: ParsedHotkey] = [
             .left: try HotkeyParser.parse(hotkeys.focusLeft),
             .right: try HotkeyParser.parse(hotkeys.focusRight),
         ]
+
+        if policy == .fixedAppRing {
+            bindings[.up] = try HotkeyParser.parse(hotkeys.focusUp)
+            bindings[.down] = try HotkeyParser.parse(hotkeys.focusDown)
+        }
+
+        return bindings
     }
 
     private static func defaultConfigURL() -> URL {

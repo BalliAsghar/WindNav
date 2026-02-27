@@ -9,6 +9,8 @@ struct CycleHUDItem: Sendable, Identifiable {
     let iconBundleId: String?
     let isPinned: Bool
     let isCurrent: Bool
+    let windowCount: Int
+    let currentWindowIndex: Int?
 }
 
 struct CycleHUDModel: Sendable {
@@ -19,9 +21,23 @@ struct CycleHUDModel: Sendable {
 
 // MARK: - SwiftUI HUD View
 
+private struct CurrentItemBoundsPreferenceKey: PreferenceKey {
+    nonisolated(unsafe) static var defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
+    }
+}
+
 private struct ModernHUDView: View {
     let model: CycleHUDModel
     let config: HUDConfig
+
+    private var overlayItem: CycleHUDItem? {
+        model.items.first {
+            $0.isCurrent && $0.windowCount > 1 && $0.currentWindowIndex != nil
+        }
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -53,16 +69,61 @@ private struct ModernHUDView: View {
                 )
                 .scaleEffect(item.isCurrent ? 1.02 : 1.0)
                 .animation(.spring(response: 0.3, dampingFraction: 0.6), value: item.isCurrent)
+                .anchorPreference(
+                    key: CurrentItemBoundsPreferenceKey.self,
+                    value: .bounds,
+                    transform: { item.isCurrent ? $0 : nil }
+                )
             }
         }
+        .padding(.top, overlayItem == nil ? 0 : 30)
         .padding(8)
         .background(VisualEffectBackground(material: .hudWindow, blendingMode: .withinWindow))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlayPreferenceValue(CurrentItemBoundsPreferenceKey.self) { anchor in
+            GeometryReader { proxy in
+                if let anchor, let overlayItem {
+                    let rect = proxy[anchor]
+                    windowOverlay(for: overlayItem)
+                        .position(x: rect.midX, y: max(12, rect.minY - 15))
+                }
+            }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
+    }
+
+    @ViewBuilder
+    private func windowOverlay(for item: CycleHUDItem) -> some View {
+        let selectedIndex = item.currentWindowIndex ?? 0
+        HStack(spacing: 4) {
+            ForEach(0 ..< item.windowCount, id: \.self) { index in
+                Text("\(index + 1)")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(index == selectedIndex ? .white : .primary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(index == selectedIndex ? Color(NSColor.controlAccentColor) : Color.clear)
+                    }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(NSColor.windowBackgroundColor).opacity(0.92))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: item.currentWindowIndex)
     }
 
     private func resolvedAppIcon(for item: CycleHUDItem) -> NSImage? {

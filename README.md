@@ -23,6 +23,8 @@ Path: `~/.config/windnav/config.toml`
 [hotkeys]
 focus-left = "cmd-left"
 focus-right = "cmd-right"
+focus-up = "cmd-up"     # used for in-app window cycling in fixed-app-ring mode
+focus-down = "cmd-down" # reverse in-app window cycling in fixed-app-ring mode
 
 [navigation]
 policy = "mru-cycle"
@@ -43,7 +45,7 @@ position = "top-center"
 ```
 
 `left` means previous window in the logical cycle, and `right` means next.
-`up/down` are intentionally not bound in v1.1.
+In `fixed-app-ring` mode, `up/down` cycle windows within the selected app.
 Set `navigation.cycle-timeout-ms = 0` to disable time-based session reset and end cycling (and hide HUD) when modifiers are released.
 Config changes are applied on startup. Restart WindNav after editing `config.toml`.
 `launch-on-login` is applied on startup.
