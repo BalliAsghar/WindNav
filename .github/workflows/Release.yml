@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  Release:
+    name: Build ZIP and Publish Release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tagged commit is on main
+        id: branch_check
+        run: |
+          git fetch --no-tags origin main
+          if git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
+            echo "on_main=true" >> "$GITHUB_OUTPUT"
+            echo "Tag commit is on main."
+          else
+            echo "on_main=false" >> "$GITHUB_OUTPUT"
+            echo "Tag commit is not on main. Skipping release steps."
+          fi
+
+      - name: Build app bundle
+        if: steps.branch_check.outputs.on_main == 'true'
+        run: ./scripts/build_app.sh
+
+      - name: Validate app bundle exists
+        if: steps.branch_check.outputs.on_main == 'true'
+        run: test -d dist/WindNav.app
+
+      - name: Build ZIP
+        if: steps.branch_check.outputs.on_main == 'true'
+        run: |
+          mkdir -p build/release
+          ZIP_PATH="build/release/WindNav-${GITHUB_REF_NAME}.zip"
+          ditto -c -k --sequesterRsrc --keepParent dist/WindNav.app "$ZIP_PATH"
+          echo "ZIP_PATH=$ZIP_PATH" >> "$GITHUB_ENV"
+
+      - name: Generate checksum
+        if: steps.branch_check.outputs.on_main == 'true'
+        run: shasum -a 256 "$ZIP_PATH" > "$ZIP_PATH.sha256"
+
+      - name: Publish GitHub release
+        if: steps.branch_check.outputs.on_main == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            1. Download **WindNav-${{ github.ref_name }}.zip** below.
+            2. Unzip and move **WindNav.app** to Applications.
+            3. Since the app is not notarized, macOS may block it on first launch. Run:
+
+            ```
+            xattr -cr /Applications/WindNav.app
+            ```
+          files: |
+            ${{ env.ZIP_PATH }}
+            ${{ env.ZIP_PATH }}.sha256
+          overwrite_files: true
+          fail_on_unmatched_files: true
