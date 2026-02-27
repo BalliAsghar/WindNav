@@ -57,6 +57,8 @@ enum WindNavDefaultsCatalog {
     static let navigation = NavigationConfig(
         policy: .fixedAppRing,
         cycleTimeoutMs: 900,
+        includeMinimized: true,
+        includeHiddenApps: true,
         fixedAppRing: fixedAppRing
     )
 
@@ -127,6 +129,18 @@ enum WindNavDefaultsCatalog {
                     defaultValue: .int(navigation.cycleTimeoutMs),
                     allowedValues: "non-negative integer (0 disables timeout reset)",
                     description: "Cycling session timeout in milliseconds."
+                ),
+                ConfigSettingSpec(
+                    key: "include-minimized",
+                    defaultValue: .bool(navigation.includeMinimized),
+                    allowedValues: "true|false",
+                    description: "Whether minimized windows should be included in navigation."
+                ),
+                ConfigSettingSpec(
+                    key: "include-hidden-apps",
+                    defaultValue: .bool(navigation.includeHiddenApps),
+                    allowedValues: "true|false",
+                    description: "Whether app windows from hidden apps should be included in navigation."
                 ),
             ]
         ),

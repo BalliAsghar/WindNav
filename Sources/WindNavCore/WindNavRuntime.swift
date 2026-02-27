@@ -81,6 +81,11 @@ public final class WindNavRuntime {
         Logger.configure(level: config.logging.level, colorMode: config.logging.color)
         Logger.info(.config, "Logging configured (level=\(config.logging.level.rawValue), color=\(config.logging.color.rawValue))")
         applyLaunchAtLogin(config.startup.launchOnLogin)
+        windowProvider.updateNavigationConfig(config.navigation)
+        Logger.info(
+            .navigation,
+            "Navigation visibility configured (include-minimized=\(config.navigation.includeMinimized), include-hidden-apps=\(config.navigation.includeHiddenApps))"
+        )
 
         let parsedBindings = try parseBindings(config.hotkeys)
         Logger.info(.hotkey, "Parsed hotkey bindings")

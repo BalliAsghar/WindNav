@@ -9,6 +9,14 @@ final class AXFocusPerformer: FocusPerformer {
             return
         }
 
+        if let isMinimized = window.windNavCopyAttribute(kAXMinimizedAttribute as String) as? Bool, isMinimized {
+            _ = window.windNavSetAttribute(kAXMinimizedAttribute as String, kCFBooleanFalse)
+        }
+
+        if let app = NSRunningApplication(processIdentifier: pid), app.isHidden {
+            _ = app.unhide()
+        }
+
         _ = window.windNavSetAttribute(kAXMainAttribute as String, kCFBooleanTrue)
         _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
 

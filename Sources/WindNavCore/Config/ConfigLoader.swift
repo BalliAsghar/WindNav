@@ -65,7 +65,11 @@ final class ConfigLoader {
         }
 
         if let navTable = table["navigation"]?.table {
-            Self.logUnknownKeys(in: navTable, section: "navigation", known: ["policy", "cycle-timeout-ms", "fixed-app-ring"])
+            Self.logUnknownKeys(
+                in: navTable,
+                section: "navigation",
+                known: ["policy", "cycle-timeout-ms", "include-minimized", "include-hidden-apps", "fixed-app-ring"]
+            )
             if let policyRaw = navTable["policy"]?.string {
                 if let value = NavigationPolicy(rawValue: policyRaw) {
                     navigation.policy = value
@@ -83,6 +87,26 @@ final class ConfigLoader {
                     )
                 }
                 navigation.cycleTimeoutMs = cycleTimeout
+            }
+            if let includeMinimizedValue = navTable["include-minimized"] {
+                guard let includeMinimized = includeMinimizedValue.bool else {
+                    throw ConfigError.invalidValue(
+                        key: "navigation.include-minimized",
+                        expected: "true|false",
+                        actual: renderedValue(includeMinimizedValue)
+                    )
+                }
+                navigation.includeMinimized = includeMinimized
+            }
+            if let includeHiddenAppsValue = navTable["include-hidden-apps"] {
+                guard let includeHiddenApps = includeHiddenAppsValue.bool else {
+                    throw ConfigError.invalidValue(
+                        key: "navigation.include-hidden-apps",
+                        expected: "true|false",
+                        actual: renderedValue(includeHiddenAppsValue)
+                    )
+                }
+                navigation.includeHiddenApps = includeHiddenApps
             }
 
             if let fixedAppRingTable = navTable["fixed-app-ring"]?.table {

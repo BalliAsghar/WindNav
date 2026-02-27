@@ -11,8 +11,11 @@ final class ConfigDefaultsTests: XCTestCase {
     func testRenderedDefaultsTomlIncludesDynamicMetadataComments() {
         let rendered = WindNavDefaultsCatalog.renderedToml
         XCTAssertTrue(rendered.contains("# Whether to show the cycle HUD while navigating."))
+        XCTAssertTrue(rendered.contains("# Whether minimized windows should be included in navigation."))
+        XCTAssertTrue(rendered.contains("# Whether app windows from hidden apps should be included in navigation."))
         XCTAssertTrue(rendered.contains("# Allowed: true|false"))
         XCTAssertTrue(rendered.contains("# Default: \"middle-center\""))
+        XCTAssertTrue(rendered.contains("# Default: true"))
     }
 
     func testDefaultHUDValuesAreEnabledWithIconsInMiddle() {
@@ -20,5 +23,11 @@ final class ConfigDefaultsTests: XCTestCase {
         XCTAssertTrue(hud.enabled)
         XCTAssertTrue(hud.showIcons)
         XCTAssertEqual(hud.position, .middleCenter)
+    }
+
+    func testDefaultNavigationIncludesMinimizedAndHiddenApps() {
+        let navigation = WindNavConfig.default.navigation
+        XCTAssertTrue(navigation.includeMinimized)
+        XCTAssertTrue(navigation.includeHiddenApps)
     }
 }

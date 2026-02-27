@@ -30,6 +30,8 @@ final class ConfigTests: XCTestCase {
             [navigation]
             policy = "fixed-app-ring"
             cycle-timeout-ms = 900
+            include-minimized = false
+            include-hidden-apps = true
 
             [logging]
             level = "info"
@@ -47,6 +49,8 @@ final class ConfigTests: XCTestCase {
 
         XCTAssertEqual(cfg.navigation.policy, .fixedAppRing)
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 900)
+        XCTAssertFalse(cfg.navigation.includeMinimized)
+        XCTAssertTrue(cfg.navigation.includeHiddenApps)
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
         XCTAssertEqual(cfg.hotkeys.focusUp, "cmd-up")
         XCTAssertEqual(cfg.hotkeys.focusDown, "cmd-down")
@@ -63,6 +67,8 @@ final class ConfigTests: XCTestCase {
             """
             [navigation]
             policy = "fixed-app-ring"
+            include-minimized = true
+            include-hidden-apps = false
 
             [navigation.fixed-app-ring]
             pinned-apps = ["com.google.Chrome", "com.apple.Terminal"]
@@ -78,6 +84,8 @@ final class ConfigTests: XCTestCase {
         )
 
         XCTAssertEqual(cfg.navigation.policy, .fixedAppRing)
+        XCTAssertTrue(cfg.navigation.includeMinimized)
+        XCTAssertFalse(cfg.navigation.includeHiddenApps)
         XCTAssertEqual(cfg.navigation.fixedAppRing.pinnedApps, ["com.google.Chrome", "com.apple.Terminal"])
         XCTAssertEqual(cfg.navigation.fixedAppRing.unpinnedApps, .append)
         XCTAssertEqual(cfg.navigation.fixedAppRing.inAppWindow, .lastFocusedOnMonitor)
@@ -135,6 +143,8 @@ final class ConfigTests: XCTestCase {
             no-candidate = "anything"
             filtering = "aggressive"
             cycle-timeout-ms = 900
+            include-minimized = false
+            include-hidden-apps = true
 
             [hud]
             enabled = true
@@ -147,6 +157,8 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
         XCTAssertEqual(cfg.hotkeys.focusRight, "cmd-right")
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 900)
+        XCTAssertFalse(cfg.navigation.includeMinimized)
+        XCTAssertTrue(cfg.navigation.includeHiddenApps)
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertTrue(cfg.hud.showIcons)
         XCTAssertEqual(cfg.hud.position, .topCenter)
@@ -350,6 +362,68 @@ final class ConfigTests: XCTestCase {
         )
 
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 0)
+    }
+
+    func testMissingNavigationVisibilityKeysUseDefaults() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [navigation]
+            policy = "fixed-app-ring"
+            """
+        )
+
+        XCTAssertTrue(cfg.navigation.includeMinimized)
+        XCTAssertTrue(cfg.navigation.includeHiddenApps)
+    }
+
+    func testParseInvalidNavigationIncludeMinimizedTypeThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation]
+                include-minimized = "yes"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "navigation.include-minimized")
+                    XCTAssertEqual(expected, "true|false")
+                    XCTAssertEqual(actual, "\"yes\"")
+                default:
+                    XCTFail("Expected invalidValue for navigation.include-minimized, got \(configError)")
+            }
+        }
+    }
+
+    func testParseInvalidNavigationIncludeHiddenAppsTypeThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation]
+                include-hidden-apps = 1
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "navigation.include-hidden-apps")
+                    XCTAssertEqual(expected, "true|false")
+                    XCTAssertEqual(actual, "1")
+                default:
+                    XCTFail("Expected invalidValue for navigation.include-hidden-apps, got \(configError)")
+            }
+        }
     }
 
     func testParseInvalidLoggingLevelThrows() {

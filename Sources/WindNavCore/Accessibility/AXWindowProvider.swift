@@ -4,6 +4,14 @@ import Foundation
 
 @MainActor
 final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
+    private var includeMinimized = NavigationConfig.default.includeMinimized
+    private var includeHiddenApps = NavigationConfig.default.includeHiddenApps
+
+    func updateNavigationConfig(_ config: NavigationConfig) {
+        includeMinimized = config.includeMinimized
+        includeHiddenApps = config.includeHiddenApps
+    }
+
     func currentSnapshot() async throws -> [WindowSnapshot] {
         var snapshots: [WindowSnapshot] = []
 
@@ -38,7 +46,9 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
     }
 
     private func snapshotsForApp(_ app: NSRunningApplication) -> [WindowSnapshot] {
-        guard !app.isHidden else { return [] }
+        if app.isHidden && !includeHiddenApps {
+            return []
+        }
 
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         guard let windows = appElement.windNavCopyAttribute(kAXWindowsAttribute as String) as? [AnyObject] else {
@@ -65,7 +75,7 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
         guard subrole == (kAXStandardWindowSubrole as String) else { return nil }
 
         let isMinimized = (window.windNavCopyAttribute(kAXMinimizedAttribute as String) as? Bool) ?? false
-        if isMinimized { return nil }
+        if isMinimized && !includeMinimized { return nil }
 
         guard let position = pointAttribute(window, key: kAXPositionAttribute as String) else { return nil }
         guard let size = sizeAttribute(window, key: kAXSizeAttribute as String) else { return nil }

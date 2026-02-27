@@ -74,6 +74,8 @@ focus-down = "cmd-down"
 [navigation]
 policy = "fixed-app-ring"
 cycle-timeout-ms = 0
+include-minimized = true
+include-hidden-apps = true
 
 [navigation.fixed-app-ring]
 pinned-apps = ["com.openai.codex", "com.microsoft.VSCode"]
@@ -99,6 +101,8 @@ osascript -e 'id of app "App"'
 Notes:
 
 - Set `cycle-timeout-ms = 0` to keep a cycling session active until you release the shortcut modifiers.
+- Set `include-minimized = false` to ignore minimized windows during cycling.
+- Set `include-hidden-apps = false` to ignore apps hidden via `Cmd+H`.
 - Restart WindNav after editing `config.toml` (live reload is currently disabled).
 - `launch-on-login` is most reliable when running the bundled app (`dist/WindNav.app`).
 
