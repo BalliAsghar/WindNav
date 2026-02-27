@@ -1,7 +1,9 @@
 import AppKit
 import Foundation
+import SwiftUI
 
-struct CycleHUDItem: Sendable {
+struct CycleHUDItem: Sendable, Identifiable {
+    let id = UUID()
     let label: String
     let iconPID: pid_t
     let iconBundleId: String?
@@ -15,12 +17,87 @@ struct CycleHUDModel: Sendable {
     let monitorID: NSNumber
 }
 
+// MARK: - SwiftUI HUD View
+
+private struct ModernHUDView: View {
+    let model: CycleHUDModel
+    let config: HUDConfig
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(model.items) { item in
+                HStack(spacing: 0) {
+                    if let image = resolvedAppIcon(for: item) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 22, height: 22)
+                    } else {
+                        Image(systemName: "app.fill")
+                            .font(.system(size: 18, weight: .medium))
+                            .frame(width: 22, height: 22)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background {
+                    if item.isCurrent {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color(NSColor.controlAccentColor))
+                            .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                    }
+                }
+                .foregroundColor(
+                    item.isCurrent ? .white :
+                    (item.isPinned ? .primary : .secondary)
+                )
+                .scaleEffect(item.isCurrent ? 1.02 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: item.isCurrent)
+            }
+        }
+        .padding(8)
+        .background(VisualEffectBackground(material: .hudWindow, blendingMode: .withinWindow))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
+    }
+
+    private func resolvedAppIcon(for item: CycleHUDItem) -> NSImage? {
+        guard let app = NSRunningApplication(processIdentifier: item.iconPID),
+              let image = app.icon else {
+            return nil
+        }
+        return image
+    }
+}
+
+private struct VisualEffectBackground: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+
+// MARK: - AppKit Controller
+
 @MainActor
 final class CycleHUDController {
     private var panel: NSPanel?
-    private var labelField: NSTextField?
     private var hideWorkItem: DispatchWorkItem?
-    private var iconCache: [String: NSImage] = [:]
 
     func show(model: CycleHUDModel, config: HUDConfig, timeoutMs: Int) {
         guard config.enabled, !model.items.isEmpty else {
@@ -29,19 +106,32 @@ final class CycleHUDController {
         }
 
         let panel = ensurePanel()
-        let labelField = ensureLabelField(in: panel)
-        labelField.attributedStringValue = attributedString(for: model, config: config)
-        labelField.sizeToFit()
 
+        let hostingView = NSHostingView(rootView: ModernHUDView(model: model, config: config))
+        hostingView.sizingOptions = [.preferredContentSize]
+        panel.contentView = hostingView
+
+        hostingView.layout()
+        let fittingSize = hostingView.fittingSize
         let contentSize = CGSize(
-            width: min(max(labelField.fittingSize.width + 32, 220), 900),
-            height: 40
+            width: max(fittingSize.width, 220),
+            height: max(fittingSize.height, 44)
         )
+
         panel.setContentSize(contentSize)
-        layoutLabel(in: panel)
         position(panel: panel, monitorID: model.monitorID, position: config.position)
 
-        panel.orderFrontRegardless()
+        if !panel.isVisible {
+            panel.alphaValue = 0
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.15
+                panel.animator().alphaValue = 1.0
+            }
+        } else {
+            panel.orderFrontRegardless()
+        }
+
         scheduleHide(afterMs: timeoutMs)
         Logger.info(.navigation, "HUD shown items=\(model.items.count) selected=\(model.selectedIndex)")
     }
@@ -49,14 +139,25 @@ final class CycleHUDController {
     func hide() {
         hideWorkItem?.cancel()
         hideWorkItem = nil
-        panel?.orderOut(nil)
+
+        guard let panel = panel, panel.isVisible else { return }
+
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.15
+            panel.animator().alphaValue = 0.0
+        }, completionHandler: { [weak panel] in
+            Task { @MainActor in
+                panel?.orderOut(nil)
+            }
+        })
+        Logger.info(.navigation, "HUD hidden")
     }
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 40),
+            contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: true
@@ -66,82 +167,15 @@ final class CycleHUDController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = true
         panel.isMovableByWindowBackground = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.worksWhenModal = true
 
-        let effect = NSVisualEffectView(frame: panel.contentView?.bounds ?? .zero)
-        effect.autoresizingMask = [.width, .height]
-        effect.material = .hudWindow
-        effect.state = .active
-        effect.blendingMode = .withinWindow
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = 12
-        effect.layer?.masksToBounds = true
-        panel.contentView = effect
-
         self.panel = panel
         return panel
-    }
-
-    private func ensureLabelField(in panel: NSPanel) -> NSTextField {
-        if let labelField { return labelField }
-
-        let field = NSTextField(labelWithString: "")
-        field.alignment = .center
-        field.lineBreakMode = .byTruncatingTail
-        field.translatesAutoresizingMaskIntoConstraints = true
-        field.backgroundColor = .clear
-        field.textColor = .labelColor
-
-        panel.contentView?.addSubview(field)
-        labelField = field
-        layoutLabel(in: panel)
-        return field
-    }
-
-    private func layoutLabel(in panel: NSPanel) {
-        guard let field = labelField, let contentView = panel.contentView else { return }
-        let inset: CGFloat = 16
-        field.frame = contentView.bounds.insetBy(dx: inset, dy: 8)
-    }
-
-    private func attributedString(for model: CycleHUDModel, config: HUDConfig) -> NSAttributedString {
-        let result = NSMutableAttributedString()
-        for (index, item) in model.items.enumerated() {
-            if index > 0 {
-                result.append(NSAttributedString(string: "  |  ", attributes: [
-                    .foregroundColor: NSColor.tertiaryLabelColor,
-                    .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-                ]))
-            }
-
-            let text = item.label
-            if config.showIcons, let icon = iconAttachment(for: item) {
-                result.append(icon)
-                result.append(NSAttributedString(string: " ", attributes: [
-                    .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
-                ]))
-            }
-
-            let attrs: [NSAttributedString.Key: Any] = item.isCurrent
-                ? [
-                    .foregroundColor: NSColor.white,
-                    .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold),
-                    .backgroundColor: NSColor.controlAccentColor.withAlphaComponent(0.85),
-                ]
-                : [
-                    .foregroundColor: item.isPinned ? NSColor.labelColor : NSColor.secondaryLabelColor,
-                    .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
-                ]
-
-            let rendered = item.isCurrent ? " \(text) " : text
-            result.append(NSAttributedString(string: rendered, attributes: attrs))
-        }
-        return result
     }
 
     private func position(panel: NSPanel, monitorID: NSNumber, position: HUDPosition) {
@@ -172,48 +206,10 @@ final class CycleHUDController {
         hideWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
             Task { @MainActor [weak self] in
-                self?.panel?.orderOut(nil)
-                Logger.info(.navigation, "HUD hidden")
+                self?.hide()
             }
         }
         hideWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeoutMs), execute: item)
-    }
-
-    private func iconAttachment(for item: CycleHUDItem) -> NSAttributedString? {
-        guard let icon = resolvedAppIcon(for: item) else { return nil }
-        let attachment = NSTextAttachment()
-        attachment.image = icon
-        attachment.bounds = NSRect(x: 0, y: -2, width: 16, height: 16)
-        return NSAttributedString(attachment: attachment)
-    }
-
-    private func resolvedAppIcon(for item: CycleHUDItem) -> NSImage? {
-        let cacheKey = item.iconBundleId.map { "bundle:\($0)" } ?? "pid:\(item.iconPID)"
-        if let cached = iconCache[cacheKey] {
-            return cached
-        }
-
-        guard let app = NSRunningApplication(processIdentifier: item.iconPID),
-              let image = app.icon else {
-            return nil
-        }
-
-        let scaled = scaledIcon(image, size: 16)
-        iconCache[cacheKey] = scaled
-        return scaled
-    }
-
-    private func scaledIcon(_ image: NSImage, size: CGFloat) -> NSImage {
-        let scaled = NSImage(size: NSSize(width: size, height: size))
-        scaled.lockFocus()
-        defer { scaled.unlockFocus() }
-        image.draw(
-            in: NSRect(x: 0, y: 0, width: size, height: size),
-            from: NSRect(origin: .zero, size: image.size),
-            operation: .sourceOver,
-            fraction: 1.0
-        )
-        return scaled
     }
 }
