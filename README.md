@@ -6,6 +6,19 @@
 
 WindNav is a macOS keyboard navigation tool for fast app and window switching without rearranging your workspace.
 
+## Install
+
+1. Download the latest `WindNav-vX.Y.Z.zip` from [Releases](https://github.com/balli/WindNav/releases).
+2. Unzip the archive.
+3. Move `WindNav.app` to `/Applications`.
+4. Launch `WindNav.app`.
+
+If macOS blocks the app because it is not notarized yet, run:
+
+```bash
+xattr -cr /Applications/WindNav.app
+```
+
 ## Features
 
 - Fast directional app switching with `left` / `right`.
@@ -27,6 +40,15 @@ WindNav is a macOS keyboard navigation tool for fast app and window switching wi
 - `cmd-right`: next app (immediate)
 - `cmd-up`: open browse HUD / next window in selected browse app
 - `cmd-down`: open browse HUD / previous window in selected browse app
+
+## Usage
+
+1. Launch `WindNav.app`.
+2. Grant Accessibility permission when macOS prompts you.
+3. If the prompt does not appear, open `System Settings > Privacy & Security > Accessibility` and enable `WindNav`.
+4. Use the default shortcuts to switch apps and windows.
+
+WindNav needs Accessibility permission because macOS restricts apps from observing global keyboard shortcuts, reading the active UI state, and focusing other app windows unless the user explicitly allows it. Without that permission, WindNav cannot detect your hotkeys or move focus between apps and windows.
 
 ## Config
 
