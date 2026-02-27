@@ -28,7 +28,7 @@ final class ConfigTests: XCTestCase {
             focus-right = "cmd-right"
 
             [navigation]
-            policy = "fixed-app-ring"
+            mode = "standard"
             cycle-timeout-ms = 900
             include-minimized = false
             include-hidden-apps = true
@@ -47,7 +47,7 @@ final class ConfigTests: XCTestCase {
             """
         )
 
-        XCTAssertEqual(cfg.navigation.policy, .fixedAppRing)
+        XCTAssertEqual(cfg.navigation.mode, .standard)
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 900)
         XCTAssertFalse(cfg.navigation.includeMinimized)
         XCTAssertTrue(cfg.navigation.includeHiddenApps)
@@ -62,15 +62,15 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
-    func testParseFixedAppRingAndHUDConfig() throws {
+    func testParseStandardNavigationAndHUDConfig() throws {
         let cfg = try ConfigLoader.parse(
             """
             [navigation]
-            policy = "fixed-app-ring"
+            mode = "standard"
             include-minimized = true
             include-hidden-apps = false
 
-            [navigation.fixed-app-ring]
+            [navigation.standard]
             pinned-apps = ["com.google.Chrome", "com.apple.Terminal"]
             unpinned-apps = "append"
             in-app-window = "last-focused-on-monitor"
@@ -83,7 +83,7 @@ final class ConfigTests: XCTestCase {
             """
         )
 
-        XCTAssertEqual(cfg.navigation.policy, .fixedAppRing)
+        XCTAssertEqual(cfg.navigation.mode, .standard)
         XCTAssertTrue(cfg.navigation.includeMinimized)
         XCTAssertFalse(cfg.navigation.includeHiddenApps)
         XCTAssertEqual(cfg.navigation.fixedAppRing.pinnedApps, ["com.google.Chrome", "com.apple.Terminal"])
@@ -95,39 +95,77 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
-    func testInvalidPolicyFallsBackToFixedAppRingAndLogs() throws {
-        let lines = SinkLines()
-        Logger._setTestSink { line in
-            lines.append(line)
+    func testLegacyNavigationPolicyKeyThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation]
+                policy = "fixed-app-ring"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+
+            switch configError {
+                case let .invalidValue(key, expected, _):
+                    XCTAssertEqual(key, "navigation.policy")
+                    XCTAssertEqual(expected, "removed; use navigation.mode = \"standard\"")
+                default:
+                    XCTFail("Expected invalidValue for navigation.policy, got \(configError)")
+            }
         }
-        defer { Logger._resetForTests() }
+    }
 
-        let cfgMru = try ConfigLoader.parse(
-            """
-            [navigation]
-            policy = "mru-cycle"
-            """
-        )
-        XCTAssertEqual(cfgMru.navigation.policy, .fixedAppRing)
-        XCTAssertTrue(lines.contains("Invalid navigation.policy='mru-cycle'; defaulting to 'fixed-app-ring'"))
+    func testLegacyNavigationFixedAppRingTableThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation.fixed-app-ring]
+                pinned-apps = ["com.apple.Terminal"]
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
 
-        let cfgNatural = try ConfigLoader.parse(
-            """
-            [navigation]
-            policy = "natural"
-            """
-        )
-        XCTAssertEqual(cfgNatural.navigation.policy, .fixedAppRing)
-        XCTAssertTrue(lines.contains("Invalid navigation.policy='natural'; defaulting to 'fixed-app-ring'"))
+            switch configError {
+                case let .invalidValue(key, expected, _):
+                    XCTAssertEqual(key, "navigation.fixed-app-ring")
+                    XCTAssertEqual(expected, "removed; use [navigation.standard]")
+                default:
+                    XCTFail("Expected invalidValue for navigation.fixed-app-ring, got \(configError)")
+            }
+        }
+    }
 
-        let cfgUnknown = try ConfigLoader.parse(
-            """
-            [navigation]
-            policy = "some-future-name"
-            """
-        )
-        XCTAssertEqual(cfgUnknown.navigation.policy, .fixedAppRing)
-        XCTAssertTrue(lines.contains("Invalid navigation.policy='some-future-name'; defaulting to 'fixed-app-ring'"))
+    func testLegacyNavigationModeValueFixedAppRingThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation]
+                mode = "fixed-app-ring"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "navigation.mode")
+                    XCTAssertEqual(expected, "standard")
+                    XCTAssertEqual(actual, "fixed-app-ring")
+                default:
+                    XCTFail("Expected invalidValue for navigation.mode, got \(configError)")
+            }
+        }
     }
 
     func testUnknownConfigKeysAreIgnored() throws {
@@ -139,6 +177,7 @@ final class ConfigTests: XCTestCase {
             focus-diagonal = "cmd-k"
 
             [navigation]
+            mode = "standard"
             scope = "all-monitors"
             no-candidate = "anything"
             filtering = "aggressive"
@@ -156,6 +195,7 @@ final class ConfigTests: XCTestCase {
 
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
         XCTAssertEqual(cfg.hotkeys.focusRight, "cmd-right")
+        XCTAssertEqual(cfg.navigation.mode, .standard)
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 900)
         XCTAssertFalse(cfg.navigation.includeMinimized)
         XCTAssertTrue(cfg.navigation.includeHiddenApps)
@@ -190,43 +230,58 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.hud.position, .middleCenter)
     }
 
-    func testParseInvalidNavigationPolicyDefaultsToFixedAppRing() throws {
-        let cfg = try ConfigLoader.parse(
-            """
-            [navigation]
-            policy = "spatial"
-            """
-        )
-        XCTAssertEqual(cfg.navigation.policy, .fixedAppRing)
-    }
-
-    func testParseInvalidFixedAppRingUnpinnedAppsThrows() {
+    func testParseInvalidNavigationModeThrowsPreciseError() {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                [navigation.fixed-app-ring]
+                [navigation]
+                mode = "spatial"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "navigation.mode")
+                    XCTAssertEqual(expected, "standard")
+                    XCTAssertEqual(actual, "spatial")
+                default:
+                    XCTFail("Expected invalidValue for navigation.mode, got \(configError)")
+            }
+        }
+    }
+
+    func testParseInvalidStandardUnpinnedAppsThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation.standard]
                 unpinned-apps = "random"
                 """
             )
         )
     }
 
-    func testParseInvalidFixedAppRingInAppWindowThrows() {
+    func testParseInvalidStandardInAppWindowThrows() {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                [navigation.fixed-app-ring]
+                [navigation.standard]
                 in-app-window = "mru"
                 """
             )
         )
     }
 
-    func testParseInvalidFixedAppRingGroupingThrows() {
+    func testParseInvalidStandardGroupingThrows() {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                [navigation.fixed-app-ring]
+                [navigation.standard]
                 grouping = "per-window"
                 """
             )
@@ -276,10 +331,11 @@ final class ConfigTests: XCTestCase {
             random = 1
 
             [navigation]
+            mode = "standard"
             cycle-timeout-ms = 900
             scope = "all-monitors"
 
-            [navigation.fixed-app-ring]
+            [navigation.standard]
             pinned-apps = ["com.apple.Terminal"]
             extra = true
 
@@ -292,7 +348,7 @@ final class ConfigTests: XCTestCase {
 
         XCTAssertTrue(lines.contains("Unknown Key: [root].random"))
         XCTAssertTrue(lines.contains("Unknown Key: [navigation].scope"))
-        XCTAssertTrue(lines.contains("Unknown Key: [navigation.fixed-app-ring].extra"))
+        XCTAssertTrue(lines.contains("Unknown Key: [navigation.standard].extra"))
         XCTAssertTrue(lines.contains("Unknown Key: [hotkeys].focus-diagonal"))
     }
 
@@ -335,7 +391,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                [navigation.fixed-app-ring]
+                [navigation.standard]
                 pinned-apps = "com.apple.Terminal"
                 """
             )
@@ -364,16 +420,16 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 0)
     }
 
-    func testMissingNavigationVisibilityKeysUseDefaults() throws {
+    func testMissingNavigationModeUsesDefault() throws {
         let cfg = try ConfigLoader.parse(
             """
             [navigation]
-            policy = "fixed-app-ring"
+            include-hidden-apps = false
             """
         )
 
-        XCTAssertTrue(cfg.navigation.includeMinimized)
-        XCTAssertTrue(cfg.navigation.includeHiddenApps)
+        XCTAssertEqual(cfg.navigation.mode, .standard)
+        XCTAssertFalse(cfg.navigation.includeHiddenApps)
     }
 
     func testParseInvalidNavigationIncludeMinimizedTypeThrowsPreciseError() {

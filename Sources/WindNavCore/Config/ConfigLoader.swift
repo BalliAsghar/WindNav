@@ -65,18 +65,42 @@ final class ConfigLoader {
         }
 
         if let navTable = table["navigation"]?.table {
+            if let legacyPolicy = navTable["policy"] {
+                throw ConfigError.invalidValue(
+                    key: "navigation.policy",
+                    expected: "removed; use navigation.mode = \"standard\"",
+                    actual: renderedValue(legacyPolicy)
+                )
+            }
+            if let legacyTable = navTable["fixed-app-ring"] {
+                throw ConfigError.invalidValue(
+                    key: "navigation.fixed-app-ring",
+                    expected: "removed; use [navigation.standard]",
+                    actual: renderedValue(legacyTable)
+                )
+            }
+
             Self.logUnknownKeys(
                 in: navTable,
                 section: "navigation",
-                known: ["policy", "cycle-timeout-ms", "include-minimized", "include-hidden-apps", "fixed-app-ring"]
+                known: ["mode", "cycle-timeout-ms", "include-minimized", "include-hidden-apps", "standard"]
             )
-            if let policyRaw = navTable["policy"]?.string {
-                if let value = NavigationPolicy(rawValue: policyRaw) {
-                    navigation.policy = value
-                } else {
-                    Logger.info(.config, "Invalid navigation.policy='\(policyRaw)'; defaulting to 'fixed-app-ring'")
-                    navigation.policy = .fixedAppRing
+            if let modeValue = navTable["mode"] {
+                guard let modeRaw = modeValue.string else {
+                    throw ConfigError.invalidValue(
+                        key: "navigation.mode",
+                        expected: "standard",
+                        actual: renderedValue(modeValue)
+                    )
                 }
+                guard let value = NavigationMode(rawValue: modeRaw) else {
+                    throw ConfigError.invalidValue(
+                        key: "navigation.mode",
+                        expected: "standard",
+                        actual: modeRaw
+                    )
+                }
+                navigation.mode = value
             }
             if let cycleTimeout = navTable["cycle-timeout-ms"]?.int {
                 guard cycleTimeout >= 0 else {
@@ -109,16 +133,16 @@ final class ConfigLoader {
                 navigation.includeHiddenApps = includeHiddenApps
             }
 
-            if let fixedAppRingTable = navTable["fixed-app-ring"]?.table {
+            if let standardTable = navTable["standard"]?.table {
                 Self.logUnknownKeys(
-                    in: fixedAppRingTable,
-                    section: "navigation.fixed-app-ring",
+                    in: standardTable,
+                    section: "navigation.standard",
                     known: ["pinned-apps", "unpinned-apps", "in-app-window", "grouping"]
                 )
-                if let pinnedAppsValue = fixedAppRingTable["pinned-apps"] {
+                if let pinnedAppsValue = standardTable["pinned-apps"] {
                     guard let array = pinnedAppsValue.array else {
                         throw ConfigError.invalidValue(
-                            key: "navigation.fixed-app-ring.pinned-apps",
+                            key: "navigation.standard.pinned-apps",
                             expected: "array of strings",
                             actual: renderedValue(pinnedAppsValue)
                         )
@@ -128,7 +152,7 @@ final class ConfigLoader {
                     for element in array {
                         guard let string = element.string else {
                             throw ConfigError.invalidValue(
-                                key: "navigation.fixed-app-ring.pinned-apps",
+                                key: "navigation.standard.pinned-apps",
                                 expected: "array of strings",
                                 actual: renderedValue(pinnedAppsValue)
                             )
@@ -138,21 +162,21 @@ final class ConfigLoader {
                     navigation.fixedAppRing.pinnedApps = parsed
                 }
 
-                if let unpinnedRaw = fixedAppRingTable["unpinned-apps"]?.string {
+                if let unpinnedRaw = standardTable["unpinned-apps"]?.string {
                     guard let value = UnpinnedAppsPolicy(rawValue: unpinnedRaw) else {
                         throw ConfigError.invalidValue(
-                            key: "navigation.fixed-app-ring.unpinned-apps",
-                            expected: "append|ignore|alphabetical-tail",
+                            key: "navigation.standard.unpinned-apps",
+                            expected: "append|ignore",
                             actual: unpinnedRaw
                         )
                     }
                     navigation.fixedAppRing.unpinnedApps = value
                 }
 
-                if let inAppRaw = fixedAppRingTable["in-app-window"]?.string {
+                if let inAppRaw = standardTable["in-app-window"]?.string {
                     guard let value = InAppWindowSelectionPolicy(rawValue: inAppRaw) else {
                         throw ConfigError.invalidValue(
-                            key: "navigation.fixed-app-ring.in-app-window",
+                            key: "navigation.standard.in-app-window",
                             expected: "last-focused|last-focused-on-monitor|spatial",
                             actual: inAppRaw
                         )
@@ -160,10 +184,10 @@ final class ConfigLoader {
                     navigation.fixedAppRing.inAppWindow = value
                 }
 
-                if let groupingRaw = fixedAppRingTable["grouping"]?.string {
+                if let groupingRaw = standardTable["grouping"]?.string {
                     guard let value = GroupingMode(rawValue: groupingRaw) else {
                         throw ConfigError.invalidValue(
-                            key: "navigation.fixed-app-ring.grouping",
+                            key: "navigation.standard.grouping",
                             expected: "one-stop-per-app",
                             actual: groupingRaw
                         )

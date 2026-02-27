@@ -55,21 +55,6 @@ final class FixedAppRingTests: XCTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
-    func testAlphabeticalTailSortsUnpinnedDeterministically() {
-        let store = AppRingStateStore()
-        var config = FixedAppRingConfig.default
-        config.unpinnedApps = .alphabeticalTail
-
-        let seeds = [
-            seed(bundleId: "c", label: "zeta", windowID: 3, pid: 300),
-            seed(bundleId: "a", label: "Alpha", windowID: 1, pid: 100),
-            seed(bundleId: "b", label: "beta", windowID: 2, pid: 200),
-        ]
-        let result = store.orderedGroups(from: seeds, monitorID: 1, config: config)
-
-        XCTAssertEqual(result.map(\.label), ["Alpha", "beta", "zeta"])
-    }
-
     func testAppRingKeyUsesBundleIdForGroupingAndPidFallback() {
         let chrome1 = snapshot(windowId: 1, pid: 100, bundleId: "com.google.Chrome")
         let chrome2 = snapshot(windowId: 2, pid: 101, bundleId: "com.google.Chrome")

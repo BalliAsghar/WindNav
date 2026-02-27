@@ -91,11 +91,6 @@ final class AppRingStateStore {
                 unpinnedFirstSeenOrderByMonitor[monitorID] = []
                 return []
 
-            case .alphabeticalTail:
-                return seeds
-                    .sorted(by: alphabeticalSeedSort)
-                    .map { AppRingGroup(key: $0.key, label: $0.label, windows: $0.windows, isPinned: false) }
-
             case .append:
                 var order = unpinnedFirstSeenOrderByMonitor[monitorID] ?? []
                 order = order.filter { presentKeys.contains($0) }

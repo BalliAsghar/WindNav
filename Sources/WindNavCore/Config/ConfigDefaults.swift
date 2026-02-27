@@ -55,7 +55,7 @@ enum WindNavDefaultsCatalog {
     )
 
     static let navigation = NavigationConfig(
-        policy: .fixedAppRing,
+        mode: .standard,
         cycleTimeoutMs: 900,
         includeMinimized: true,
         includeHiddenApps: true,
@@ -119,9 +119,9 @@ enum WindNavDefaultsCatalog {
             name: "navigation",
             settings: [
                 ConfigSettingSpec(
-                    key: "policy",
-                    defaultValue: .string(navigation.policy.rawValue),
-                    allowedValues: "fixed-app-ring",
+                    key: "mode",
+                    defaultValue: .string(navigation.mode.rawValue),
+                    allowedValues: "standard",
                     description: "Navigation strategy for directional cycling."
                 ),
                 ConfigSettingSpec(
@@ -145,18 +145,18 @@ enum WindNavDefaultsCatalog {
             ]
         ),
         ConfigSectionSpec(
-            name: "navigation.fixed-app-ring",
+            name: "navigation.standard",
             settings: [
                 ConfigSettingSpec(
                     key: "pinned-apps",
                     defaultValue: .stringArray(fixedAppRing.pinnedApps),
                     allowedValues: "array of bundle identifiers",
-                    description: "Ordered app ring seed for deterministic app-level cycling."
+                    description: "Apps to prioritize first in the navigation order."
                 ),
                 ConfigSettingSpec(
                     key: "unpinned-apps",
                     defaultValue: .string(fixedAppRing.unpinnedApps.rawValue),
-                    allowedValues: "append|ignore|alphabetical-tail",
+                    allowedValues: "append|ignore",
                     description: "How to include apps that are not listed in pinned-apps."
                 ),
                 ConfigSettingSpec(

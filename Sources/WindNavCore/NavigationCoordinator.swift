@@ -252,13 +252,13 @@ final class NavigationCoordinator {
         )
 
         guard !orderedGroups.isEmpty else {
-            Logger.info(.navigation, "Fixed app ring has no candidate apps")
+            Logger.info(.navigation, "Standard mode has no candidate apps")
             return
         }
 
         let focusedAppKey = AppRingKey(window: focused)
         guard let currentIndex = orderedGroups.firstIndex(where: { $0.key == focusedAppKey }) else {
-            Logger.info(.navigation, "Focused app \(focusedAppKey.rawValue) not found in fixed app ring")
+            Logger.info(.navigation, "Focused app \(focusedAppKey.rawValue) not found in standard mode app ring")
             return
         }
 
@@ -266,13 +266,13 @@ final class NavigationCoordinator {
         switch direction {
             case .right:
                 guard orderedGroups.count > 1 else {
-                    Logger.info(.navigation, "Fixed app ring has only one app group")
+                    Logger.info(.navigation, "Standard mode has only one app group")
                     return
                 }
                 targetIndex = (currentIndex + 1) % orderedGroups.count
             case .left:
                 guard orderedGroups.count > 1 else {
-                    Logger.info(.navigation, "Fixed app ring has only one app group")
+                    Logger.info(.navigation, "Standard mode has only one app group")
                     return
                 }
                 targetIndex = (currentIndex - 1 + orderedGroups.count) % orderedGroups.count
@@ -294,22 +294,22 @@ final class NavigationCoordinator {
         if direction == .left || direction == .right {
             Logger.info(
                 .navigation,
-                "Fixed app ring direction=\(direction.rawValue) apps=\(orderedGroups.count) focused-app=\(orderedGroups[currentIndex].label) target-app=\(targetGroup.label)"
+                "Standard mode direction=\(direction.rawValue) apps=\(orderedGroups.count) focused-app=\(orderedGroups[currentIndex].label) target-app=\(targetGroup.label)"
             )
         } else {
             Logger.info(
                 .navigation,
-                "Fixed app ring in-app cycle direction=\(direction.rawValue) app=\(targetGroup.label) windows=\(targetGroup.windows.count)"
+                "Standard mode in-app cycle direction=\(direction.rawValue) app=\(targetGroup.label) windows=\(targetGroup.windows.count)"
             )
         }
 
         if let slot = windowOrdinal(in: targetGroup, windowID: target.windowId) {
             Logger.info(
                 .navigation,
-                "Fixed app ring selected window \(target.windowId) slot=\(slot)/\(targetGroup.windows.count) policy=\(navigationConfig.fixedAppRing.inAppWindow.rawValue)"
+                "Standard mode selected window \(target.windowId) slot=\(slot)/\(targetGroup.windows.count) policy=\(navigationConfig.fixedAppRing.inAppWindow.rawValue)"
             )
         } else {
-            Logger.info(.navigation, "Fixed app ring selected window \(target.windowId) policy=\(navigationConfig.fixedAppRing.inAppWindow.rawValue)")
+            Logger.info(.navigation, "Standard mode selected window \(target.windowId) policy=\(navigationConfig.fixedAppRing.inAppWindow.rawValue)")
         }
 
         showHUD(for: orderedGroups, selectedIndex: targetIndex, selectedWindowID: target.windowId, monitorID: focusedScreen)

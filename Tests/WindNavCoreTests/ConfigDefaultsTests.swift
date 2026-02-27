@@ -27,6 +27,7 @@ final class ConfigDefaultsTests: XCTestCase {
 
     func testDefaultNavigationIncludesMinimizedAndHiddenApps() {
         let navigation = WindNavConfig.default.navigation
+        XCTAssertEqual(navigation.mode, .standard)
         XCTAssertTrue(navigation.includeMinimized)
         XCTAssertTrue(navigation.includeHiddenApps)
     }

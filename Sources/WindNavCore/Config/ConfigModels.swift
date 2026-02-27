@@ -41,20 +41,20 @@ public struct HotkeysConfig: Equatable, Sendable {
 }
 
 public struct NavigationConfig: Equatable, Sendable {
-    public var policy: NavigationPolicy
+    public var mode: NavigationMode
     public var cycleTimeoutMs: Int
     public var includeMinimized: Bool
     public var includeHiddenApps: Bool
     public var fixedAppRing: FixedAppRingConfig
 
     public init(
-        policy: NavigationPolicy,
+        mode: NavigationMode,
         cycleTimeoutMs: Int,
         includeMinimized: Bool,
         includeHiddenApps: Bool,
         fixedAppRing: FixedAppRingConfig
     ) {
-        self.policy = policy
+        self.mode = mode
         self.cycleTimeoutMs = cycleTimeoutMs
         self.includeMinimized = includeMinimized
         self.includeHiddenApps = includeHiddenApps

@@ -8,14 +8,13 @@ public enum Direction: String, CaseIterable, Sendable {
     case down
 }
 
-public enum NavigationPolicy: String, Sendable {
-    case fixedAppRing = "fixed-app-ring"
+public enum NavigationMode: String, Sendable {
+    case standard = "standard"
 }
 
 public enum UnpinnedAppsPolicy: String, Sendable {
     case append
     case ignore
-    case alphabeticalTail = "alphabetical-tail"
 }
 
 public enum InAppWindowSelectionPolicy: String, Sendable {
