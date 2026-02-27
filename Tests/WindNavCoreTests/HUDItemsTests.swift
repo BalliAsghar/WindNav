@@ -88,6 +88,30 @@ final class HUDItemsTests: XCTestCase {
         XCTAssertNil(items[1].currentWindowIndex)
     }
 
+    func testBuildCycleHUDItemsSupportsNoSelectedApp() {
+        let terminalGroup = AppRingGroup(
+            key: AppRingKey(bundleId: "com.apple.Terminal", pid: 101),
+            label: "Terminal",
+            windows: [snapshot(windowId: 10, pid: 101, bundleId: "com.apple.Terminal", x: 0, y: 0)],
+            isPinned: true
+        )
+        let safariGroup = AppRingGroup(
+            key: AppRingKey(bundleId: "com.apple.Safari", pid: 202),
+            label: "Safari",
+            windows: [snapshot(windowId: 20, pid: 202, bundleId: "com.apple.Safari", x: 20, y: 0)],
+            isPinned: false
+        )
+
+        let items = buildCycleHUDItems(
+            groups: [terminalGroup, safariGroup],
+            selectedIndex: nil,
+            selectedWindowID: nil
+        )
+
+        XCTAssertEqual(items.map(\.isCurrent), [false, false])
+        XCTAssertEqual(items.map(\.currentWindowIndex), [nil, nil])
+    }
+
     private func snapshot(windowId: UInt32, pid: pid_t, bundleId: String?, x: CGFloat, y: CGFloat) -> WindowSnapshot {
         WindowSnapshot(
             windowId: windowId,

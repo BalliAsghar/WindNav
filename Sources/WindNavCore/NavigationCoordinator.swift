@@ -9,23 +9,28 @@ func cycleHUDWindowSort(_ lhs: WindowSnapshot, _ rhs: WindowSnapshot) -> Bool {
 
 func buildCycleHUDItems(
     groups: [AppRingGroup],
-    selectedIndex: Int,
-    selectedWindowID: UInt32
+    selectedIndex: Int?,
+    selectedWindowID: UInt32?
 ) -> [CycleHUDItem] {
     groups.enumerated().map { index, group in
         let representative = group.windows.first
         let orderedWindows = group.windows.sorted(by: cycleHUDWindowSort)
+        let isCurrent = selectedIndex == index
+        let currentWindowIndex: Int?
+        if isCurrent, let selectedWindowID {
+            currentWindowIndex = orderedWindows.firstIndex(where: { $0.windowId == selectedWindowID })
+        } else {
+            currentWindowIndex = nil
+        }
         return CycleHUDItem(
             id: group.key.rawValue,
             label: group.label,
             iconPID: representative?.pid ?? 0,
             iconBundleId: representative?.bundleId,
             isPinned: group.isPinned,
-            isCurrent: index == selectedIndex,
+            isCurrent: isCurrent,
             windowCount: orderedWindows.count,
-            currentWindowIndex: index == selectedIndex
-                ? orderedWindows.firstIndex(where: { $0.windowId == selectedWindowID })
-                : nil
+            currentWindowIndex: currentWindowIndex
         )
     }
 }
@@ -37,7 +42,8 @@ final class NavigationCoordinator {
     private let focusPerformer: FocusPerformer
     private let appRingStateStore: AppRingStateStore
     private let appFocusMemoryStore: AppFocusMemoryStore
-    private let hudController: CycleHUDController
+    private let hudController: any CycleHUDControlling
+    private let mouseLocationProvider: @MainActor () -> CGPoint
 
     private var navigationConfig: NavigationConfig
     private var hudConfig: HUDConfig
@@ -51,9 +57,10 @@ final class NavigationCoordinator {
         focusPerformer: FocusPerformer,
         appRingStateStore: AppRingStateStore,
         appFocusMemoryStore: AppFocusMemoryStore,
-        hudController: CycleHUDController,
+        hudController: any CycleHUDControlling,
         navigationConfig: NavigationConfig,
-        hudConfig: HUDConfig
+        hudConfig: HUDConfig,
+        mouseLocationProvider: @escaping @MainActor () -> CGPoint = { NSEvent.mouseLocation }
     ) {
         self.cache = cache
         self.focusedWindowProvider = focusedWindowProvider
@@ -63,6 +70,7 @@ final class NavigationCoordinator {
         self.hudController = hudController
         self.navigationConfig = navigationConfig
         self.hudConfig = hudConfig
+        self.mouseLocationProvider = mouseLocationProvider
     }
 
     func updateConfig(navigation: NavigationConfig, hud: HUDConfig) {
@@ -118,26 +126,116 @@ final class NavigationCoordinator {
         }
         appFocusMemoryStore.prune(using: snapshots)
 
-        guard let focusedID = await focusedWindowProvider.focusedWindowID() else {
-            Logger.info(.navigation, "No focused window detected")
-            return
-        }
-        guard let focused = snapshots.first(where: { $0.windowId == focusedID }) else {
-            Logger.info(.navigation, "Focused window \(focusedID) is not in current snapshot")
+        let focusedID = await focusedWindowProvider.focusedWindowID()
+        if let focusedID,
+           let focused = snapshots.first(where: { $0.windowId == focusedID }),
+           let focusedScreen = ScreenLocator.screenID(containing: focused.center) {
+            let candidates = snapshots.filter {
+                ScreenLocator.screenID(containing: $0.center) == focusedScreen
+            }
+            Logger.info(.navigation, "Direction=\(direction.rawValue) focused=\(focused.windowId) candidates=\(candidates.count)")
+            appFocusMemoryStore.recordFocused(window: focused, monitorID: focusedScreen)
+            await handleFixedAppRing(direction: direction, focused: focused, candidates: candidates, focusedScreen: focusedScreen)
             return
         }
 
-        guard let focusedScreen = ScreenLocator.screenID(containing: focused.center) else {
-            Logger.info(.navigation, "Focused window \(focused.windowId) is not on an active screen")
+        if let focusedID {
+            if snapshots.contains(where: { $0.windowId == focusedID }) {
+                Logger.info(.navigation, "Focused window \(focusedID) is not on an active screen; entering desktop no-focus navigation")
+            } else {
+                Logger.info(.navigation, "Focused window \(focusedID) is not in current snapshot; entering desktop no-focus navigation")
+            }
+        } else {
+            Logger.info(.navigation, "No focused window; entering desktop no-focus navigation")
+        }
+
+        let monitorID = resolveNoFocusMonitorID(from: snapshots)
+        await handleNoFocusedWindow(direction: direction, snapshots: snapshots, preferredMonitorID: monitorID)
+    }
+
+    private func handleNoFocusedWindow(
+        direction: Direction,
+        snapshots: [WindowSnapshot],
+        preferredMonitorID: NSNumber?
+    ) async {
+        let monitorCandidates: [WindowSnapshot]
+        if let preferredMonitorID {
+            let candidates = snapshots.filter {
+                ScreenLocator.screenID(containing: $0.center) == preferredMonitorID
+            }
+            monitorCandidates = candidates.isEmpty ? snapshots : candidates
+        } else {
+            monitorCandidates = snapshots
+        }
+
+        let monitorID = preferredMonitorID
+            ?? monitorCandidates.compactMap { ScreenLocator.screenID(containing: $0.center) }.first
+            ?? NSNumber(value: 0)
+
+        let seeds = buildAppRingSeeds(from: monitorCandidates)
+        let orderedGroups = appRingStateStore.orderedGroups(
+            from: seeds,
+            monitorID: monitorID,
+            config: navigationConfig.fixedAppRing
+        )
+
+        guard !orderedGroups.isEmpty else {
+            Logger.info(.navigation, "Desktop no-focus has no candidate apps")
+            hudController.hide()
             return
         }
 
-        let candidates = snapshots.filter {
-            ScreenLocator.screenID(containing: $0.center) == focusedScreen
+        switch direction {
+            case .up, .down:
+                showHUD(for: orderedGroups, selectedIndex: nil, selectedWindowID: nil, monitorID: monitorID)
+                Logger.info(.navigation, "Desktop no-focus preview HUD shown apps=\(orderedGroups.count)")
+            case .right:
+                await focusDesktopNoFocusGroup(
+                    direction: direction,
+                    orderedGroups: orderedGroups,
+                    targetIndex: 0,
+                    monitorID: monitorID
+                )
+            case .left:
+                await focusDesktopNoFocusGroup(
+                    direction: direction,
+                    orderedGroups: orderedGroups,
+                    targetIndex: orderedGroups.count - 1,
+                    monitorID: monitorID
+                )
         }
-        Logger.info(.navigation, "Direction=\(direction.rawValue) focused=\(focused.windowId) candidates=\(candidates.count)")
-        appFocusMemoryStore.recordFocused(window: focused, monitorID: focusedScreen)
-        await handleFixedAppRing(direction: direction, focused: focused, candidates: candidates, focusedScreen: focusedScreen)
+    }
+
+    private func focusDesktopNoFocusGroup(
+        direction: Direction,
+        orderedGroups: [AppRingGroup],
+        targetIndex: Int,
+        monitorID: NSNumber
+    ) async {
+        let targetGroup = orderedGroups[targetIndex]
+        guard let target = selectWindow(
+            in: targetGroup,
+            monitorID: monitorID,
+            direction: direction,
+            focusedWindowID: 0
+        ) else {
+            Logger.info(.navigation, "Desktop no-focus has no target window in app group \(targetGroup.key.rawValue)")
+            return
+        }
+
+        showHUD(for: orderedGroups, selectedIndex: targetIndex, selectedWindowID: target.windowId, monitorID: monitorID)
+        Logger.info(
+            .navigation,
+            "Desktop no-focus selected app direction=\(direction.rawValue) target-app=\(targetGroup.label) target-window=\(target.windowId)"
+        )
+
+        do {
+            try await focusPerformer.focus(windowId: target.windowId, pid: target.pid)
+            appFocusMemoryStore.recordFocused(window: target, monitorID: monitorID)
+            Logger.info(.navigation, "Focused target window \(target.windowId)")
+        } catch {
+            Logger.error(.navigation, "Failed to focus window \(target.windowId): \(error.localizedDescription)")
+        }
     }
 
     private func handleFixedAppRing(
@@ -293,7 +391,7 @@ final class NavigationCoordinator {
         cycleHUDWindowSort(lhs, rhs)
     }
 
-    private func showHUD(for groups: [AppRingGroup], selectedIndex: Int, selectedWindowID: UInt32, monitorID: NSNumber) {
+    private func showHUD(for groups: [AppRingGroup], selectedIndex: Int?, selectedWindowID: UInt32?, monitorID: NSNumber) {
         guard hudConfig.enabled else { return }
 
         let items = buildCycleHUDItems(
@@ -303,6 +401,13 @@ final class NavigationCoordinator {
         )
         let model = CycleHUDModel(items: items, selectedIndex: selectedIndex, monitorID: monitorID)
         hudController.show(model: model, config: hudConfig, timeoutMs: navigationConfig.cycleTimeoutMs)
+    }
+
+    private func resolveNoFocusMonitorID(from snapshots: [WindowSnapshot]) -> NSNumber? {
+        if let mouseMonitor = ScreenLocator.screenID(containing: mouseLocationProvider()) {
+            return mouseMonitor
+        }
+        return snapshots.compactMap { ScreenLocator.screenID(containing: $0.center) }.first
     }
 
     private func windowOrdinal(in group: AppRingGroup, windowID: UInt32) -> Int? {

@@ -15,8 +15,14 @@ struct CycleHUDItem: Sendable, Identifiable {
 
 struct CycleHUDModel: Sendable {
     let items: [CycleHUDItem]
-    let selectedIndex: Int
+    let selectedIndex: Int?
     let monitorID: NSNumber
+}
+
+@MainActor
+protocol CycleHUDControlling: AnyObject {
+    func show(model: CycleHUDModel, config: HUDConfig, timeoutMs: Int)
+    func hide()
 }
 
 enum HUDOverlayAnchor: String, Sendable {
@@ -276,7 +282,7 @@ private struct VisualEffectBackground: NSViewRepresentable {
 // MARK: - AppKit Controller
 
 @MainActor
-final class CycleHUDController {
+final class CycleHUDController: CycleHUDControlling {
     private var panel: NSPanel?
     private var hostingView: NSHostingView<ModernHUDView>?
     private var hideWorkItem: DispatchWorkItem?
@@ -342,7 +348,8 @@ final class CycleHUDController {
             hideWorkItem?.cancel()
             hideWorkItem = nil
         }
-        Logger.info(.navigation, "HUD shown items=\(model.items.count) selected=\(model.selectedIndex)")
+        let selectedText = model.selectedIndex.map(String.init) ?? "none"
+        Logger.info(.navigation, "HUD shown items=\(model.items.count) selected=\(selectedText)")
     }
 
     func hide() {
