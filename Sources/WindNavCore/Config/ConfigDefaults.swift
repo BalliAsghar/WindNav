@@ -105,13 +105,13 @@ enum WindNavDefaultsCatalog {
                     key: "focus-up",
                     defaultValue: .string(hotkeys.focusUp),
                     allowedValues: "modifiers cmd|command|opt|option|alt|ctrl|control|ctl|shift + key token",
-                    description: "Cycle windows forward within the selected app."
+                    description: "Open the browse HUD; when browsing, move to the next window in the selected app."
                 ),
                 ConfigSettingSpec(
                     key: "focus-down",
                     defaultValue: .string(hotkeys.focusDown),
                     allowedValues: "modifiers cmd|command|opt|option|alt|ctrl|control|ctl|shift + key token",
-                    description: "Cycle windows backward within the selected app."
+                    description: "Open the browse HUD; when browsing, move to the previous window in the selected app."
                 ),
             ]
         ),

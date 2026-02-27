@@ -82,8 +82,6 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
         if size.width <= 1 || size.height <= 1 { return nil }
 
         let frame = CGRect(origin: position, size: size)
-        guard isWindowVisibleOnAnyScreen(frame: frame) else { return nil }
-
         let title = window.windNavCopyAttribute(kAXTitleAttribute as String) as? String
 
         return WindowSnapshot(
@@ -95,10 +93,6 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
             appIsHidden: app.isHidden,
             title: title
         )
-    }
-
-    private func isWindowVisibleOnAnyScreen(frame: CGRect) -> Bool {
-        NSScreen.screens.contains { !$0.frame.intersection(frame).isNull }
     }
 
     private func pointAttribute(_ element: AXUIElement, key: String) -> CGPoint? {

@@ -112,6 +112,26 @@ final class HUDItemsTests: XCTestCase {
         XCTAssertEqual(items.map(\.currentWindowIndex), [nil, nil])
     }
 
+    func testBuildCycleHUDItemsFallsBackToFirstWindowWhenSelectedWindowMissing() {
+        let selectedGroup = AppRingGroup(
+            key: AppRingKey(bundleId: "com.apple.Terminal", pid: 101),
+            label: "Terminal",
+            windows: [
+                snapshot(windowId: 10, pid: 101, bundleId: "com.apple.Terminal", x: 0, y: 0),
+                snapshot(windowId: 20, pid: 101, bundleId: "com.apple.Terminal", x: 40, y: 0),
+            ],
+            isPinned: true
+        )
+        let items = buildCycleHUDItems(
+            groups: [selectedGroup],
+            selectedIndex: 0,
+            selectedWindowID: 999
+        )
+
+        XCTAssertEqual(items[0].windowCount, 2)
+        XCTAssertEqual(items[0].currentWindowIndex, 0)
+    }
+
     private func snapshot(windowId: UInt32, pid: pid_t, bundleId: String?, x: CGFloat, y: CGFloat) -> WindowSnapshot {
         WindowSnapshot(
             windowId: windowId,

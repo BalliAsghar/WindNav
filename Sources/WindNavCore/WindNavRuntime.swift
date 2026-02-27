@@ -1,6 +1,17 @@
 import AppKit
 import Foundation
 
+private enum ActiveFlowKind: Sendable {
+    case navigation
+    case browse
+}
+
+private struct InputSessionState: Sendable {
+    let sessionID: UInt64
+    let requiredModifierFlags: NSEvent.ModifierFlags
+    let flowKind: ActiveFlowKind
+}
+
 @MainActor
 public final class WindNavRuntime {
     private let configLoader: ConfigLoader
@@ -14,10 +25,12 @@ public final class WindNavRuntime {
     private let launchAtLoginManager: any LaunchAtLoginManaging
     private let hudController: CycleHUDController
 
-    private var coordinator: NavigationCoordinator?
+    private var navigationController: NavigationCoordinator?
+    private var browseController: BrowseFlowController?
     private var modifierMonitor: Any?
     private var holdCycleUntilModifierRelease = false
-    private var activeCycleModifierFlags: NSEvent.ModifierFlags = []
+    private var inputSession: InputSessionState?
+    private var nextInputSessionID: UInt64 = 0
 
     public convenience init(configURL: URL? = nil) {
         self.init(configURL: configURL, launchAtLoginManager: LaunchAtLoginManager())
@@ -64,7 +77,7 @@ public final class WindNavRuntime {
             guard let self else { return }
             Task { @MainActor in
                 await self.cache.refresh()
-                await self.coordinator?.recordCurrentSystemFocusIfAvailable()
+                await self.navigationController?.recordCurrentSystemFocusIfAvailable()
             }
         }
         Logger.info(.observer, "Starting AX/Workspace observers")
@@ -90,8 +103,18 @@ public final class WindNavRuntime {
         let parsedBindings = try parseBindings(config.hotkeys)
         Logger.info(.hotkey, "Parsed hotkey bindings")
 
-        if coordinator == nil {
-            coordinator = NavigationCoordinator(
+        if navigationController == nil {
+            navigationController = NavigationCoordinator(
+                cache: cache,
+                focusedWindowProvider: windowProvider,
+                focusPerformer: focusPerformer,
+                appRingStateStore: appRingStateStore,
+                appFocusMemoryStore: appFocusMemoryStore,
+                hudController: hudController,
+                navigationConfig: config.navigation,
+                hudConfig: config.hud
+            )
+            browseController = BrowseFlowController(
                 cache: cache,
                 focusedWindowProvider: windowProvider,
                 focusPerformer: focusPerformer,
@@ -102,24 +125,18 @@ public final class WindNavRuntime {
                 hudConfig: config.hud
             )
         } else {
-            coordinator?.updateConfig(navigation: config.navigation, hud: config.hud)
+            navigationController?.updateConfig(navigation: config.navigation, hud: config.hud)
+            browseController?.updateConfig(navigation: config.navigation, hud: config.hud)
             Logger.info(.navigation, "Navigation config updated")
         }
 
         holdCycleUntilModifierRelease = config.navigation.cycleTimeoutMs == 0
-        if holdCycleUntilModifierRelease {
-            installModifierMonitorIfNeeded()
-        } else {
-            activeCycleModifierFlags = []
-            uninstallModifierMonitorIfNeeded()
-        }
+        inputSession = nil
+        installModifierMonitorIfNeeded()
 
         try hotkeys.register(bindings: parsedBindings) { [weak self] direction, carbonModifiers in
             guard let self else { return }
-            if self.holdCycleUntilModifierRelease {
-                self.activeCycleModifierFlags = Self.eventModifierFlags(fromCarbonModifiers: carbonModifiers)
-            }
-            self.coordinator?.enqueue(direction)
+            self.handleHotkey(direction, carbonModifiers: carbonModifiers)
         }
         Logger.info(.hotkey, "Hotkeys registered")
     }
@@ -171,21 +188,52 @@ public final class WindNavRuntime {
         }
     }
 
-    private func uninstallModifierMonitorIfNeeded() {
-        guard let modifierMonitor else { return }
-        NSEvent.removeMonitor(modifierMonitor)
-        self.modifierMonitor = nil
+    func handleHotkey(_ direction: Direction, carbonModifiers: UInt32) {
+        let requiredFlags = Self.eventModifierFlags(fromCarbonModifiers: carbonModifiers)
+        if inputSession == nil {
+            let flowKind: ActiveFlowKind = (direction == .left || direction == .right) ? .navigation : .browse
+            nextInputSessionID &+= 1
+            inputSession = InputSessionState(
+                sessionID: nextInputSessionID,
+                requiredModifierFlags: requiredFlags,
+                flowKind: flowKind
+            )
+            Logger.info(
+                .navigation,
+                "Started input session flow=\(flowKind == .navigation ? "nav" : "browse") session-id=\(nextInputSessionID)"
+            )
+        }
+
+        guard let session = inputSession else { return }
+        switch session.flowKind {
+            case .navigation:
+                navigationController?.enqueue(direction)
+            case .browse:
+                browseController?.startSessionIfNeeded()
+                browseController?.handleDirection(direction)
+        }
     }
 
-    private func handleModifierFlagsChanged(_ flags: NSEvent.ModifierFlags) {
-        guard holdCycleUntilModifierRelease else { return }
-        let required = activeCycleModifierFlags
+    func handleModifierFlagsChanged(_ flags: NSEvent.ModifierFlags) {
+        guard let session = inputSession else { return }
+        let required = session.requiredModifierFlags
         guard !required.isEmpty else { return }
 
         let current = flags.intersection([.command, .option, .control, .shift])
         guard current.isSuperset(of: required) else {
-            activeCycleModifierFlags = []
-            coordinator?.endCycleSessionOnModifierRelease()
+            switch session.flowKind {
+                case .browse:
+                    browseController?.commitSessionOnModifierRelease()
+                case .navigation:
+                    if holdCycleUntilModifierRelease {
+                        navigationController?.endCycleSessionOnModifierRelease()
+                    }
+            }
+            inputSession = nil
+            Logger.info(
+                .navigation,
+                "Ended input session on modifier release flow=\(session.flowKind == .navigation ? "nav" : "browse") session-id=\(session.sessionID)"
+            )
             return
         }
     }
@@ -211,4 +259,15 @@ public final class WindNavRuntime {
         }
         return flags
     }
+
+    #if DEBUG
+    func _setControllersForTests(navigation: NavigationCoordinator?, browse: BrowseFlowController?) {
+        navigationController = navigation
+        browseController = browse
+    }
+
+    func _setHoldCycleUntilModifierReleaseForTests(_ enabled: Bool) {
+        holdCycleUntilModifierRelease = enabled
+    }
+    #endif
 }

@@ -4,143 +4,245 @@ import CoreGraphics
 import XCTest
 
 @MainActor
-final class NavigationCoordinatorTests: XCTestCase {
-    func testNoFocusRightSelectsFirstAppEvenWhenMonitorCandidatesEmpty() async {
+final class BrowseFlowControllerTests: XCTestCase {
+    func testStartSessionShowsHUDWithoutSelectionAndNoFocus() async {
         let snapshots = [
             snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
             snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
         ]
-
         let harness = makeHarness(
             snapshots: snapshots,
             focusedWindowID: nil,
             mouseLocation: onScreenMousePoint()
         )
 
-        harness.coordinator.enqueue(.right)
+        harness.controller.startSessionIfNeeded()
+        harness.controller.handleDirection(.up)
         await waitUntil {
-            !harness.focusPerformer.calls.isEmpty
+            harness.hudController.lastModel != nil
         }
 
-        XCTAssertEqual(harness.focusPerformer.calls.count, 1)
-        XCTAssertEqual(harness.focusPerformer.calls[0].pid, 101)
+        XCTAssertTrue(harness.controller.isSessionActive)
+        XCTAssertTrue(harness.focusPerformer.calls.isEmpty)
+        XCTAssertEqual(harness.hudController.lastTimeoutMs, 0)
+    }
+
+    func testMoveRightSelectsFromNilThenWraps() async {
+        let snapshots = [
+            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
+            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
+        ]
+        let harness = makeHarness(
+            snapshots: snapshots,
+            focusedWindowID: nil,
+            mouseLocation: onScreenMousePoint()
+        )
+
+        harness.controller.startSessionIfNeeded()
+        await waitUntil {
+            harness.hudController.lastModel != nil
+        }
+
+        harness.controller.handleDirection(.right)
         XCTAssertEqual(harness.hudController.lastModel?.selectedIndex, 0)
-    }
 
-    func testNoFocusLeftSelectsLastApp() async {
-        let snapshots = [
-            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
-            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
-        ]
-
-        let harness = makeHarness(
-            snapshots: snapshots,
-            focusedWindowID: nil,
-            mouseLocation: onScreenMousePoint()
-        )
-
-        harness.coordinator.enqueue(.left)
-        await waitUntil {
-            !harness.focusPerformer.calls.isEmpty
-        }
-
-        XCTAssertEqual(harness.focusPerformer.calls.count, 1)
-        XCTAssertEqual(harness.focusPerformer.calls[0].pid, 202)
+        harness.controller.handleDirection(.right)
         XCTAssertEqual(harness.hudController.lastModel?.selectedIndex, 1)
+
+        harness.controller.handleDirection(.right)
+        XCTAssertEqual(harness.hudController.lastModel?.selectedIndex, 0)
+        XCTAssertTrue(harness.focusPerformer.calls.isEmpty)
     }
 
-    func testNoFocusUpShowsPreviewHUDWithoutSelection() async {
+    func testMoveLeftSelectsLastFromNil() async {
         let snapshots = [
             snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
             snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
         ]
-
         let harness = makeHarness(
             snapshots: snapshots,
             focusedWindowID: nil,
             mouseLocation: onScreenMousePoint()
         )
 
-        harness.coordinator.enqueue(.up)
+        harness.controller.startSessionIfNeeded()
         await waitUntil {
             harness.hudController.lastModel != nil
         }
 
+        harness.controller.handleDirection(.left)
+        XCTAssertEqual(harness.hudController.lastModel?.selectedIndex, 1)
         XCTAssertTrue(harness.focusPerformer.calls.isEmpty)
-        XCTAssertNil(harness.hudController.lastModel?.selectedIndex)
-        XCTAssertEqual(harness.hudController.lastModel?.items.count, 2)
-        XCTAssertEqual(harness.hudController.lastModel?.items.allSatisfy { !$0.isCurrent }, true)
     }
 
-    func testNoFocusDownShowsPreviewHUDWithoutSelection() async {
+    func testUpDownCyclesWindowsInSelectedApp() async {
         let snapshots = [
             snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
+            snapshot(windowId: 3, pid: 101, bundleId: "app.alpha", x: 50_200, y: 50_000),
             snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
         ]
-
         let harness = makeHarness(
             snapshots: snapshots,
             focusedWindowID: nil,
             mouseLocation: onScreenMousePoint()
         )
 
-        harness.coordinator.enqueue(.down)
+        harness.controller.startSessionIfNeeded()
         await waitUntil {
             harness.hudController.lastModel != nil
         }
+        harness.controller.handleDirection(.right)
+        XCTAssertEqual(harness.hudController.lastModel?.selectedIndex, 0)
+        XCTAssertEqual(harness.hudController.lastModel?.items[0].currentWindowIndex, 0)
 
-        XCTAssertTrue(harness.focusPerformer.calls.isEmpty)
-        XCTAssertNil(harness.hudController.lastModel?.selectedIndex)
-        XCTAssertEqual(harness.hudController.lastModel?.items.allSatisfy { !$0.isCurrent }, true)
+        harness.controller.handleDirection(.up)
+        XCTAssertEqual(harness.hudController.lastModel?.items[0].currentWindowIndex, 1)
+
+        harness.controller.handleDirection(.down)
+        XCTAssertEqual(harness.hudController.lastModel?.items[0].currentWindowIndex, 0)
     }
 
-    func testFocusedWindowPathStillNavigatesToNextAppOnRight() async {
-        let screenFrame = NSScreen.screens.first?.frame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+    func testCommitWithSelectionFocusesOnce() async {
         let snapshots = [
-            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: screenFrame.minX + 80, y: screenFrame.minY + 80),
-            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: screenFrame.minX + 320, y: screenFrame.minY + 80),
+            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
+            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
         ]
-
         let harness = makeHarness(
             snapshots: snapshots,
-            focusedWindowID: 1,
+            focusedWindowID: nil,
             mouseLocation: onScreenMousePoint()
         )
 
-        harness.coordinator.enqueue(.right)
+        harness.controller.startSessionIfNeeded()
+        await waitUntil {
+            harness.hudController.lastModel != nil
+        }
+        harness.controller.handleDirection(.left)
+        harness.controller.commitSessionOnModifierRelease()
+
         await waitUntil {
             !harness.focusPerformer.calls.isEmpty
         }
 
+        XCTAssertFalse(harness.controller.isSessionActive)
         XCTAssertEqual(harness.focusPerformer.calls.count, 1)
         XCTAssertEqual(harness.focusPerformer.calls[0].pid, 202)
-        XCTAssertEqual(harness.hudController.lastModel?.selectedIndex, 1)
     }
 
-    func testFocusedAppCyclesOffscreenWindowAndHUDShowsTwoWindows() async {
-        let screenFrame = NSScreen.screens.first?.frame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+    func testCommitWithoutSelectionDoesNotFocus() async {
         let snapshots = [
-            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: screenFrame.minX + 80, y: screenFrame.minY + 80),
-            snapshot(windowId: 3, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
-            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: screenFrame.minX + 320, y: screenFrame.minY + 80),
+            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
+            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
         ]
-
         let harness = makeHarness(
             snapshots: snapshots,
-            focusedWindowID: 1,
+            focusedWindowID: nil,
             mouseLocation: onScreenMousePoint()
         )
 
-        harness.coordinator.enqueue(.up)
+        harness.controller.startSessionIfNeeded()
+        await waitUntil {
+            harness.hudController.lastModel != nil
+        }
+        harness.controller.commitSessionOnModifierRelease()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertFalse(harness.controller.isSessionActive)
+        XCTAssertTrue(harness.focusPerformer.calls.isEmpty)
+        XCTAssertGreaterThanOrEqual(harness.hudController.hideCalls, 1)
+    }
+
+    func testCommitWhenSelectedAppDisappearsDoesNotFocus() async {
+        let snapshots = [
+            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
+            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
+        ]
+        let harness = makeHarness(
+            snapshots: snapshots,
+            focusedWindowID: nil,
+            mouseLocation: onScreenMousePoint()
+        )
+
+        harness.controller.startSessionIfNeeded()
+        await waitUntil {
+            harness.hudController.lastModel != nil
+        }
+        harness.controller.handleDirection(.left)
+
+        harness.windowProvider.snapshots = [
+            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
+        ]
+        harness.controller.commitSessionOnModifierRelease()
+        try? await Task.sleep(nanoseconds: 80_000_000)
+
+        XCTAssertFalse(harness.controller.isSessionActive)
+        XCTAssertTrue(harness.focusPerformer.calls.isEmpty)
+    }
+
+    func testCommitHonorsSelectedWindowFromUpDown() async {
+        let snapshots = [
+            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
+            snapshot(windowId: 3, pid: 101, bundleId: "app.alpha", x: 50_200, y: 50_000),
+            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
+        ]
+        let harness = makeHarness(
+            snapshots: snapshots,
+            focusedWindowID: nil,
+            mouseLocation: onScreenMousePoint()
+        )
+
+        harness.controller.startSessionIfNeeded()
+        await waitUntil {
+            harness.hudController.lastModel != nil
+        }
+        harness.controller.handleDirection(.right)
+        harness.controller.handleDirection(.up)
+        harness.controller.commitSessionOnModifierRelease()
+
         await waitUntil {
             !harness.focusPerformer.calls.isEmpty
         }
 
         XCTAssertEqual(harness.focusPerformer.calls.count, 1)
         XCTAssertEqual(harness.focusPerformer.calls[0].windowId, 3)
-        let current = harness.hudController.lastModel?.items.first(where: { $0.isCurrent })
-        XCTAssertEqual(current?.windowCount, 2)
-        XCTAssertNotNil(current?.currentWindowIndex)
+        XCTAssertEqual(harness.focusPerformer.calls[0].pid, 101)
+    }
+
+    func testFocusedBrowseUpDownCyclesIncludingOffscreenWindow() async {
+        let screenFrame = NSScreen.screens.first?.frame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let snapshots = [
+            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: screenFrame.minX + 80, y: screenFrame.minY + 80),
+            snapshot(windowId: 3, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
+            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: screenFrame.minX + 320, y: screenFrame.minY + 80),
+        ]
+        let harness = makeHarness(
+            snapshots: snapshots,
+            focusedWindowID: 1,
+            mouseLocation: onScreenMousePoint()
+        )
+
+        harness.controller.startSessionIfNeeded()
+        harness.controller.handleDirection(.up)
+        await waitUntil {
+            harness.hudController.lastModel?.items.first(where: { $0.isCurrent }) != nil
+        }
+
+        let currentAfterUp = harness.hudController.lastModel?.items.first(where: { $0.isCurrent })
+        XCTAssertEqual(currentAfterUp?.windowCount, 2)
+        XCTAssertEqual(currentAfterUp?.currentWindowIndex, 1)
+
+        harness.controller.handleDirection(.down)
+        let currentAfterDown = harness.hudController.lastModel?.items.first(where: { $0.isCurrent })
+        XCTAssertEqual(currentAfterDown?.windowCount, 2)
+        XCTAssertEqual(currentAfterDown?.currentWindowIndex, 0)
+
+        harness.controller.commitSessionOnModifierRelease()
+        await waitUntil {
+            !harness.focusPerformer.calls.isEmpty
+        }
+
+        XCTAssertEqual(harness.focusPerformer.calls.count, 1)
+        XCTAssertEqual(harness.focusPerformer.calls[0].windowId, 1)
     }
 
     private func makeHarness(
@@ -153,7 +255,7 @@ final class NavigationCoordinatorTests: XCTestCase {
         let focusPerformer = FakeFocusPerformer()
         let focusedProvider = FakeFocusedWindowProvider(focusedWindowID: focusedWindowID)
         let hudController = FakeHUDController()
-        let coordinator = NavigationCoordinator(
+        let controller = BrowseFlowController(
             cache: cache,
             focusedWindowProvider: focusedProvider,
             focusPerformer: focusPerformer,
@@ -165,9 +267,10 @@ final class NavigationCoordinatorTests: XCTestCase {
             mouseLocationProvider: { mouseLocation }
         )
         return Harness(
-            coordinator: coordinator,
+            controller: controller,
             focusPerformer: focusPerformer,
-            hudController: hudController
+            hudController: hudController,
+            windowProvider: windowProvider
         )
     }
 
@@ -207,9 +310,10 @@ final class NavigationCoordinatorTests: XCTestCase {
 }
 
 private struct Harness {
-    let coordinator: NavigationCoordinator
+    let controller: BrowseFlowController
     let focusPerformer: FakeFocusPerformer
     let hudController: FakeHUDController
+    let windowProvider: FakeWindowProvider
 }
 
 @MainActor
@@ -250,12 +354,15 @@ private final class FakeFocusPerformer: FocusPerformer {
 @MainActor
 private final class FakeHUDController: CycleHUDControlling {
     var lastModel: CycleHUDModel?
+    var lastTimeoutMs: Int?
+    var hideCalls = 0
 
     func show(model: CycleHUDModel, config: HUDConfig, timeoutMs: Int) {
         lastModel = model
+        lastTimeoutMs = timeoutMs
     }
 
     func hide() {
-        // no-op
+        hideCalls += 1
     }
 }
