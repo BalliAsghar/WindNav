@@ -54,21 +54,16 @@ final class ConfigLoader {
         var startup = StartupConfig.default
         var hud = HUDConfig.default
 
+        Self.logUnknownKeys(in: table, section: "root", known: ["hotkeys", "navigation", "logging", "startup", "hud"])
+
         if let hotkeysTable = table["hotkeys"]?.table {
+            Self.logUnknownKeys(in: hotkeysTable, section: "hotkeys", known: ["focus-left", "focus-right"])
             hotkeys.focusLeft = hotkeysTable["focus-left"]?.string ?? hotkeys.focusLeft
             hotkeys.focusRight = hotkeysTable["focus-right"]?.string ?? hotkeys.focusRight
-            Self.logIgnoredRemovedKeys([
-                hotkeysTable["focus-up"] != nil ? "hotkeys.focus-up" : nil,
-                hotkeysTable["focus-down"] != nil ? "hotkeys.focus-down" : nil,
-            ])
         }
 
         if let navTable = table["navigation"]?.table {
-            Self.logIgnoredRemovedKeys([
-                navTable["scope"] != nil ? "navigation.scope" : nil,
-                navTable["no-candidate"] != nil ? "navigation.no-candidate" : nil,
-                navTable["filtering"] != nil ? "navigation.filtering" : nil,
-            ])
+            Self.logUnknownKeys(in: navTable, section: "navigation", known: ["policy", "cycle-timeout-ms", "fixed-app-ring"])
             if let policyRaw = navTable["policy"]?.string {
                 if policyRaw == "natural" {
                     Logger.info(.config, "Deprecated navigation.policy='natural' treated as 'mru-cycle'")
@@ -84,10 +79,10 @@ final class ConfigLoader {
                 }
             }
             if let cycleTimeout = navTable["cycle-timeout-ms"]?.int {
-                guard cycleTimeout > 0 else {
+                guard cycleTimeout >= 0 else {
                     throw ConfigError.invalidValue(
                         key: "navigation.cycle-timeout-ms",
-                        expected: "positive integer",
+                        expected: "non-negative integer",
                         actual: "\(cycleTimeout)"
                     )
                 }
@@ -95,6 +90,11 @@ final class ConfigLoader {
             }
 
             if let fixedAppRingTable = navTable["fixed-app-ring"]?.table {
+                Self.logUnknownKeys(
+                    in: fixedAppRingTable,
+                    section: "navigation.fixed-app-ring",
+                    known: ["pinned-apps", "unpinned-apps", "in-app-window", "grouping"]
+                )
                 if let pinnedAppsValue = fixedAppRingTable["pinned-apps"] {
                     guard let array = pinnedAppsValue.array else {
                         throw ConfigError.invalidValue(
@@ -154,6 +154,7 @@ final class ConfigLoader {
         }
 
         if let loggingTable = table["logging"]?.table {
+            Self.logUnknownKeys(in: loggingTable, section: "logging", known: ["level", "color"])
             if let levelRaw = loggingTable["level"]?.string {
                 guard let value = LogLevel(rawValue: levelRaw) else {
                     throw ConfigError.invalidValue(key: "logging.level", expected: "info|error", actual: levelRaw)
@@ -170,6 +171,7 @@ final class ConfigLoader {
         }
 
         if let startupTable = table["startup"]?.table {
+            Self.logUnknownKeys(in: startupTable, section: "startup", known: ["launch-on-login"])
             if let launchOnLoginValue = startupTable["launch-on-login"] {
                 guard let launchOnLogin = launchOnLoginValue.bool else {
                     throw ConfigError.invalidValue(
@@ -183,6 +185,7 @@ final class ConfigLoader {
         }
 
         if let hudTable = table["hud"]?.table {
+            Self.logUnknownKeys(in: hudTable, section: "hud", known: ["enabled", "show-icons", "position"])
             if let enabled = hudTable["enabled"]?.bool {
                 hud.enabled = enabled
             } else if let raw = hudTable["enabled"] {
@@ -203,27 +206,6 @@ final class ConfigLoader {
                 )
             }
 
-            if let hideDelay = hudTable["hide-delay-ms"]?.int {
-                guard hideDelay > 0 else {
-                    throw ConfigError.invalidValue(
-                        key: "hud.hide-delay-ms",
-                        expected: "positive integer",
-                        actual: "\(hideDelay)"
-                    )
-                }
-                hud.hideDelayMs = hideDelay
-            } else if let raw = hudTable["hide-delay-ms"] {
-                throw ConfigError.invalidValue(
-                    key: "hud.hide-delay-ms",
-                    expected: "positive integer",
-                    actual: renderedValue(raw)
-                )
-            }
-
-            Self.logIgnoredRemovedKeys([
-                hudTable["show-window-count"] != nil ? "hud.show-window-count" : nil,
-            ])
-
             if let positionRaw = hudTable["position"]?.string {
                 guard let value = HUDPosition(rawValue: positionRaw) else {
                     throw ConfigError.invalidValue(
@@ -243,10 +225,10 @@ final class ConfigLoader {
         String(describing: value).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func logIgnoredRemovedKeys(_ keys: [String?]) {
-        let present = keys.compactMap { $0 }
-        guard !present.isEmpty else { return }
-        let rendered = present.joined(separator: ", ")
-        Logger.info(.config, "Ignoring removed config key(s): \(rendered)")
+    private static func logUnknownKeys(in table: TOMLTable, section: String, known: Set<String>) {
+        let unknown = table.keys.filter { !known.contains($0) }.sorted()
+        for key in unknown {
+            Logger.info(.config, "Unknown Key: [\(section)].\(key)")
+        }
     }
 }

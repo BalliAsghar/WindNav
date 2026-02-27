@@ -123,20 +123,17 @@ public struct StartupConfig: Equatable, Sendable {
 public struct HUDConfig: Equatable, Sendable {
     public var enabled: Bool
     public var showIcons: Bool
-    public var hideDelayMs: Int?
     public var position: HUDPosition
 
-    public init(enabled: Bool, showIcons: Bool, hideDelayMs: Int?, position: HUDPosition) {
+    public init(enabled: Bool, showIcons: Bool, position: HUDPosition) {
         self.enabled = enabled
         self.showIcons = showIcons
-        self.hideDelayMs = hideDelayMs
         self.position = position
     }
 
     public static let `default` = HUDConfig(
         enabled: false,
         showIcons: false,
-        hideDelayMs: nil,
         position: .topCenter
     )
 }
@@ -167,6 +164,7 @@ extension WindNavConfig {
     [navigation]
     policy = "mru-cycle"
     cycle-timeout-ms = 900
+    # Set cycle-timeout-ms = 0 to keep cycling active until the hotkey modifiers are released.
 
     # To enable predictable app-level cycling:
     # policy = "fixed-app-ring"
@@ -187,7 +185,6 @@ extension WindNavConfig {
     [hud]
     enabled = false
     show-icons = false
-    # hide-delay-ms = 900
     position = "top-center"
     """
 }

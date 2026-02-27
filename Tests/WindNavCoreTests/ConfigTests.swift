@@ -1,7 +1,25 @@
 @testable import WindNavCore
+import Foundation
 import XCTest
 
 final class ConfigTests: XCTestCase {
+    private final class SinkLines: @unchecked Sendable {
+        private var lines: [String] = []
+        private let lock = NSLock()
+
+        func append(_ line: String) {
+            lock.lock()
+            lines.append(line)
+            lock.unlock()
+        }
+
+        func contains(_ needle: String) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return lines.contains { $0.contains(needle) }
+        }
+    }
+
     func testParseValidConfig() throws {
         let cfg = try ConfigLoader.parse(
             """
@@ -23,7 +41,6 @@ final class ConfigTests: XCTestCase {
             [hud]
             enabled = true
             show-icons = true
-            hide-delay-ms = 1200
             position = "top-center"
             """
         )
@@ -36,7 +53,6 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.startup.launchOnLogin, true)
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertTrue(cfg.hud.showIcons)
-        XCTAssertEqual(cfg.hud.hideDelayMs, 1200)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -55,7 +71,6 @@ final class ConfigTests: XCTestCase {
             [hud]
             enabled = true
             show-icons = false
-            hide-delay-ms = 600
             position = "top-center"
             """
         )
@@ -67,7 +82,6 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.fixedAppRing.grouping, .oneStopPerApp)
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertFalse(cfg.hud.showIcons)
-        XCTAssertEqual(cfg.hud.hideDelayMs, 600)
         XCTAssertEqual(cfg.hud.position, .topCenter)
     }
 
@@ -82,7 +96,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.policy, .mruCycle)
     }
 
-    func testRemovedConfigKeysAreIgnored() throws {
+    func testUnknownConfigKeysAreIgnored() throws {
         let cfg = try ConfigLoader.parse(
             """
             [hotkeys]
@@ -180,15 +194,56 @@ final class ConfigTests: XCTestCase {
         )
     }
 
-    func testParseInvalidHUDHideDelayThrows() {
-        XCTAssertThrowsError(
-            try ConfigLoader.parse(
-                """
-                [hud]
-                hide-delay-ms = 0
-                """
-            )
+    func testUnknownHUDHideDelayIsLoggedAndIgnored() throws {
+        let lines = SinkLines()
+        Logger._setTestSink { line in
+            lines.append(line)
+        }
+        defer { Logger._resetForTests() }
+
+        let cfg = try ConfigLoader.parse(
+            """
+            [hud]
+            enabled = true
+            hide-delay-ms = 0
+            position = "top-center"
+            """
         )
+
+        XCTAssertTrue(cfg.hud.enabled)
+        XCTAssertTrue(lines.contains("Unknown Key: [hud].hide-delay-ms"))
+    }
+
+    func testUnknownKeysAreLogged() throws {
+        let lines = SinkLines()
+        Logger._setTestSink { line in
+            lines.append(line)
+        }
+        defer { Logger._resetForTests() }
+
+        _ = try ConfigLoader.parse(
+            """
+            random = 1
+
+            [navigation]
+            cycle-timeout-ms = 900
+            scope = "all-monitors"
+
+            [navigation.fixed-app-ring]
+            pinned-apps = ["com.apple.Terminal"]
+            extra = true
+
+            [hotkeys]
+            focus-left = "cmd-left"
+            focus-right = "cmd-right"
+            focus-up = "cmd-up"
+            """
+        )
+
+        XCTAssertTrue(lines.contains("Unknown Key: [root].random"))
+        XCTAssertTrue(lines.contains("Unknown Key: [navigation].scope"))
+        XCTAssertTrue(lines.contains("Unknown Key: [navigation.fixed-app-ring].extra"))
+        XCTAssertTrue(lines.contains("Unknown Key: [hotkeys].focus-up"))
     }
 
     func testParseHUDMiddleCenterPosition() throws {
@@ -229,10 +284,21 @@ final class ConfigTests: XCTestCase {
             try ConfigLoader.parse(
                 """
                 [navigation]
-                cycle-timeout-ms = 0
+                cycle-timeout-ms = -1
                 """
             )
         )
+    }
+
+    func testParseZeroCycleTimeoutDisablesTimeReset() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [navigation]
+            cycle-timeout-ms = 0
+            """
+        )
+
+        XCTAssertEqual(cfg.navigation.cycleTimeoutMs, 0)
     }
 
     func testParseInvalidLoggingLevelThrows() {

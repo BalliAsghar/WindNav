@@ -71,7 +71,7 @@ enum CycleSessionResolver {
             reason = .monitorChanged
         } else if existing.candidateSet != candidateSet {
             reason = .candidateSetChanged
-        } else if elapsedMs > Double(timeoutMs) {
+        } else if timeoutMs > 0, elapsedMs > Double(timeoutMs) {
             reason = .timeout
         } else {
             reason = nil

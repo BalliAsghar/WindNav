@@ -120,6 +120,32 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(second.orderedWindowIDs, [30, 20, 10])
     }
 
+    func testCycleSessionDoesNotResetWhenTimeoutDisabled() {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let candidateSet: Set<UInt32> = [10, 20, 30]
+        let first = CycleSessionResolver.resolve(
+            existing: nil,
+            monitorID: 1,
+            candidateSet: candidateSet,
+            now: t0,
+            timeoutMs: 0,
+            freshOrderedWindowIDs: [10, 20, 30]
+        )
+
+        let second = CycleSessionResolver.resolve(
+            existing: first.state,
+            monitorID: 1,
+            candidateSet: candidateSet,
+            now: t0.addingTimeInterval(10),
+            timeoutMs: 0,
+            freshOrderedWindowIDs: [30, 20, 10]
+        )
+
+        XCTAssertTrue(second.reusedSession)
+        XCTAssertNil(second.resetReason)
+        XCTAssertEqual(second.orderedWindowIDs, [10, 20, 30])
+    }
+
     func testCycleSessionResetsOnMonitorChange() {
         let t0 = Date(timeIntervalSince1970: 1_700_000_000)
         let candidateSet: Set<UInt32> = [10, 20]

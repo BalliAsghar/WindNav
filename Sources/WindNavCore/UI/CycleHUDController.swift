@@ -132,7 +132,12 @@ final class CycleHUDController {
             panel.orderFrontRegardless()
         }
 
-        scheduleHide(afterMs: timeoutMs)
+        if timeoutMs > 0 {
+            scheduleHide(afterMs: timeoutMs)
+        } else {
+            hideWorkItem?.cancel()
+            hideWorkItem = nil
+        }
         Logger.info(.navigation, "HUD shown items=\(model.items.count) selected=\(model.selectedIndex)")
     }
 

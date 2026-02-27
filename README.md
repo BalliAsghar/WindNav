@@ -27,6 +27,7 @@ focus-right = "cmd-right"
 [navigation]
 policy = "mru-cycle"
 cycle-timeout-ms = 900
+# set to 0 to keep cycling active until you release hotkey modifiers
 
 [logging]
 level = "info" # info|error
@@ -38,12 +39,12 @@ launch-on-login = false
 [hud]
 enabled = false
 show-icons = false
-hide-delay-ms = 900
 position = "top-center"
 ```
 
 `left` means previous window in the logical cycle, and `right` means next.
 `up/down` are intentionally not bound in v1.1.
+Set `navigation.cycle-timeout-ms = 0` to disable time-based session reset and end cycling (and hide HUD) when modifiers are released.
 Config changes are applied on startup. Restart WindNav after editing `config.toml`.
 `launch-on-login` is applied on startup.
 HUD positions: `top-center`, `middle-center`, `bottom-center`.

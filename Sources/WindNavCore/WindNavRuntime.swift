@@ -17,6 +17,9 @@ public final class WindNavRuntime {
     private let hudController: CycleHUDController
 
     private var coordinator: NavigationCoordinator?
+    private var modifierMonitor: Any?
+    private var holdCycleUntilModifierRelease = false
+    private var activeCycleModifierFlags: NSEvent.ModifierFlags = []
 
     public convenience init(configURL: URL? = nil) {
         self.init(configURL: configURL, launchAtLoginManager: LaunchAtLoginManager())
@@ -104,8 +107,20 @@ public final class WindNavRuntime {
             Logger.info(.navigation, "Navigation config updated")
         }
 
-        try hotkeys.register(bindings: parsedBindings) { [weak self] direction in
-            self?.coordinator?.enqueue(direction)
+        holdCycleUntilModifierRelease = config.navigation.cycleTimeoutMs == 0
+        if holdCycleUntilModifierRelease {
+            installModifierMonitorIfNeeded()
+        } else {
+            activeCycleModifierFlags = []
+            uninstallModifierMonitorIfNeeded()
+        }
+
+        try hotkeys.register(bindings: parsedBindings) { [weak self] direction, carbonModifiers in
+            guard let self else { return }
+            if self.holdCycleUntilModifierRelease {
+                self.activeCycleModifierFlags = Self.eventModifierFlags(fromCarbonModifiers: carbonModifiers)
+            }
+            self.coordinator?.enqueue(direction)
         }
         Logger.info(.hotkey, "Hotkeys registered")
     }
@@ -143,5 +158,56 @@ public final class WindNavRuntime {
         } catch {
             Logger.error(.startup, "Failed to apply launch-on-login=\(requested); continuing startup: \(error.localizedDescription)")
         }
+    }
+
+    private func installModifierMonitorIfNeeded() {
+        guard modifierMonitor == nil else { return }
+        modifierMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            guard let self else { return }
+            Task { @MainActor in
+                self.handleModifierFlagsChanged(event.modifierFlags)
+            }
+        }
+    }
+
+    private func uninstallModifierMonitorIfNeeded() {
+        guard let modifierMonitor else { return }
+        NSEvent.removeMonitor(modifierMonitor)
+        self.modifierMonitor = nil
+    }
+
+    private func handleModifierFlagsChanged(_ flags: NSEvent.ModifierFlags) {
+        guard holdCycleUntilModifierRelease else { return }
+        let required = activeCycleModifierFlags
+        guard !required.isEmpty else { return }
+
+        let current = flags.intersection([.command, .option, .control, .shift])
+        guard current.isSuperset(of: required) else {
+            activeCycleModifierFlags = []
+            coordinator?.endCycleSessionOnModifierRelease()
+            return
+        }
+    }
+
+    private static func eventModifierFlags(fromCarbonModifiers modifiers: UInt32) -> NSEvent.ModifierFlags {
+        let cmdMask: UInt32 = 1 << 8
+        let shiftMask: UInt32 = 1 << 9
+        let optionMask: UInt32 = 1 << 11
+        let controlMask: UInt32 = 1 << 12
+
+        var flags: NSEvent.ModifierFlags = []
+        if modifiers & cmdMask != 0 {
+            flags.insert(.command)
+        }
+        if modifiers & optionMask != 0 {
+            flags.insert(.option)
+        }
+        if modifiers & controlMask != 0 {
+            flags.insert(.control)
+        }
+        if modifiers & shiftMask != 0 {
+            flags.insert(.shift)
+        }
+        return flags
     }
 }

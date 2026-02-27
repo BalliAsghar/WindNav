@@ -53,6 +53,15 @@ final class NavigationCoordinator {
         Logger.info(.navigation, "Updated navigation config")
     }
 
+    func endCycleSessionOnModifierRelease() {
+        let hadSession = cycleSession != nil
+        cycleSession = nil
+        hudController.hide()
+        if hadSession {
+            Logger.info(.navigation, "Cycle session ended on modifier release")
+        }
+    }
+
     func recordCurrentSystemFocusIfAvailable() async {
         let snapshots = cache.snapshot
         guard !snapshots.isEmpty else { return }
@@ -284,7 +293,6 @@ final class NavigationCoordinator {
             )
         }
         let model = CycleHUDModel(items: items, selectedIndex: selectedIndex, monitorID: monitorID)
-        let hideDelayMs = hudConfig.hideDelayMs ?? navigationConfig.cycleTimeoutMs
-        hudController.show(model: model, config: hudConfig, timeoutMs: hideDelayMs)
+        hudController.show(model: model, config: hudConfig, timeoutMs: navigationConfig.cycleTimeoutMs)
     }
 }

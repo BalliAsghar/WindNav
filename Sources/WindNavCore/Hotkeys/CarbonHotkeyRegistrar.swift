@@ -3,10 +3,11 @@ import Foundation
 
 @MainActor
 final class CarbonHotkeyRegistrar {
-    typealias HotkeyHandler = (Direction) -> Void
+    typealias HotkeyHandler = (Direction, UInt32) -> Void
 
     private var hotKeyRefs: [Direction: EventHotKeyRef?] = [:]
     private var idToDirection: [UInt32: Direction] = [:]
+    private var directionToModifiers: [Direction: UInt32] = [:]
     private var handlerRef: EventHandlerRef?
     private var callback: HotkeyHandler?
 
@@ -22,6 +23,7 @@ final class CarbonHotkeyRegistrar {
 
         unregisterAll()
         idToDirection = [:]
+        directionToModifiers = [:]
         Logger.info(.hotkey, "Registering \(bindings.count) hotkeys")
 
         for (index, direction) in Direction.allCases.enumerated() {
@@ -49,6 +51,7 @@ final class CarbonHotkeyRegistrar {
 
             hotKeyRefs[direction] = hotKeyRef
             idToDirection[hotKeyID.id] = direction
+            directionToModifiers[direction] = binding.modifiers
             Logger.info(.hotkey, "Registered \(direction.rawValue) (keyCode=\(binding.keyCode), modifiers=\(binding.modifiers))")
         }
     }
@@ -104,7 +107,7 @@ final class CarbonHotkeyRegistrar {
 
         if let direction = idToDirection[hotKeyID.id] {
             Logger.info(.hotkey, "Hotkey pressed: \(direction.rawValue)")
-            callback?(direction)
+            callback?(direction, directionToModifiers[direction] ?? 0)
         }
 
         return noErr
