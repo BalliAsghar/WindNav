@@ -1,28 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <!-- Background gradient - Golden Yellow (warm sunset) -->
+    <!-- Solid Yellow Background -->
     <linearGradient id="skyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#FFD54F"/>
-      <stop offset="40%" stop-color="#FFB74D"/>
-      <stop offset="100%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#FFD54F"/>
     </linearGradient>
 
-    <!-- Window gradients (deep blacks) -->
+    <!-- Window gradients (ceramic black - deep glossy finish) -->
     <linearGradient id="windowGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1A1A1A"/>
-      <stop offset="100%" stop-color="#0A0A0A"/>
-    </linearGradient>
-    <linearGradient id="windowGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#202020"/>
+      <stop offset="0%" stop-color="#2D2D2D"/>
+      <stop offset="30%" stop-color="#1A1A1A"/>
       <stop offset="100%" stop-color="#0D0D0D"/>
     </linearGradient>
+    <linearGradient id="windowGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#333333"/>
+      <stop offset="30%" stop-color="#1F1F1F"/>
+      <stop offset="100%" stop-color="#101010"/>
+    </linearGradient>
     <linearGradient id="windowGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#282828"/>
-      <stop offset="100%" stop-color="#121212"/>
+      <stop offset="0%" stop-color="#3A3A3A"/>
+      <stop offset="30%" stop-color="#252525"/>
+      <stop offset="100%" stop-color="#141414"/>
     </linearGradient>
     <linearGradient id="windowGradient4" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#333333"/>
-      <stop offset="100%" stop-color="#1A1A1A"/>
+      <stop offset="0%" stop-color="#404040"/>
+      <stop offset="30%" stop-color="#2A2A2A"/>
+      <stop offset="100%" stop-color="#181818"/>
     </linearGradient>
 
     <!-- Atmospheric cloud gradient - subtle warm tones -->
@@ -60,17 +63,41 @@
     <g filter="url(#panelShadow)">
       <rect x="140" y="247.5" width="440" height="275" rx="26" ry="26" fill="url(#windowGradient1)"/>
     </g>
+    <!-- Traffic lights for window 1 -->
+    <g>
+      <circle cx="165" cy="270" r="10" fill="#FF5F56"/>
+      <circle cx="190" cy="270" r="10" fill="#FFBD2E"/>
+      <circle cx="215" cy="270" r="10" fill="#27C93F"/>
+    </g>
 
     <g filter="url(#panelShadow)">
       <rect x="292" y="352.5" width="440" height="275" rx="26" ry="26" fill="url(#windowGradient2)"/>
+    </g>
+    <!-- Traffic lights for window 2 -->
+    <g>
+      <circle cx="317" cy="375" r="10" fill="#FF5F56"/>
+      <circle cx="342" cy="375" r="10" fill="#FFBD2E"/>
+      <circle cx="367" cy="375" r="10" fill="#27C93F"/>
     </g>
 
     <g filter="url(#panelShadow)">
       <rect x="444" y="457.5" width="440" height="275" rx="26" ry="26" fill="url(#windowGradient3)"/>
     </g>
+    <!-- Traffic lights for window 3 -->
+    <g>
+      <circle cx="469" cy="480" r="10" fill="#FF5F56"/>
+      <circle cx="494" cy="480" r="10" fill="#FFBD2E"/>
+      <circle cx="519" cy="480" r="10" fill="#27C93F"/>
+    </g>
 
     <g filter="url(#panelShadow)">
       <rect x="303" y="563" width="418" height="264" rx="24" ry="24" fill="url(#windowGradient4)"/>
+    </g>
+    <!-- Traffic lights for window 4 -->
+    <g>
+      <circle cx="328" cy="585" r="10" fill="#FF5F56"/>
+      <circle cx="353" cy="585" r="10" fill="#FFBD2E"/>
+      <circle cx="378" cy="585" r="10" fill="#27C93F"/>
     </g>
   </g>
 
