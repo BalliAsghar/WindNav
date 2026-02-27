@@ -57,15 +57,16 @@ final class ConfigLoader {
         Self.logUnknownKeys(in: table, section: "root", known: ["hotkeys", "navigation", "logging", "startup", "hud"])
 
         if let hotkeysTable = table["hotkeys"]?.table {
-            Self.logUnknownKeys(in: hotkeysTable, section: "hotkeys", known: ["focus-left", "focus-right", "focus-up", "focus-down"])
+            Self.logUnknownKeys(in: hotkeysTable, section: "hotkeys", known: ["focus-left", "focus-right", "focus-up", "focus-down", "hud-trigger"])
             hotkeys.focusLeft = hotkeysTable["focus-left"]?.string ?? hotkeys.focusLeft
             hotkeys.focusRight = hotkeysTable["focus-right"]?.string ?? hotkeys.focusRight
             hotkeys.focusUp = hotkeysTable["focus-up"]?.string ?? hotkeys.focusUp
             hotkeys.focusDown = hotkeysTable["focus-down"]?.string ?? hotkeys.focusDown
+            hotkeys.hudTrigger = hotkeysTable["hud-trigger"]?.string ?? hotkeys.hudTrigger
         }
 
         if let navTable = table["navigation"]?.table {
-            Self.logUnknownKeys(in: navTable, section: "navigation", known: ["policy", "cycle-timeout-ms", "fixed-app-ring"])
+            Self.logUnknownKeys(in: navTable, section: "navigation", known: ["policy", "cycle-timeout-ms", "fixed-app-ring", "hud-trigger"])
             if let policyRaw = navTable["policy"]?.string {
                 if let value = NavigationPolicy(rawValue: policyRaw) {
                     navigation.policy = value
@@ -145,6 +146,36 @@ final class ConfigLoader {
                         )
                     }
                     navigation.fixedAppRing.grouping = value
+                }
+            }
+
+            if let hudTriggerTable = navTable["hud-trigger"]?.table {
+                Self.logUnknownKeys(
+                    in: hudTriggerTable,
+                    section: "navigation.hud-trigger",
+                    known: ["tab-direction", "on-modifier-release"]
+                )
+
+                if let tabDirectionRaw = hudTriggerTable["tab-direction"]?.string {
+                    guard let value = ModifierTabDirection(rawValue: tabDirectionRaw) else {
+                        throw ConfigError.invalidValue(
+                            key: "navigation.hud-trigger.tab-direction",
+                            expected: "right|left",
+                            actual: tabDirectionRaw
+                        )
+                    }
+                    navigation.hudTrigger.tabDirection = value
+                }
+
+                if let releaseRaw = hudTriggerTable["on-modifier-release"]?.string {
+                    guard let value = ModifierReleaseAction(rawValue: releaseRaw) else {
+                        throw ConfigError.invalidValue(
+                            key: "navigation.hud-trigger.on-modifier-release",
+                            expected: "focus-selected|hide-only",
+                            actual: releaseRaw
+                        )
+                    }
+                    navigation.hudTrigger.onModifierRelease = value
                 }
             }
         }

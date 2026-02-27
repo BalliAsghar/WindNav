@@ -35,19 +35,28 @@ public struct HotkeysConfig: Equatable, Sendable {
     public var focusRight: String
     public var focusUp: String
     public var focusDown: String
+    public var hudTrigger: String
 
-    public init(focusLeft: String, focusRight: String, focusUp: String, focusDown: String) {
+    public init(
+        focusLeft: String,
+        focusRight: String,
+        focusUp: String,
+        focusDown: String,
+        hudTrigger: String
+    ) {
         self.focusLeft = focusLeft
         self.focusRight = focusRight
         self.focusUp = focusUp
         self.focusDown = focusDown
+        self.hudTrigger = hudTrigger
     }
 
     public static let `default` = HotkeysConfig(
         focusLeft: "cmd-left",
         focusRight: "cmd-right",
         focusUp: "cmd-up",
-        focusDown: "cmd-down"
+        focusDown: "cmd-down",
+        hudTrigger: "cmd-tab"
     )
 }
 
@@ -55,21 +64,25 @@ public struct NavigationConfig: Equatable, Sendable {
     public var policy: NavigationPolicy
     public var cycleTimeoutMs: Int
     public var fixedAppRing: FixedAppRingConfig
+    public var hudTrigger: HUDTriggerConfig
 
     public init(
         policy: NavigationPolicy,
         cycleTimeoutMs: Int,
-        fixedAppRing: FixedAppRingConfig
+        fixedAppRing: FixedAppRingConfig,
+        hudTrigger: HUDTriggerConfig
     ) {
         self.policy = policy
         self.cycleTimeoutMs = cycleTimeoutMs
         self.fixedAppRing = fixedAppRing
+        self.hudTrigger = hudTrigger
     }
 
     public static let `default` = NavigationConfig(
         policy: .fixedAppRing,
         cycleTimeoutMs: 900,
-        fixedAppRing: .default
+        fixedAppRing: .default,
+        hudTrigger: .default
     )
 }
 
@@ -96,6 +109,21 @@ public struct FixedAppRingConfig: Equatable, Sendable {
         unpinnedApps: .append,
         inAppWindow: .lastFocused,
         grouping: .oneStopPerApp
+    )
+}
+
+public struct HUDTriggerConfig: Equatable, Sendable {
+    public var tabDirection: ModifierTabDirection
+    public var onModifierRelease: ModifierReleaseAction
+
+    public init(tabDirection: ModifierTabDirection, onModifierRelease: ModifierReleaseAction) {
+        self.tabDirection = tabDirection
+        self.onModifierRelease = onModifierRelease
+    }
+
+    public static let `default` = HUDTriggerConfig(
+        tabDirection: .right,
+        onModifierRelease: .focusSelected
     )
 }
 
@@ -169,11 +197,17 @@ extension WindNavConfig {
     # Used when navigation.policy = "fixed-app-ring" to cycle windows inside selected app.
     focus-up = "cmd-up"
     focus-down = "cmd-down"
+    # Modifier+Tab trigger: first press previews HUD, repeated Tab cycles selection.
+    hud-trigger = "cmd-tab"
 
     [navigation]
     policy = "fixed-app-ring"
     cycle-timeout-ms = 900
     # Set cycle-timeout-ms = 0 to keep cycling active until the hotkey modifiers are released.
+
+    [navigation.hud-trigger]
+    tab-direction = "right" # right|left
+    on-modifier-release = "focus-selected" # focus-selected|hide-only
 
     # Predictable app-level cycling configuration:
     # [navigation.fixed-app-ring]

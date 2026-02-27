@@ -12,6 +12,7 @@ It preserves your current window layout and only changes focus.
 - Global hotkeys via Carbon (`RegisterEventHotKey`)
 - AX window discovery for visible standard windows
 - Predictable app-level focus cycling (`left/right`) with in-app window cycling (`up/down`)
+- Modifier+Tab HUD trigger with hold-to-preview cycling and release-to-commit
 - Current-monitor-only targeting
 - TOML config (loaded on startup)
 
@@ -25,11 +26,16 @@ focus-left = "cmd-left"
 focus-right = "cmd-right"
 focus-up = "cmd-up"     # in-app window cycling (forward)
 focus-down = "cmd-down" # in-app window cycling (reverse)
+hud-trigger = "cmd-tab" # first press shows HUD only, repeated Tab cycles selection
 
 [navigation]
 policy = "fixed-app-ring" # currently fixed-app-ring is the only active policy
 cycle-timeout-ms = 900
 # set to 0 to keep cycling active until you release hotkey modifiers
+
+[navigation.hud-trigger]
+tab-direction = "right"              # right|left
+on-modifier-release = "focus-selected" # focus-selected|hide-only
 
 [logging]
 level = "info" # info|error
@@ -47,6 +53,9 @@ position = "top-center"
 `left/right` cycle apps in the configured ring.
 `up/down` cycle windows within the selected app.
 Set `navigation.cycle-timeout-ms = 0` to disable time-based session reset and end cycling (and hide HUD) when modifiers are released.
+`hotkeys.hud-trigger` must be `Modifier+Tab`. First press shows HUD without changing focus. Additional Tab presses while modifiers stay down move HUD selection using `navigation.hud-trigger.tab-direction`.
+On modifier release, WindNav either focuses the selected window (`focus-selected`) or hides HUD only (`hide-only`).
+When `hotkeys.hud-trigger` uses Command+Tab, WindNav temporarily disables native macOS Command-Tab while running and restores it when exiting.
 Config changes are applied on startup. Restart WindNav after editing `config.toml`.
 `launch-on-login` is applied on startup.
 HUD positions: `top-center`, `middle-center`, `bottom-center`.

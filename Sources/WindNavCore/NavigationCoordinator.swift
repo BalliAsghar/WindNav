@@ -13,8 +13,23 @@ final class NavigationCoordinator {
     private var navigationConfig: NavigationConfig
     private var hudConfig: HUDConfig
 
-    private var pendingDirections: [Direction] = []
+    private enum PendingAction {
+        case direction(Direction)
+        case hudTriggerStep(Direction)
+        case endCycleSessionOnModifierRelease
+        case endHUDTriggerSessionOnModifierRelease(commit: Bool)
+    }
+
+    private struct HUDTriggerSession {
+        let monitorID: NSNumber
+        let groups: [AppRingGroup]
+        var selectedIndex: Int
+        var selectedWindowID: UInt32
+    }
+
+    private var pendingActions: [PendingAction] = []
     private var isProcessing = false
+    private var hudTriggerSession: HUDTriggerSession?
 
     init(
         cache: WindowStateCache,
@@ -40,14 +55,15 @@ final class NavigationCoordinator {
         navigationConfig = navigation
         hudConfig = hud
         if !hud.enabled {
+            hudTriggerSession = nil
             hudController.hide()
         }
         Logger.info(.navigation, "Updated navigation config")
     }
 
     func endCycleSessionOnModifierRelease() {
-        hudController.hide()
-        Logger.info(.navigation, "Cycle session ended on modifier release")
+        pendingActions.append(.endCycleSessionOnModifierRelease)
+        processQueueIfNeeded()
     }
 
     func recordCurrentSystemFocusIfAvailable() async {
@@ -62,8 +78,19 @@ final class NavigationCoordinator {
     }
 
     func enqueue(_ direction: Direction) {
-        pendingDirections.append(direction)
+        pendingActions.append(.direction(direction))
         Logger.info(.navigation, "Enqueued direction \(direction.rawValue)")
+        processQueueIfNeeded()
+    }
+
+    func enqueueHUDTriggerStep(direction: Direction) {
+        pendingActions.append(.hudTriggerStep(direction))
+        Logger.info(.navigation, "Enqueued hud-trigger step \(direction.rawValue)")
+        processQueueIfNeeded()
+    }
+
+    func endHUDTriggerSessionOnModifierRelease(commit: Bool) {
+        pendingActions.append(.endHUDTriggerSessionOnModifierRelease(commit: commit))
         processQueueIfNeeded()
     }
 
@@ -72,15 +99,26 @@ final class NavigationCoordinator {
         isProcessing = true
 
         Task { @MainActor in
-            while !pendingDirections.isEmpty {
-                let direction = pendingDirections.removeFirst()
-                await handle(direction)
+            while !pendingActions.isEmpty {
+                let action = pendingActions.removeFirst()
+                switch action {
+                    case .direction(let direction):
+                        await handle(direction)
+                    case .hudTriggerStep(let direction):
+                        await handleHUDTriggerStep(direction: direction)
+                    case .endCycleSessionOnModifierRelease:
+                        handleEndCycleSessionOnModifierRelease()
+                    case .endHUDTriggerSessionOnModifierRelease(let commit):
+                        await handleEndHUDTriggerSessionOnModifierRelease(commit: commit)
+                }
             }
             isProcessing = false
         }
     }
 
     private func handle(_ direction: Direction) async {
+        clearHUDTriggerSessionIfNeeded(reason: "directional hotkey")
+
         let snapshots = await cache.refreshAndGetSnapshot()
         guard !snapshots.isEmpty else {
             Logger.info(.navigation, "No windows available for navigation")
@@ -196,6 +234,156 @@ final class NavigationCoordinator {
         }
     }
 
+    private func handleEndCycleSessionOnModifierRelease() {
+        hudController.hide()
+        Logger.info(.navigation, "Cycle session ended on modifier release")
+    }
+
+    private func handleHUDTriggerStep(direction: Direction) async {
+        if var session = hudTriggerSession {
+            guard !session.groups.isEmpty else {
+                hudTriggerSession = nil
+                hudController.hide()
+                return
+            }
+
+            if session.groups.count > 1 {
+                let delta = direction == .left ? -1 : 1
+                session.selectedIndex = (session.selectedIndex + delta + session.groups.count) % session.groups.count
+            }
+
+            let selectedGroup = session.groups[session.selectedIndex]
+            guard let selectedWindow = selectWindow(
+                in: selectedGroup,
+                monitorID: session.monitorID,
+                direction: direction,
+                focusedWindowID: session.selectedWindowID
+            ) else {
+                Logger.info(.navigation, "HUD trigger could not resolve a target window")
+                return
+            }
+
+            session.selectedWindowID = selectedWindow.windowId
+            hudTriggerSession = session
+            showHUD(
+                for: session.groups,
+                selectedIndex: session.selectedIndex,
+                selectedWindowID: session.selectedWindowID,
+                monitorID: session.monitorID,
+                timeoutMs: 0
+            )
+            Logger.info(.navigation, "HUD trigger moved selection direction=\(direction.rawValue) index=\(session.selectedIndex)")
+            return
+        }
+
+        await startHUDTriggerSession()
+    }
+
+    private func startHUDTriggerSession() async {
+        let snapshots = await cache.refreshAndGetSnapshot()
+        guard !snapshots.isEmpty else {
+            Logger.info(.navigation, "HUD trigger ignored: no windows available")
+            hudController.hide()
+            return
+        }
+        appFocusMemoryStore.prune(using: snapshots)
+
+        guard let focusedID = await focusedWindowProvider.focusedWindowID() else {
+            Logger.info(.navigation, "HUD trigger ignored: no focused window detected")
+            return
+        }
+        guard let focused = snapshots.first(where: { $0.windowId == focusedID }) else {
+            Logger.info(.navigation, "HUD trigger ignored: focused window \(focusedID) not in snapshot")
+            return
+        }
+        guard let focusedScreen = ScreenLocator.screenID(containing: focused.center) else {
+            Logger.info(.navigation, "HUD trigger ignored: focused window is not on an active screen")
+            return
+        }
+
+        let candidates = snapshots.filter {
+            ScreenLocator.screenID(containing: $0.center) == focusedScreen
+        }
+        let seeds = buildAppRingSeeds(from: candidates)
+        let orderedGroups = appRingStateStore.orderedGroups(
+            from: seeds,
+            monitorID: focusedScreen,
+            config: navigationConfig.fixedAppRing
+        )
+
+        guard !orderedGroups.isEmpty else {
+            Logger.info(.navigation, "HUD trigger ignored: no app groups in fixed app ring")
+            return
+        }
+
+        let focusedAppKey = AppRingKey(window: focused)
+        guard let currentIndex = orderedGroups.firstIndex(where: { $0.key == focusedAppKey }) else {
+            Logger.info(.navigation, "HUD trigger ignored: focused app not found in fixed app ring")
+            return
+        }
+
+        let currentGroup = orderedGroups[currentIndex]
+        let selectedWindow = currentGroup.windows.first(where: { $0.windowId == focused.windowId })
+            ?? selectWindow(in: currentGroup, monitorID: focusedScreen, direction: .right, focusedWindowID: focused.windowId)
+        guard let selectedWindow else {
+            Logger.info(.navigation, "HUD trigger ignored: no selectable window in focused app group")
+            return
+        }
+
+        appFocusMemoryStore.recordFocused(window: focused, monitorID: focusedScreen)
+        hudTriggerSession = HUDTriggerSession(
+            monitorID: focusedScreen,
+            groups: orderedGroups,
+            selectedIndex: currentIndex,
+            selectedWindowID: selectedWindow.windowId
+        )
+        showHUD(
+            for: orderedGroups,
+            selectedIndex: currentIndex,
+            selectedWindowID: selectedWindow.windowId,
+            monitorID: focusedScreen,
+            timeoutMs: 0
+        )
+        Logger.info(.navigation, "HUD trigger session started selected-app=\(orderedGroups[currentIndex].label)")
+    }
+
+    private func handleEndHUDTriggerSessionOnModifierRelease(commit: Bool) async {
+        guard let session = hudTriggerSession else { return }
+        hudTriggerSession = nil
+        defer { hudController.hide() }
+
+        guard commit else {
+            Logger.info(.navigation, "HUD trigger session ended on modifier release (hide-only)")
+            return
+        }
+
+        guard session.selectedIndex >= 0, session.selectedIndex < session.groups.count else {
+            Logger.info(.navigation, "HUD trigger commit skipped: selection index out of range")
+            return
+        }
+
+        let selectedGroup = session.groups[session.selectedIndex]
+        guard let target = selectedGroup.windows.first(where: { $0.windowId == session.selectedWindowID }) else {
+            Logger.info(.navigation, "HUD trigger commit skipped: selected window not found")
+            return
+        }
+
+        do {
+            try await focusPerformer.focus(windowId: target.windowId, pid: target.pid)
+            appFocusMemoryStore.recordFocused(window: target, monitorID: session.monitorID)
+            Logger.info(.navigation, "HUD trigger committed window \(target.windowId)")
+        } catch {
+            Logger.error(.navigation, "HUD trigger commit failed for window \(target.windowId): \(error.localizedDescription)")
+        }
+    }
+
+    private func clearHUDTriggerSessionIfNeeded(reason: String) {
+        guard hudTriggerSession != nil else { return }
+        hudTriggerSession = nil
+        hudController.hide()
+        Logger.info(.navigation, "HUD trigger session cleared (\(reason))")
+    }
+
     private func buildAppRingSeeds(from candidates: [WindowSnapshot]) -> [AppRingGroupSeed] {
         var windowsByKey: [AppRingKey: [WindowSnapshot]] = [:]
         for window in candidates {
@@ -266,7 +454,13 @@ final class NavigationCoordinator {
         return lhs.windowId < rhs.windowId
     }
 
-    private func showHUD(for groups: [AppRingGroup], selectedIndex: Int, selectedWindowID: UInt32, monitorID: NSNumber) {
+    private func showHUD(
+        for groups: [AppRingGroup],
+        selectedIndex: Int,
+        selectedWindowID: UInt32,
+        monitorID: NSNumber,
+        timeoutMs: Int? = nil
+    ) {
         guard hudConfig.enabled else { return }
 
         let items = groups.enumerated().map { index, group in
@@ -285,7 +479,7 @@ final class NavigationCoordinator {
             )
         }
         let model = CycleHUDModel(items: items, selectedIndex: selectedIndex, monitorID: monitorID)
-        hudController.show(model: model, config: hudConfig, timeoutMs: navigationConfig.cycleTimeoutMs)
+        hudController.show(model: model, config: hudConfig, timeoutMs: timeoutMs ?? navigationConfig.cycleTimeoutMs)
     }
 
     private func windowOrdinal(in group: AppRingGroup, windowID: UInt32) -> Int? {

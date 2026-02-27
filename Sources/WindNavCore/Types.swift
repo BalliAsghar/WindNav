@@ -34,6 +34,16 @@ public enum HUDPosition: String, Sendable {
     case bottomCenter = "bottom-center"
 }
 
+public enum ModifierTabDirection: String, Sendable {
+    case right
+    case left
+}
+
+public enum ModifierReleaseAction: String, Sendable {
+    case focusSelected = "focus-selected"
+    case hideOnly = "hide-only"
+}
+
 public struct WindowSnapshot: Equatable, Sendable {
     public let windowId: UInt32
     public let pid: pid_t

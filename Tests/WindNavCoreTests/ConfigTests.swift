@@ -50,6 +50,9 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.hotkeys.focusLeft, "cmd-left")
         XCTAssertEqual(cfg.hotkeys.focusUp, "cmd-up")
         XCTAssertEqual(cfg.hotkeys.focusDown, "cmd-down")
+        XCTAssertEqual(cfg.hotkeys.hudTrigger, "cmd-tab")
+        XCTAssertEqual(cfg.navigation.hudTrigger.tabDirection, .right)
+        XCTAssertEqual(cfg.navigation.hudTrigger.onModifierRelease, .focusSelected)
         XCTAssertEqual(cfg.logging.level, .info)
         XCTAssertEqual(cfg.logging.color, .auto)
         XCTAssertEqual(cfg.startup.launchOnLogin, true)
@@ -70,6 +73,10 @@ final class ConfigTests: XCTestCase {
             in-app-window = "last-focused-on-monitor"
             grouping = "one-stop-per-app"
 
+            [navigation.hud-trigger]
+            tab-direction = "left"
+            on-modifier-release = "hide-only"
+
             [hud]
             enabled = true
             show-icons = false
@@ -82,6 +89,8 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.navigation.fixedAppRing.unpinnedApps, .append)
         XCTAssertEqual(cfg.navigation.fixedAppRing.inAppWindow, .lastFocusedOnMonitor)
         XCTAssertEqual(cfg.navigation.fixedAppRing.grouping, .oneStopPerApp)
+        XCTAssertEqual(cfg.navigation.hudTrigger.tabDirection, .left)
+        XCTAssertEqual(cfg.navigation.hudTrigger.onModifierRelease, .hideOnly)
         XCTAssertTrue(cfg.hud.enabled)
         XCTAssertFalse(cfg.hud.showIcons)
         XCTAssertEqual(cfg.hud.position, .topCenter)
@@ -276,11 +285,35 @@ final class ConfigTests: XCTestCase {
             [hotkeys]
             focus-up = "alt-up"
             focus-down = "alt-down"
+            hud-trigger = "alt-tab"
             """
         )
 
         XCTAssertEqual(cfg.hotkeys.focusUp, "alt-up")
         XCTAssertEqual(cfg.hotkeys.focusDown, "alt-down")
+        XCTAssertEqual(cfg.hotkeys.hudTrigger, "alt-tab")
+    }
+
+    func testParseInvalidHUDTriggerTabDirectionThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation.hud-trigger]
+                tab-direction = "down"
+                """
+            )
+        )
+    }
+
+    func testParseInvalidHUDTriggerReleaseBehaviorThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [navigation.hud-trigger]
+                on-modifier-release = "commit-and-hide"
+                """
+            )
+        )
     }
 
     func testParseHUDMiddleCenterPosition() throws {

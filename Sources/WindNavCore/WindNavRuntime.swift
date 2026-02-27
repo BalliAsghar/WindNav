@@ -11,19 +11,34 @@ public final class WindNavRuntime {
     private let appRingStateStore: AppRingStateStore
     private let appFocusMemoryStore: AppFocusMemoryStore
     private let hotkeys: CarbonHotkeyRegistrar
+    private let hudTriggerHotkey: CarbonSingleHotkeyRegistrar
     private let launchAtLoginManager: any LaunchAtLoginManaging
     private let hudController: CycleHUDController
+    private let nativeCommandTabOverride: any NativeCommandTabOverrideManaging
 
     private var coordinator: NavigationCoordinator?
     private var modifierMonitor: Any?
+    private var terminationObserver: Any?
     private var holdCycleUntilModifierRelease = false
+    private var hudTriggerEnabled = false
     private var activeCycleModifierFlags: NSEvent.ModifierFlags = []
+    private var activeHUDTriggerModifierFlags: NSEvent.ModifierFlags = []
+    private var hudTriggerStepDirection: Direction = .right
+    private var hudTriggerReleaseAction: ModifierReleaseAction = .focusSelected
 
     public convenience init(configURL: URL? = nil) {
-        self.init(configURL: configURL, launchAtLoginManager: LaunchAtLoginManager())
+        self.init(
+            configURL: configURL,
+            launchAtLoginManager: LaunchAtLoginManager(),
+            nativeCommandTabOverride: NativeCommandTabOverride()
+        )
     }
 
-    init(configURL: URL?, launchAtLoginManager: any LaunchAtLoginManaging) {
+    init(
+        configURL: URL?,
+        launchAtLoginManager: any LaunchAtLoginManaging,
+        nativeCommandTabOverride: any NativeCommandTabOverrideManaging = NativeCommandTabOverride()
+    ) {
         let resolvedURL = configURL ?? Self.defaultConfigURL()
         configLoader = ConfigLoader(configURL: resolvedURL)
         windowProvider = AXWindowProvider()
@@ -33,8 +48,10 @@ public final class WindNavRuntime {
         appRingStateStore = AppRingStateStore()
         appFocusMemoryStore = AppFocusMemoryStore()
         hotkeys = CarbonHotkeyRegistrar()
+        hudTriggerHotkey = CarbonSingleHotkeyRegistrar()
         self.launchAtLoginManager = launchAtLoginManager
         hudController = CycleHUDController()
+        self.nativeCommandTabOverride = nativeCommandTabOverride
     }
 
     public func start() {
@@ -69,6 +86,7 @@ public final class WindNavRuntime {
         }
         Logger.info(.observer, "Starting AX/Workspace observers")
         observerHub.start()
+        installTerminationObserverIfNeeded()
 
         Task { @MainActor in
             await cache.refresh()
@@ -82,8 +100,11 @@ public final class WindNavRuntime {
         Logger.info(.config, "Logging configured (level=\(config.logging.level.rawValue), color=\(config.logging.color.rawValue))")
         applyLaunchAtLogin(config.startup.launchOnLogin)
 
-        let parsedBindings = try parseBindings(config.hotkeys)
-        Logger.info(.hotkey, "Parsed hotkey bindings")
+        let parsedDirectionalBindings = try parseDirectionalBindings(config.hotkeys)
+        let parsedHUDTriggerBinding = try parseHUDTriggerBinding(config.hotkeys.hudTrigger)
+        hudTriggerStepDirection = Self.direction(for: config.navigation.hudTrigger.tabDirection)
+        hudTriggerReleaseAction = config.navigation.hudTrigger.onModifierRelease
+        Logger.info(.hotkey, "Parsed hotkey bindings (hud-trigger=\(parsedHUDTriggerBinding != nil ? "enabled" : "disabled"))")
 
         if coordinator == nil {
             coordinator = NavigationCoordinator(
@@ -102,30 +123,44 @@ public final class WindNavRuntime {
         }
 
         holdCycleUntilModifierRelease = config.navigation.cycleTimeoutMs == 0
-        if holdCycleUntilModifierRelease {
-            installModifierMonitorIfNeeded()
-        } else {
+        hudTriggerEnabled = parsedHUDTriggerBinding != nil
+        if !holdCycleUntilModifierRelease {
             activeCycleModifierFlags = []
-            uninstallModifierMonitorIfNeeded()
         }
+        if !hudTriggerEnabled {
+            activeHUDTriggerModifierFlags = []
+        }
+        updateModifierMonitorRegistration()
 
-        try hotkeys.register(bindings: parsedBindings) { [weak self] direction, carbonModifiers in
+        try hotkeys.register(bindings: parsedDirectionalBindings) { [weak self] direction, carbonModifiers in
             guard let self else { return }
             if self.holdCycleUntilModifierRelease {
                 self.activeCycleModifierFlags = Self.eventModifierFlags(fromCarbonModifiers: carbonModifiers)
             }
             self.coordinator?.enqueue(direction)
         }
+        try hudTriggerHotkey.register(binding: parsedHUDTriggerBinding) { [weak self] carbonModifiers in
+            guard let self else { return }
+            self.activeHUDTriggerModifierFlags = Self.eventModifierFlags(fromCarbonModifiers: carbonModifiers)
+            self.coordinator?.enqueueHUDTriggerStep(direction: self.hudTriggerStepDirection)
+        }
+        nativeCommandTabOverride.apply(for: parsedHUDTriggerBinding)
         Logger.info(.hotkey, "Hotkeys registered")
     }
 
-    private func parseBindings(_ hotkeys: HotkeysConfig) throws -> [Direction: ParsedHotkey] {
+    private func parseDirectionalBindings(_ hotkeys: HotkeysConfig) throws -> [Direction: ParsedHotkey] {
         [
             .left: try HotkeyParser.parse(hotkeys.focusLeft),
             .right: try HotkeyParser.parse(hotkeys.focusRight),
             .up: try HotkeyParser.parse(hotkeys.focusUp),
             .down: try HotkeyParser.parse(hotkeys.focusDown),
         ]
+    }
+
+    private func parseHUDTriggerBinding(_ raw: String) throws -> ParsedHotkey? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return try ModifierTabTriggerParser.parse(trimmed)
     }
 
     private static func defaultConfigURL() -> URL {
@@ -172,16 +207,53 @@ public final class WindNavRuntime {
         self.modifierMonitor = nil
     }
 
-    private func handleModifierFlagsChanged(_ flags: NSEvent.ModifierFlags) {
-        guard holdCycleUntilModifierRelease else { return }
-        let required = activeCycleModifierFlags
-        guard !required.isEmpty else { return }
+    private func updateModifierMonitorRegistration() {
+        if holdCycleUntilModifierRelease || hudTriggerEnabled {
+            installModifierMonitorIfNeeded()
+        } else {
+            uninstallModifierMonitorIfNeeded()
+        }
+    }
 
+    private func handleModifierFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         let current = flags.intersection([.command, .option, .control, .shift])
-        guard current.isSuperset(of: required) else {
-            activeCycleModifierFlags = []
-            coordinator?.endCycleSessionOnModifierRelease()
-            return
+
+        if holdCycleUntilModifierRelease {
+            let cycleRequired = activeCycleModifierFlags
+            if !cycleRequired.isEmpty, !current.isSuperset(of: cycleRequired) {
+                activeCycleModifierFlags = []
+                coordinator?.endCycleSessionOnModifierRelease()
+            }
+        }
+
+        if hudTriggerEnabled {
+            let hudRequired = activeHUDTriggerModifierFlags
+            if !hudRequired.isEmpty, !current.isSuperset(of: hudRequired) {
+                activeHUDTriggerModifierFlags = []
+                coordinator?.endHUDTriggerSessionOnModifierRelease(commit: hudTriggerReleaseAction == .focusSelected)
+            }
+        }
+    }
+
+    private func installTerminationObserverIfNeeded() {
+        guard terminationObserver == nil else { return }
+        terminationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.nativeCommandTabOverride.restore()
+            }
+        }
+    }
+
+    private static func direction(for tabDirection: ModifierTabDirection) -> Direction {
+        switch tabDirection {
+            case .right:
+                return .right
+            case .left:
+                return .left
         }
     }
 

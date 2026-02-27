@@ -105,10 +105,22 @@ final class CarbonHotkeyRegistrar {
             return status
         }
 
-        if let direction = idToDirection[hotKeyID.id] {
-            Logger.info(.hotkey, "Hotkey pressed: \(direction.rawValue)")
-            callback?(direction, directionToModifiers[direction] ?? 0)
+        guard hotKeyID.signature == Self.signature else {
+            #if DEBUG
+            Logger.info(.hotkey, "Directional registrar pass-through signature=\(hotKeyID.signature)")
+            #endif
+            return OSStatus(eventNotHandledErr)
         }
+
+        guard let direction = idToDirection[hotKeyID.id] else {
+            #if DEBUG
+            Logger.info(.hotkey, "Directional registrar pass-through id=\(hotKeyID.id)")
+            #endif
+            return OSStatus(eventNotHandledErr)
+        }
+
+        Logger.info(.hotkey, "Hotkey pressed: \(direction.rawValue)")
+        callback?(direction, directionToModifiers[direction] ?? 0)
 
         return noErr
     }
