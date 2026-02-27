@@ -35,28 +35,51 @@ private struct ModernHUDView: View {
 
     private let overlayLaneHeight: CGFloat = 38
 
+    private enum OverlayLanePlacement {
+        case top
+        case bottom
+    }
+
     private var overlayItem: CycleHUDItem? {
         model.items.first {
             $0.isCurrent && $0.windowCount > 1 && $0.currentWindowIndex != nil
         }
     }
 
+    private var overlayLanePlacement: OverlayLanePlacement {
+        switch config.position {
+            case .topCenter:
+                return .bottom
+            case .middleCenter, .bottomCenter:
+                return .top
+        }
+    }
+
     var body: some View {
         let overlayItem = self.overlayItem
+        let hasOverlayLane = overlayItem != nil
+        let overlayLanePlacement = self.overlayLanePlacement
 
         return VStack(spacing: 0) {
-            if overlayItem != nil {
+            if hasOverlayLane, overlayLanePlacement == .top {
                 Color.clear
                     .frame(height: overlayLaneHeight)
             }
             hudCapsule
+            if hasOverlayLane, overlayLanePlacement == .bottom {
+                Color.clear
+                    .frame(height: overlayLaneHeight)
+            }
         }
         .overlayPreferenceValue(CurrentItemBoundsPreferenceKey.self) { anchor in
             GeometryReader { proxy in
                 if let anchor, let overlayItem {
                     let rect = proxy[anchor]
+                    let overlayY = overlayLanePlacement == .top
+                        ? overlayLaneHeight / 2
+                        : (proxy.size.height - (overlayLaneHeight / 2))
                     windowOverlay(for: overlayItem)
-                        .position(x: rect.midX, y: overlayLaneHeight / 2)
+                        .position(x: rect.midX, y: overlayY)
                 }
             }
         }
@@ -196,9 +219,19 @@ final class CycleHUDController {
         let overlayLaneActive = model.items.contains {
             $0.isCurrent && $0.windowCount > 1 && $0.currentWindowIndex != nil
         }
+        let overlayLanePlacement = if overlayLaneActive {
+            switch config.position {
+                case .topCenter:
+                    "bottom"
+                case .middleCenter, .bottomCenter:
+                    "top"
+            }
+        } else {
+            "none"
+        }
         Logger.info(
             .navigation,
-            "HUD sizing debug fitting=\(fittingSize.width)x\(fittingSize.height) content=\(contentSize.width)x\(contentSize.height) overlay-lane=\(overlayLaneActive)"
+            "HUD sizing debug fitting=\(fittingSize.width)x\(fittingSize.height) content=\(contentSize.width)x\(contentSize.height) overlay-lane=\(overlayLaneActive) lane-placement=\(overlayLanePlacement)"
         )
         #endif
 
