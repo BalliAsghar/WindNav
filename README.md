@@ -73,10 +73,10 @@ focus-down = "cmd-down"
 
 [navigation]
 policy = "fixed-app-ring"
-cycle-timeout-ms = 900
+cycle-timeout-ms = 0
 
 [navigation.fixed-app-ring]
-pinned-apps = ["com.apple.Safari", "com.microsoft.VSCode"]
+pinned-apps = ["com.openai.codex", "com.microsoft.VSCode"]
 unpinned-apps = "append"
 in-app-window = "last-focused"
 grouping = "one-stop-per-app"
@@ -88,6 +88,12 @@ launch-on-login = false
 enabled = true
 show-icons = true
 position = "middle-center"
+```
+
+Bundle ID tip for `navigation.fixed-app-ring.pinned-apps`:
+
+```bash
+osascript -e 'id of app "App"'
 ```
 
 Notes:
