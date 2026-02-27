@@ -8,7 +8,7 @@ WindNav is a macOS keyboard navigation tool for fast app and window switching wi
 
 ## Install
 
-1. Download the latest `WindNav-vX.Y.Z.zip` from [Releases](https://github.com/balli/WindNav/releases).
+1. Download the latest `WindNav-vX.Y.Z.zip` from [Releases](https://github.com/BalliAsghar/WindNav/releases).
 2. Unzip the archive.
 3. Move `WindNav.app` to `/Applications`.
 4. Launch `WindNav.app`.
