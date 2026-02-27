@@ -33,6 +33,8 @@ private struct ModernHUDView: View {
     let model: CycleHUDModel
     let config: HUDConfig
 
+    private let overlayLaneHeight: CGFloat = 38
+
     private var overlayItem: CycleHUDItem? {
         model.items.first {
             $0.isCurrent && $0.windowCount > 1 && $0.currentWindowIndex != nil
@@ -40,6 +42,27 @@ private struct ModernHUDView: View {
     }
 
     var body: some View {
+        let overlayItem = self.overlayItem
+
+        return VStack(spacing: 0) {
+            if overlayItem != nil {
+                Color.clear
+                    .frame(height: overlayLaneHeight)
+            }
+            hudCapsule
+        }
+        .overlayPreferenceValue(CurrentItemBoundsPreferenceKey.self) { anchor in
+            GeometryReader { proxy in
+                if let anchor, let overlayItem {
+                    let rect = proxy[anchor]
+                    windowOverlay(for: overlayItem)
+                        .position(x: rect.midX, y: overlayLaneHeight / 2)
+                }
+            }
+        }
+    }
+
+    private var hudCapsule: some View {
         HStack(spacing: 8) {
             ForEach(model.items) { item in
                 HStack(spacing: 0) {
@@ -76,19 +99,9 @@ private struct ModernHUDView: View {
                 )
             }
         }
-        .padding(.top, overlayItem == nil ? 0 : 30)
         .padding(8)
         .background(VisualEffectBackground(material: .hudWindow, blendingMode: .withinWindow))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlayPreferenceValue(CurrentItemBoundsPreferenceKey.self) { anchor in
-            GeometryReader { proxy in
-                if let anchor, let overlayItem {
-                    let rect = proxy[anchor]
-                    windowOverlay(for: overlayItem)
-                        .position(x: rect.midX, y: max(12, rect.minY - 15))
-                }
-            }
-        }
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color(NSColor.separatorColor).opacity(0.5), lineWidth: 0.5)
@@ -169,7 +182,7 @@ final class CycleHUDController {
         let panel = ensurePanel()
 
         let hostingView = NSHostingView(rootView: ModernHUDView(model: model, config: config))
-        hostingView.sizingOptions = [.preferredContentSize]
+        hostingView.sizingOptions = .standardBounds
         panel.contentView = hostingView
 
         hostingView.layout()
@@ -178,6 +191,16 @@ final class CycleHUDController {
             width: max(fittingSize.width, 220),
             height: max(fittingSize.height, 44)
         )
+
+        #if DEBUG
+        let overlayLaneActive = model.items.contains {
+            $0.isCurrent && $0.windowCount > 1 && $0.currentWindowIndex != nil
+        }
+        Logger.info(
+            .navigation,
+            "HUD sizing debug fitting=\(fittingSize.width)x\(fittingSize.height) content=\(contentSize.width)x\(contentSize.height) overlay-lane=\(overlayLaneActive)"
+        )
+        #endif
 
         panel.setContentSize(contentSize)
         position(panel: panel, monitorID: model.monitorID, position: config.position)
