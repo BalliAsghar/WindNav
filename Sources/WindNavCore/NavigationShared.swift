@@ -42,7 +42,8 @@ func buildCycleHUDItems(
             isPinned: group.isPinned,
             isCurrent: isCurrent,
             windowCount: orderedWindows.count,
-            currentWindowIndex: currentWindowIndex
+            currentWindowIndex: currentWindowIndex,
+            isWindowlessApp: representative?.isWindowlessApp ?? false
         )
     }
 }
@@ -123,17 +124,20 @@ final class NavigationSharedContext {
     func orderedGroupsForMonitor(
         snapshots: [WindowSnapshot],
         preferredMonitorID: NSNumber?,
-        config: FixedAppRingConfig
+        config: FixedAppRingConfig,
+        showWindowlessApps: ShowWindowlessAppsPolicy,
+        allowWindowlessApps: Bool = true
     ) -> (groups: [AppRingGroup], monitorID: NSNumber) {
         let monitorID = preferredMonitorID
             ?? snapshots.compactMap { ScreenLocator.screenID(containing: $0.center) }.first
             ?? NSNumber(value: 0)
 
-        let allSeeds = buildAppRingSeeds(from: snapshots)
+        let filteredSnapshots = allowWindowlessApps ? snapshots : snapshots.filter { !$0.isWindowlessApp }
+        let allSeeds = buildAppRingSeeds(from: filteredSnapshots)
         let seeds: [AppRingGroupSeed]
         if let preferredMonitorID {
             let eligibleAppKeys = Set(
-                snapshots.compactMap { snapshot -> AppRingKey? in
+                filteredSnapshots.compactMap { snapshot -> AppRingKey? in
                     guard ScreenLocator.screenID(containing: snapshot.center) == preferredMonitorID else { return nil }
                     return AppRingKey(window: snapshot)
                 }
@@ -150,20 +154,24 @@ final class NavigationSharedContext {
         let groups = appRingStateStore.orderedGroups(
             from: seeds,
             monitorID: monitorID,
-            config: config
+            config: config,
+            showWindowlessApps: showWindowlessApps
         )
         return (groups: groups, monitorID: monitorID)
     }
 
     func resolveBrowseSeedContext(
         from snapshots: [WindowSnapshot],
-        config: FixedAppRingConfig
+        config: FixedAppRingConfig,
+        showWindowlessApps: ShowWindowlessAppsPolicy
     ) async -> BrowseSeedContext? {
         if let focusedContext = await resolveFocusedContext(from: snapshots) {
             let resolved = orderedGroupsForMonitor(
                 snapshots: snapshots,
                 preferredMonitorID: focusedContext.focusedScreen,
-                config: config
+                config: config,
+                showWindowlessApps: showWindowlessApps,
+                allowWindowlessApps: true
             )
             if !resolved.groups.isEmpty {
                 return BrowseSeedContext(
@@ -178,7 +186,9 @@ final class NavigationSharedContext {
         let resolved = orderedGroupsForMonitor(
             snapshots: snapshots,
             preferredMonitorID: preferredMonitorID,
-            config: config
+            config: config,
+            showWindowlessApps: showWindowlessApps,
+            allowWindowlessApps: true
         )
         guard !resolved.groups.isEmpty else { return nil }
         return BrowseSeedContext(groups: resolved.groups, monitorID: resolved.monitorID, focusedAppKey: nil)

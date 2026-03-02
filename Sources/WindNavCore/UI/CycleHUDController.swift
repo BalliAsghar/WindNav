@@ -11,6 +11,7 @@ struct CycleHUDItem: Sendable, Identifiable {
     let isCurrent: Bool
     let windowCount: Int
     let currentWindowIndex: Int?
+    let isWindowlessApp: Bool
 }
 
 struct CycleHUDModel: Sendable {
@@ -165,36 +166,44 @@ private struct ModernHUDView: View {
     private var hudCapsule: some View {
         HStack(spacing: 8) {
             ForEach(model.items) { item in
-                HStack(spacing: 0) {
-                    if let image = resolvedAppIcon(for: item) {
-                        Image(nsImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: iconFrameSize, height: iconFrameSize)
-                    } else {
-                        Image(systemName: "app.fill")
-                            .font(.system(size: fallbackIconFontSize, weight: .medium))
-                            .frame(width: iconFrameSize, height: iconFrameSize)
+                ZStack(alignment: .topTrailing) {
+                    HStack(spacing: 0) {
+                        if let image = resolvedAppIcon(for: item) {
+                            Image(nsImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: iconFrameSize, height: iconFrameSize)
+                        } else {
+                            Image(systemName: "app.fill")
+                                .font(.system(size: fallbackIconFontSize, weight: .medium))
+                                .frame(width: iconFrameSize, height: iconFrameSize)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background {
+                        if item.isCurrent {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(NSColor.controlAccentColor))
+                                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                        }
+                    }
+                    .foregroundColor(
+                        item.isCurrent ? .white :
+                        (item.isPinned ? .primary : .secondary)
+                    )
+                    .scaleEffect(item.isCurrent ? 1.02 : 1.0)
+                    .animation(
+                        accessibilityReduceMotion ? .easeOut(duration: 0.10) : .spring(response: 0.3, dampingFraction: 0.6),
+                        value: item.isCurrent
+                    )
+                    if item.isWindowlessApp {
+                        Circle()
+                            .fill(Color.orange.opacity(0.9))
+                            .frame(width: 8, height: 8)
+                            .offset(x: 4, y: 0)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background {
-                    if item.isCurrent {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color(NSColor.controlAccentColor))
-                            .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
-                    }
-                }
-                .foregroundColor(
-                    item.isCurrent ? .white :
-                    (item.isPinned ? .primary : .secondary)
-                )
-                .scaleEffect(item.isCurrent ? 1.02 : 1.0)
-                .animation(
-                    accessibilityReduceMotion ? .easeOut(duration: 0.10) : .spring(response: 0.3, dampingFraction: 0.6),
-                    value: item.isCurrent
-                )
                 .anchorPreference(
                     key: CurrentItemBoundsPreferenceKey.self,
                     value: .bounds,

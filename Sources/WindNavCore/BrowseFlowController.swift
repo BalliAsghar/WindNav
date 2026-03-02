@@ -134,7 +134,8 @@ final class BrowseFlowController {
 
         guard let seed = await shared.resolveBrowseSeedContext(
             from: snapshots,
-            config: navigationConfig.fixedAppRing
+            config: navigationConfig.fixedAppRing,
+            showWindowlessApps: navigationConfig.showWindowlessApps
         ) else {
             Logger.info(.navigation, "[flow=browse] start aborted: no candidate apps")
             clearSession(hideHUD: true, invalidatePendingStart: false)
@@ -249,7 +250,9 @@ final class BrowseFlowController {
         let resolved = shared.orderedGroupsForMonitor(
             snapshots: snapshots,
             preferredMonitorID: preferredMonitorID,
-            config: navigationConfig.fixedAppRing
+            config: navigationConfig.fixedAppRing,
+            showWindowlessApps: navigationConfig.showWindowlessApps,
+            allowWindowlessApps: true
         )
         guard !resolved.groups.isEmpty else {
             Logger.info(.navigation, "[flow=browse] commit skipped: no candidate apps")

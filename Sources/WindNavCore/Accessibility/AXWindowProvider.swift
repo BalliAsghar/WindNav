@@ -6,10 +6,12 @@ import Foundation
 final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
     private var includeMinimized = NavigationConfig.default.includeMinimized
     private var includeHiddenApps = NavigationConfig.default.includeHiddenApps
+    private var showWindowlessApps = NavigationConfig.default.showWindowlessApps
 
     func updateNavigationConfig(_ config: NavigationConfig) {
         includeMinimized = config.includeMinimized
         includeHiddenApps = config.includeHiddenApps
+        showWindowlessApps = config.showWindowlessApps
     }
 
     func currentSnapshot() async throws -> [WindowSnapshot] {
@@ -52,7 +54,11 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
 
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         guard let windows = appElement.windNavCopyAttribute(kAXWindowsAttribute as String) as? [AnyObject] else {
-            return []
+            return createWindowlessAppSnapshotIfNeeded(app)
+        }
+
+        if windows.isEmpty {
+            return createWindowlessAppSnapshotIfNeeded(app)
         }
 
         var snapshots: [WindowSnapshot] = []
@@ -63,6 +69,25 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
         }
 
         return snapshots
+    }
+
+    private func createWindowlessAppSnapshotIfNeeded(_ app: NSRunningApplication) -> [WindowSnapshot] {
+        guard showWindowlessApps != .hide else { return [] }
+        guard app.activationPolicy == .regular else { return [] }
+        guard !app.isTerminated else { return [] }
+        
+        let syntheticWindowId = UInt32.max - UInt32(app.processIdentifier % Int32.max)
+        let snapshot = WindowSnapshot(
+            windowId: syntheticWindowId,
+            pid: app.processIdentifier,
+            bundleId: app.bundleIdentifier,
+            frame: .zero,
+            isMinimized: false,
+            appIsHidden: app.isHidden,
+            title: app.localizedName,
+            isWindowlessApp: true
+        )
+        return [snapshot]
     }
 
     private func makeSnapshot(from window: AXUIElement, app: NSRunningApplication) -> WindowSnapshot? {

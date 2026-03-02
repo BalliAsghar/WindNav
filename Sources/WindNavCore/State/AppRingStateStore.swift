@@ -50,7 +50,8 @@ final class AppRingStateStore {
     func orderedGroups(
         from seeds: [AppRingGroupSeed],
         monitorID: NSNumber,
-        config: FixedAppRingConfig
+        config: FixedAppRingConfig,
+        showWindowlessApps: ShowWindowlessAppsPolicy
     ) -> [AppRingGroup] {
         guard !seeds.isEmpty else { return [] }
 
@@ -75,6 +76,16 @@ final class AppRingStateStore {
             monitorID: monitorID,
             policy: config.unpinnedApps
         )
+
+        if showWindowlessApps == .showAtEnd {
+            let windowedGroups = (pinnedGroups + unpinnedGroups).filter { group in
+                !group.windows.allSatisfy { $0.isWindowlessApp }
+            }
+            let windowlessGroups = (pinnedGroups + unpinnedGroups).filter { group in
+                group.windows.allSatisfy { $0.isWindowlessApp }
+            }
+            return windowedGroups + windowlessGroups
+        }
 
         return pinnedGroups + unpinnedGroups
     }

@@ -33,6 +33,12 @@ public enum HUDPosition: String, Sendable {
     case bottomCenter = "bottom-center"
 }
 
+public enum ShowWindowlessAppsPolicy: String, Sendable {
+    case hide
+    case show
+    case showAtEnd = "show-at-end"
+}
+
 public struct WindowSnapshot: Equatable, Sendable {
     public let windowId: UInt32
     public let pid: pid_t
@@ -41,6 +47,7 @@ public struct WindowSnapshot: Equatable, Sendable {
     public let isMinimized: Bool
     public let appIsHidden: Bool
     public let title: String?
+    public let isWindowlessApp: Bool
 
     public init(
         windowId: UInt32,
@@ -49,7 +56,8 @@ public struct WindowSnapshot: Equatable, Sendable {
         frame: CGRect,
         isMinimized: Bool,
         appIsHidden: Bool,
-        title: String?
+        title: String?,
+        isWindowlessApp: Bool = false
     ) {
         self.windowId = windowId
         self.pid = pid
@@ -58,6 +66,7 @@ public struct WindowSnapshot: Equatable, Sendable {
         self.isMinimized = isMinimized
         self.appIsHidden = appIsHidden
         self.title = title
+        self.isWindowlessApp = isWindowlessApp
     }
 }
 

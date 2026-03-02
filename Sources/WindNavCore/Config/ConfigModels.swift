@@ -45,6 +45,7 @@ public struct NavigationConfig: Equatable, Sendable {
     public var cycleTimeoutMs: Int
     public var includeMinimized: Bool
     public var includeHiddenApps: Bool
+    public var showWindowlessApps: ShowWindowlessAppsPolicy
     public var fixedAppRing: FixedAppRingConfig
 
     public init(
@@ -52,12 +53,14 @@ public struct NavigationConfig: Equatable, Sendable {
         cycleTimeoutMs: Int,
         includeMinimized: Bool,
         includeHiddenApps: Bool,
+        showWindowlessApps: ShowWindowlessAppsPolicy,
         fixedAppRing: FixedAppRingConfig
     ) {
         self.mode = mode
         self.cycleTimeoutMs = cycleTimeoutMs
         self.includeMinimized = includeMinimized
         self.includeHiddenApps = includeHiddenApps
+        self.showWindowlessApps = showWindowlessApps
         self.fixedAppRing = fixedAppRing
     }
 

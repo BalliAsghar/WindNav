@@ -106,10 +106,13 @@ final class NavigationCoordinator {
         snapshots: [WindowSnapshot],
         preferredMonitorID: NSNumber?
     ) async {
+        let allowWindowless = (direction == .up || direction == .down)
         let resolved = shared.orderedGroupsForMonitor(
             snapshots: snapshots,
             preferredMonitorID: preferredMonitorID,
-            config: navigationConfig.fixedAppRing
+            config: navigationConfig.fixedAppRing,
+            showWindowlessApps: navigationConfig.showWindowlessApps,
+            allowWindowlessApps: allowWindowless
         )
         let orderedGroups = resolved.groups
         let monitorID = resolved.monitorID
@@ -180,10 +183,13 @@ final class NavigationCoordinator {
         snapshots: [WindowSnapshot],
         focusedScreen: NSNumber
     ) async {
+        let allowWindowless = (direction == .up || direction == .down)
         let resolved = shared.orderedGroupsForMonitor(
             snapshots: snapshots,
             preferredMonitorID: focusedScreen,
-            config: navigationConfig.fixedAppRing
+            config: navigationConfig.fixedAppRing,
+            showWindowlessApps: navigationConfig.showWindowlessApps,
+            allowWindowlessApps: allowWindowless
         )
         let orderedGroups = resolved.groups
 

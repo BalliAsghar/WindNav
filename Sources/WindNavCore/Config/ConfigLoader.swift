@@ -83,7 +83,7 @@ final class ConfigLoader {
             Self.logUnknownKeys(
                 in: navTable,
                 section: "navigation",
-                known: ["mode", "cycle-timeout-ms", "include-minimized", "include-hidden-apps", "standard"]
+                known: ["mode", "cycle-timeout-ms", "include-minimized", "include-hidden-apps", "show-windowless-apps", "standard"]
             )
             if let modeValue = navTable["mode"] {
                 guard let modeRaw = modeValue.string else {
@@ -131,6 +131,16 @@ final class ConfigLoader {
                     )
                 }
                 navigation.includeHiddenApps = includeHiddenApps
+            }
+            if let showWindowlessAppsValue = navTable["show-windowless-apps"]?.string {
+                guard let value = ShowWindowlessAppsPolicy(rawValue: showWindowlessAppsValue) else {
+                    throw ConfigError.invalidValue(
+                        key: "navigation.show-windowless-apps",
+                        expected: "hide|show|show-at-end",
+                        actual: showWindowlessAppsValue
+                    )
+                }
+                navigation.showWindowlessApps = value
             }
 
             if let standardTable = navTable["standard"]?.table {

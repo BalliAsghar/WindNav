@@ -59,6 +59,7 @@ enum WindNavDefaultsCatalog {
         cycleTimeoutMs: 900,
         includeMinimized: true,
         includeHiddenApps: true,
+        showWindowlessApps: .hide,
         fixedAppRing: fixedAppRing
     )
 
@@ -142,6 +143,12 @@ enum WindNavDefaultsCatalog {
                     defaultValue: .bool(navigation.includeHiddenApps),
                     allowedValues: "true|false",
                     description: "Whether app windows from hidden apps should be included in navigation."
+                ),
+                ConfigSettingSpec(
+                    key: "show-windowless-apps",
+                    defaultValue: .string(navigation.showWindowlessApps.rawValue),
+                    allowedValues: "hide|show|show-at-end",
+                    description: "Whether apps with no open windows should be shown. Only accessible in browse flow (cmd+up/down)."
                 ),
             ]
         ),
