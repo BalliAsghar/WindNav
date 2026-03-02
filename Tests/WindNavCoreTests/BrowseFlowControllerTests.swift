@@ -75,33 +75,6 @@ final class BrowseFlowControllerTests: XCTestCase {
         XCTAssertTrue(harness.focusPerformer.calls.isEmpty)
     }
 
-    func testUpDownCyclesWindowsInSelectedApp() async {
-        let snapshots = [
-            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
-            snapshot(windowId: 3, pid: 101, bundleId: "app.alpha", x: 50_200, y: 50_000),
-            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
-        ]
-        let harness = makeHarness(
-            snapshots: snapshots,
-            focusedWindowID: nil,
-            mouseLocation: onScreenMousePoint()
-        )
-
-        harness.controller.startSessionIfNeeded()
-        await waitUntil {
-            harness.hudController.lastModel != nil
-        }
-        harness.controller.handleDirection(.right)
-        XCTAssertEqual(harness.hudController.lastModel?.selectedIndex, 0)
-        XCTAssertEqual(harness.hudController.lastModel?.items[0].currentWindowIndex, 0)
-
-        harness.controller.handleDirection(.up)
-        XCTAssertEqual(harness.hudController.lastModel?.items[0].currentWindowIndex, 1)
-
-        harness.controller.handleDirection(.down)
-        XCTAssertEqual(harness.hudController.lastModel?.items[0].currentWindowIndex, 0)
-    }
-
     func testCommitWithSelectionFocusesOnce() async {
         let snapshots = [
             snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
@@ -177,72 +150,6 @@ final class BrowseFlowControllerTests: XCTestCase {
 
         XCTAssertFalse(harness.controller.isSessionActive)
         XCTAssertTrue(harness.focusPerformer.calls.isEmpty)
-    }
-
-    func testCommitHonorsSelectedWindowFromUpDown() async {
-        let snapshots = [
-            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
-            snapshot(windowId: 3, pid: 101, bundleId: "app.alpha", x: 50_200, y: 50_000),
-            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: 60_000, y: 60_000),
-        ]
-        let harness = makeHarness(
-            snapshots: snapshots,
-            focusedWindowID: nil,
-            mouseLocation: onScreenMousePoint()
-        )
-
-        harness.controller.startSessionIfNeeded()
-        await waitUntil {
-            harness.hudController.lastModel != nil
-        }
-        harness.controller.handleDirection(.right)
-        harness.controller.handleDirection(.up)
-        harness.controller.commitSessionOnModifierRelease()
-
-        await waitUntil {
-            !harness.focusPerformer.calls.isEmpty
-        }
-
-        XCTAssertEqual(harness.focusPerformer.calls.count, 1)
-        XCTAssertEqual(harness.focusPerformer.calls[0].windowId, 3)
-        XCTAssertEqual(harness.focusPerformer.calls[0].pid, 101)
-    }
-
-    func testFocusedBrowseUpDownCyclesIncludingOffscreenWindow() async {
-        let screenFrame = NSScreen.screens.first?.frame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
-        let snapshots = [
-            snapshot(windowId: 1, pid: 101, bundleId: "app.alpha", x: screenFrame.minX + 80, y: screenFrame.minY + 80),
-            snapshot(windowId: 3, pid: 101, bundleId: "app.alpha", x: 50_000, y: 50_000),
-            snapshot(windowId: 2, pid: 202, bundleId: "app.beta", x: screenFrame.minX + 320, y: screenFrame.minY + 80),
-        ]
-        let harness = makeHarness(
-            snapshots: snapshots,
-            focusedWindowID: 1,
-            mouseLocation: onScreenMousePoint()
-        )
-
-        harness.controller.startSessionIfNeeded()
-        harness.controller.handleDirection(.up)
-        await waitUntil {
-            harness.hudController.lastModel?.items.first(where: { $0.isCurrent }) != nil
-        }
-
-        let currentAfterUp = harness.hudController.lastModel?.items.first(where: { $0.isCurrent })
-        XCTAssertEqual(currentAfterUp?.windowCount, 2)
-        XCTAssertEqual(currentAfterUp?.currentWindowIndex, 1)
-
-        harness.controller.handleDirection(.down)
-        let currentAfterDown = harness.hudController.lastModel?.items.first(where: { $0.isCurrent })
-        XCTAssertEqual(currentAfterDown?.windowCount, 2)
-        XCTAssertEqual(currentAfterDown?.currentWindowIndex, 0)
-
-        harness.controller.commitSessionOnModifierRelease()
-        await waitUntil {
-            !harness.focusPerformer.calls.isEmpty
-        }
-
-        XCTAssertEqual(harness.focusPerformer.calls.count, 1)
-        XCTAssertEqual(harness.focusPerformer.calls[0].windowId, 1)
     }
 
     private func makeHarness(

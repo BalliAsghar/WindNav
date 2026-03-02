@@ -121,6 +121,13 @@ final class BrowseFlowController {
         Logger.info(.navigation, "[flow=browse] session cancelled")
         clearSession(hideHUD: true, invalidatePendingStart: true)
     }
+    
+    func selectedAppPid() -> pid_t? {
+        guard let session, let selectedIndex = session.selectedIndex else { return nil }
+        guard session.orderedGroups.indices.contains(selectedIndex) else { return nil }
+        let selectedGroup = session.orderedGroups[selectedIndex]
+        return selectedGroup.windows.first?.pid
+    }
 
     private func initializeSession(generation: UInt64) async {
         let snapshots = await shared.refreshAndGetSnapshots()
@@ -165,74 +172,33 @@ final class BrowseFlowController {
         guard var session else { return }
         guard !session.orderedGroups.isEmpty else { return }
 
-        switch direction {
-            case .left, .right:
-                let count = session.orderedGroups.count
-                let targetIndex: Int
-                if let currentIndex = session.selectedIndex {
-                    let step = direction == .right ? 1 : -1
-                    targetIndex = (currentIndex + step + count) % count
-                } else {
-                    targetIndex = direction == .right ? 0 : (count - 1)
-                }
-
-                session.selectedIndex = targetIndex
-                let targetGroup = session.orderedGroups[targetIndex]
-                let selectedWindowID = shared.selectWindow(
-                    in: targetGroup,
-                    monitorID: session.monitorID,
-                    direction: direction,
-                    focusedWindowID: session.selectedWindowID ?? 0,
-                    policy: navigationConfig.fixedAppRing.inAppWindow
-                )?.windowId
-                session.selectedWindowID = selectedWindowID
-                self.session = session
-                showHUD(for: session)
-                Logger.info(
-                    .navigation,
-                    "[flow=browse] app selection moved direction=\(direction.rawValue) selected-app=\(targetGroup.label) selected-index=\(targetIndex)"
-                )
-
-            case .up, .down:
-                let selectedIndex: Int
-                if let existing = session.selectedIndex {
-                    selectedIndex = existing
-                } else if let focusedAppKey = session.focusedAppKey,
-                          let focusedIndex = session.orderedGroups.firstIndex(where: { $0.key == focusedAppKey }) {
-                    selectedIndex = focusedIndex
-                    session.selectedIndex = focusedIndex
-                } else {
-                    selectedIndex = 0
-                    session.selectedIndex = 0
-                }
-
-                let selectedGroup = session.orderedGroups[selectedIndex]
-                guard let selectedWindow = shared.selectWindow(
-                    in: selectedGroup,
-                    monitorID: session.monitorID,
-                    direction: direction,
-                    focusedWindowID: session.selectedWindowID ?? 0,
-                    policy: navigationConfig.fixedAppRing.inAppWindow
-                ) else {
-                    Logger.info(.navigation, "[flow=browse] window selection skipped: no window in selected app \(selectedGroup.label)")
-                    return
-                }
-
-                session.selectedWindowID = selectedWindow.windowId
-                self.session = session
-                showHUD(for: session)
-                if let slot = shared.windowOrdinal(in: selectedGroup, windowID: selectedWindow.windowId) {
-                    Logger.info(
-                        .navigation,
-                        "[flow=browse] window selection moved direction=\(direction.rawValue) selected-app=\(selectedGroup.label) selected-window=\(selectedWindow.windowId) slot=\(slot)/\(selectedGroup.windows.count)"
-                    )
-                } else {
-                    Logger.info(
-                        .navigation,
-                        "[flow=browse] window selection moved direction=\(direction.rawValue) selected-app=\(selectedGroup.label) selected-window=\(selectedWindow.windowId)"
-                    )
-                }
+        let browseDirection: Direction = (direction == .right || direction == .up) ? .right : .left
+        
+        let count = session.orderedGroups.count
+        let targetIndex: Int
+        if let currentIndex = session.selectedIndex {
+            let step = browseDirection == .right ? 1 : -1
+            targetIndex = (currentIndex + step + count) % count
+        } else {
+            targetIndex = browseDirection == .right ? 0 : (count - 1)
         }
+
+        session.selectedIndex = targetIndex
+        let targetGroup = session.orderedGroups[targetIndex]
+        let selectedWindowID = shared.selectWindow(
+            in: targetGroup,
+            monitorID: session.monitorID,
+            direction: browseDirection,
+            focusedWindowID: session.selectedWindowID ?? 0,
+            policy: navigationConfig.fixedAppRing.inAppWindow
+        )?.windowId
+        session.selectedWindowID = selectedWindowID
+        self.session = session
+        showHUD(for: session)
+        Logger.info(
+            .navigation,
+            "[flow=browse] app selection moved direction=\(browseDirection.rawValue) selected-app=\(targetGroup.label) selected-index=\(targetIndex)"
+        )
     }
 
     private func commitSelection(

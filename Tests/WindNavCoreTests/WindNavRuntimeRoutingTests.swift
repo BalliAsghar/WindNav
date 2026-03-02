@@ -62,7 +62,6 @@ final class WindNavRuntimeRoutingTests: XCTestCase {
         await waitUntil {
             harness.hudController.lastModel != nil
         }
-        harness.runtime.handleHotkey(.right, carbonModifiers: UInt32(cmdKey))
         harness.runtime.handleHotkey(.up, carbonModifiers: UInt32(cmdKey))
         harness.runtime.handleModifierFlagsChanged([])
 
@@ -71,7 +70,7 @@ final class WindNavRuntimeRoutingTests: XCTestCase {
         }
 
         XCTAssertEqual(harness.focusPerformer.calls.count, 1)
-        XCTAssertEqual(harness.focusPerformer.calls[0].windowId, 3)
+        XCTAssertEqual(harness.focusPerformer.calls[0].windowId, 2)
         XCTAssertFalse(harness.browseController.isSessionActive)
     }
 

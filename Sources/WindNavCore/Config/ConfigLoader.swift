@@ -57,11 +57,25 @@ final class ConfigLoader {
         Self.logUnknownKeys(in: table, section: "root", known: ["hotkeys", "navigation", "logging", "startup", "hud"])
 
         if let hotkeysTable = table["hotkeys"]?.table {
-            Self.logUnknownKeys(in: hotkeysTable, section: "hotkeys", known: ["focus-left", "focus-right", "focus-up", "focus-down"])
+            Self.logUnknownKeys(in: hotkeysTable, section: "hotkeys", known: ["focus-left", "focus-right", "focus-up", "focus-down", "browse-next", "browse-previous"])
             hotkeys.focusLeft = hotkeysTable["focus-left"]?.string ?? hotkeys.focusLeft
             hotkeys.focusRight = hotkeysTable["focus-right"]?.string ?? hotkeys.focusRight
             hotkeys.focusUp = hotkeysTable["focus-up"]?.string ?? hotkeys.focusUp
             hotkeys.focusDown = hotkeysTable["focus-down"]?.string ?? hotkeys.focusDown
+            
+            if let browseNext = hotkeysTable["browse-next"]?.string {
+                hotkeys.browseNext = browseNext
+            } else if hotkeys.focusUp == "cmd-up" {
+                hotkeys.browseNext = "cmd-tab"
+                Logger.info(.config, "Auto-migrated: browse-next set to cmd-tab (was focus-up=cmd-up)")
+            }
+            
+            if let browsePrevious = hotkeysTable["browse-previous"]?.string {
+                hotkeys.browsePrevious = browsePrevious
+            } else if hotkeys.focusDown == "cmd-down" {
+                hotkeys.browsePrevious = "cmd-shift-tab"
+                Logger.info(.config, "Auto-migrated: browse-previous set to cmd-shift-tab (was focus-down=cmd-down)")
+            }
         }
 
         if let navTable = table["navigation"]?.table {

@@ -1,9 +1,67 @@
 import AppKit
 import Foundation
+import Carbon.HIToolbox
 
 private enum ActiveFlowKind: Sendable {
     case navigation
     case browse
+}
+
+private enum LocalKeybind {
+    case tab
+    case shiftTab
+    case cmdQ
+}
+
+@MainActor
+private final class LocalKeybindMonitor {
+    private var monitor: Any?
+    private let callback: (LocalKeybind, Bool) -> Void
+    
+    init(callback: @escaping (LocalKeybind, Bool) -> Void) {
+        self.callback = callback
+    }
+    
+    func start() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
+            guard let self else { return event }
+            if self.handleKeyEvent(event) {
+                return nil
+            }
+            return event
+        }
+    }
+    
+    func stop() {
+        if let monitor = monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
+    
+    private func handleKeyEvent(_ event: NSEvent) -> Bool {
+        let keyCode = UInt16(event.keyCode)
+        let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        let isKeyDown = event.type == .keyDown
+        
+        if keyCode == UInt16(kVK_Tab) && modifiers == .command {
+            callback(.tab, isKeyDown)
+            return true
+        }
+        
+        if keyCode == UInt16(kVK_Tab) && modifiers == [.command, .shift] {
+            callback(.shiftTab, isKeyDown)
+            return true
+        }
+        
+        if keyCode == UInt16(kVK_ANSI_Q) && modifiers == .command && isKeyDown {
+            callback(.cmdQ, isKeyDown)
+            return true
+        }
+        
+        return false
+    }
 }
 
 private struct InputSessionState: Sendable {
@@ -28,6 +86,7 @@ public final class WindNavRuntime {
     private var navigationController: NavigationCoordinator?
     private var browseController: BrowseFlowController?
     private var modifierMonitor: Any?
+    private var localKeybindMonitor: LocalKeybindMonitor?
     private var holdCycleUntilModifierRelease = false
     private var inputSession: InputSessionState?
     private var nextInputSessionID: UInt64 = 0
@@ -48,6 +107,13 @@ public final class WindNavRuntime {
         hotkeys = CarbonHotkeyRegistrar()
         self.launchAtLoginManager = launchAtLoginManager
         hudController = CycleHUDController()
+        
+        localKeybindMonitor = LocalKeybindMonitor { [weak self] keybind, isKeyDown in
+            guard let self, isKeyDown else { return }
+            Task { @MainActor in
+                self.handleLocalKeybind(keybind)
+            }
+        }
     }
 
     public func start() {
@@ -102,6 +168,8 @@ public final class WindNavRuntime {
 
         let parsedBindings = try parseBindings(config.hotkeys)
         Logger.info(.hotkey, "Parsed hotkey bindings")
+        
+        SystemHotkeyOverride.disableSystemCmdTab()
 
         if navigationController == nil {
             navigationController = NavigationCoordinator(
@@ -145,8 +213,8 @@ public final class WindNavRuntime {
         [
             .left: try HotkeyParser.parse(hotkeys.focusLeft),
             .right: try HotkeyParser.parse(hotkeys.focusRight),
-            .up: try HotkeyParser.parse(hotkeys.focusUp),
-            .down: try HotkeyParser.parse(hotkeys.focusDown),
+            .up: try HotkeyParser.parse(hotkeys.browseNext),
+            .down: try HotkeyParser.parse(hotkeys.browsePrevious),
         ]
     }
 
@@ -202,6 +270,10 @@ public final class WindNavRuntime {
                 .navigation,
                 "Started input session flow=\(flowKind == .navigation ? "nav" : "browse") session-id=\(nextInputSessionID)"
             )
+            
+            if flowKind == .browse {
+                localKeybindMonitor?.start()
+            }
         }
 
         guard let session = inputSession else { return }
@@ -213,6 +285,45 @@ public final class WindNavRuntime {
                 browseController?.handleDirection(direction)
         }
     }
+    
+    fileprivate func handleLocalKeybind(_ keybind: LocalKeybind) {
+        guard let session = inputSession, session.flowKind == .browse else { return }
+        
+        switch keybind {
+            case .tab:
+                browseController?.handleDirection(.right)
+            case .shiftTab:
+                browseController?.handleDirection(.left)
+            case .cmdQ:
+                quitSelectedApp()
+        }
+    }
+    
+    private func quitSelectedApp() {
+        guard let selectedPid = browseController?.selectedAppPid() else {
+            Logger.error(.navigation, "No app selected to quit")
+            return
+        }
+        
+        let apps = NSWorkspace.shared.runningApplications
+        guard let app = apps.first(where: { $0.processIdentifier == selectedPid }) else {
+            Logger.error(.navigation, "Failed to find app for pid=\(selectedPid)")
+            return
+        }
+        
+        let appName = app.localizedName ?? "Unknown"
+        Logger.info(.navigation, "Quitting app: \(appName) pid=\(selectedPid)")
+        
+        if app.bundleIdentifier == "com.apple.finder" {
+            Logger.info(.navigation, "Skipping Finder quit for safety")
+            return
+        }
+        
+        let terminated = app.terminate()
+        if !terminated {
+            Logger.error(.navigation, "Failed to terminate app: \(appName)")
+        }
+    }
 
     func handleModifierFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard let session = inputSession else { return }
@@ -221,6 +332,10 @@ public final class WindNavRuntime {
 
         let current = flags.intersection([.command, .option, .control, .shift])
         guard current.isSuperset(of: required) else {
+            if session.flowKind == .browse {
+                localKeybindMonitor?.stop()
+            }
+            
             switch session.flowKind {
                 case .browse:
                     browseController?.commitSessionOnModifierRelease()

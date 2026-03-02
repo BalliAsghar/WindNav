@@ -44,7 +44,9 @@ enum WindNavDefaultsCatalog {
         focusLeft: "cmd-left",
         focusRight: "cmd-right",
         focusUp: "cmd-up",
-        focusDown: "cmd-down"
+        focusDown: "cmd-down",
+        browseNext: "cmd-tab",
+        browsePrevious: "cmd-shift-tab"
     )
 
     static let fixedAppRing = FixedAppRingConfig(
@@ -114,6 +116,18 @@ enum WindNavDefaultsCatalog {
                     defaultValue: .string(hotkeys.focusDown),
                     allowedValues: "modifiers cmd|command|opt|option|alt|ctrl|control|ctl|shift + key token",
                     description: "Open the browse HUD; when browsing, move to the previous window in the selected app."
+                ),
+                ConfigSettingSpec(
+                    key: "browse-next",
+                    defaultValue: .string(hotkeys.browseNext),
+                    allowedValues: "modifiers cmd|command|opt|option|alt|ctrl|control|ctl|shift + key token",
+                    description: "Open the browse HUD or cycle to the next app while browsing."
+                ),
+                ConfigSettingSpec(
+                    key: "browse-previous",
+                    defaultValue: .string(hotkeys.browsePrevious),
+                    allowedValues: "modifiers cmd|command|opt|option|alt|ctrl|control|ctl|shift + key token",
+                    description: "Open the browse HUD or cycle to the previous app while browsing (Shift+Tab)."
                 ),
             ]
         ),

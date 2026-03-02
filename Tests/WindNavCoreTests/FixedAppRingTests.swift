@@ -14,7 +14,7 @@ final class FixedAppRingTests: XCTestCase {
         config.pinnedApps = ["com.google.Chrome", "com.microsoft.VSCode", "com.apple.Terminal"]
         config.unpinnedApps = .ignore
 
-        let result = store.orderedGroups(from: seeds, monitorID: 1, config: config)
+        let result = store.orderedGroups(from: seeds, monitorID: 1, config: config, showWindowlessApps: .hide)
 
         XCTAssertEqual(result.map(\.label), ["Editor", "Terminal"])
         XCTAssertEqual(result.map(\.isPinned), [true, true])
@@ -29,14 +29,14 @@ final class FixedAppRingTests: XCTestCase {
             seed(bundleId: "a", label: "Alpha", windowID: 1, pid: 100),
             seed(bundleId: "b", label: "Beta", windowID: 2, pid: 200),
         ]
-        _ = store.orderedGroups(from: first, monitorID: 1, config: config)
+        _ = store.orderedGroups(from: first, monitorID: 1, config: config, showWindowlessApps: .hide)
 
         let second = [
             seed(bundleId: "b", label: "Beta", windowID: 2, pid: 200),
             seed(bundleId: "a", label: "Alpha", windowID: 1, pid: 100),
             seed(bundleId: "c", label: "Gamma", windowID: 3, pid: 300),
         ]
-        let result = store.orderedGroups(from: second, monitorID: 1, config: config)
+        let result = store.orderedGroups(from: second, monitorID: 1, config: config, showWindowlessApps: .hide)
 
         XCTAssertEqual(result.map(\.label), ["Alpha", "Beta", "Gamma"])
     }
@@ -50,7 +50,7 @@ final class FixedAppRingTests: XCTestCase {
             seed(bundleId: "a", label: "Alpha", windowID: 1, pid: 100),
             seed(bundleId: "b", label: "Beta", windowID: 2, pid: 200),
         ]
-        let result = store.orderedGroups(from: seeds, monitorID: 1, config: config)
+        let result = store.orderedGroups(from: seeds, monitorID: 1, config: config, showWindowlessApps: .hide)
 
         XCTAssertTrue(result.isEmpty)
     }

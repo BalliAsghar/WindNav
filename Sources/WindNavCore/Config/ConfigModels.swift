@@ -29,12 +29,16 @@ public struct HotkeysConfig: Equatable, Sendable {
     public var focusRight: String
     public var focusUp: String
     public var focusDown: String
+    public var browseNext: String
+    public var browsePrevious: String
 
-    public init(focusLeft: String, focusRight: String, focusUp: String, focusDown: String) {
+    public init(focusLeft: String, focusRight: String, focusUp: String, focusDown: String, browseNext: String, browsePrevious: String) {
         self.focusLeft = focusLeft
         self.focusRight = focusRight
         self.focusUp = focusUp
         self.focusDown = focusDown
+        self.browseNext = browseNext
+        self.browsePrevious = browsePrevious
     }
 
     public static let `default` = WindNavDefaultsCatalog.hotkeys
