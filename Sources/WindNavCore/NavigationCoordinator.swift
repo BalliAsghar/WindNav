@@ -124,7 +124,7 @@ final class NavigationCoordinator {
         }
 
         switch direction {
-            case .up, .down:
+            case .up, .down, .windowUp, .windowDown:
                 showHUD(for: orderedGroups, selectedIndex: nil, selectedWindowID: nil, monitorID: monitorID)
                 Logger.info(.navigation, "Desktop no-focus preview HUD shown apps=\(orderedGroups.count)")
             case .right:
@@ -218,7 +218,7 @@ final class NavigationCoordinator {
                     return
                 }
                 targetIndex = (currentIndex - 1 + orderedGroups.count) % orderedGroups.count
-            case .up, .down:
+            case .up, .down, .windowUp, .windowDown:
                 targetIndex = currentIndex
         }
         let targetGroup = orderedGroups[targetIndex]

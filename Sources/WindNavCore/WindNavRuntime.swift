@@ -11,6 +11,8 @@ private enum LocalKeybind {
     case tab
     case shiftTab
     case cmdQ
+    case arrowUp
+    case arrowDown
 }
 
 @MainActor
@@ -60,6 +62,16 @@ private final class LocalKeybindMonitor {
             return true
         }
         
+        if keyCode == UInt16(kVK_UpArrow) && modifiers.isEmpty && isKeyDown {
+            callback(.arrowUp, isKeyDown)
+            return true
+        }
+        
+        if keyCode == UInt16(kVK_DownArrow) && modifiers.isEmpty && isKeyDown {
+            callback(.arrowDown, isKeyDown)
+            return true
+        }
+        
         return false
     }
 }
@@ -86,6 +98,7 @@ public final class WindNavRuntime {
     private var navigationController: NavigationCoordinator?
     private var browseController: BrowseFlowController?
     private var modifierMonitor: Any?
+    private var modifierEventTap: CFMachPort?
     private var localKeybindMonitor: LocalKeybindMonitor?
     private var holdCycleUntilModifierRelease = false
     private var inputSession: InputSessionState?
@@ -215,6 +228,8 @@ public final class WindNavRuntime {
             .right: try HotkeyParser.parse(hotkeys.focusRight),
             .up: try HotkeyParser.parse(hotkeys.browseNext),
             .down: try HotkeyParser.parse(hotkeys.browsePrevious),
+            .windowUp: try HotkeyParser.parse(hotkeys.windowUp),
+            .windowDown: try HotkeyParser.parse(hotkeys.windowDown),
         ]
     }
 
@@ -247,19 +262,60 @@ public final class WindNavRuntime {
     }
 
     private func installModifierMonitorIfNeeded() {
-        guard modifierMonitor == nil else { return }
-        modifierMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            guard let self else { return }
-            Task { @MainActor in
-                self.handleModifierFlagsChanged(event.modifierFlags)
+        guard modifierEventTap == nil else { return }
+        
+        let eventMask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+        let callback: CGEventTapCallBack = { _, type, cgEvent, userInfo in
+            if type == .flagsChanged {
+                DispatchQueue.main.async {
+                    let modifiers = NSEvent.ModifierFlags(rawValue: UInt(cgEvent.flags.rawValue))
+                    let selfPtr = Unmanaged<WindNavRuntime>.fromOpaque(userInfo!).takeUnretainedValue()
+                    selfPtr.handleModifierFlagsChanged(modifiers)
+                }
+            } else if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
+                if let tap = userInfo {
+                    let selfPtr = Unmanaged<WindNavRuntime>.fromOpaque(tap).takeUnretainedValue()
+                    if let eventTap = selfPtr.modifierEventTap {
+                        CGEvent.tapEnable(tap: eventTap, enable: true)
+                    }
+                }
             }
+            return Unmanaged.passUnretained(cgEvent)
         }
+        
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+        modifierEventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: eventMask,
+            callback: callback,
+            userInfo: selfPtr
+        )
+        
+        guard let tap = modifierEventTap else {
+            Logger.error(.hotkey, "Failed to create CGEventTap for modifier monitoring")
+            return
+        }
+        
+        let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        Logger.info(.hotkey, "Installed CGEventTap for modifier monitoring")
     }
 
     func handleHotkey(_ direction: Direction, carbonModifiers: UInt32) {
         let requiredFlags = Self.eventModifierFlags(fromCarbonModifiers: carbonModifiers)
         if inputSession == nil {
-            let flowKind: ActiveFlowKind = (direction == .left || direction == .right) ? .navigation : .browse
+            let flowKind: ActiveFlowKind
+            switch direction {
+                case .left, .right:
+                    flowKind = .navigation
+                case .up, .down:
+                    flowKind = .browse
+                case .windowUp, .windowDown:
+                    flowKind = .navigation
+            }
             nextInputSessionID &+= 1
             inputSession = InputSessionState(
                 sessionID: nextInputSessionID,
@@ -296,6 +352,10 @@ public final class WindNavRuntime {
                 browseController?.handleDirection(.left)
             case .cmdQ:
                 quitSelectedApp()
+            case .arrowUp:
+                browseController?.handleDirection(.windowUp)
+            case .arrowDown:
+                browseController?.handleDirection(.windowDown)
         }
     }
     

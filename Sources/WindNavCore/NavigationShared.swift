@@ -204,7 +204,7 @@ final class NavigationSharedContext {
         let orderedWindows = group.windows.sorted(by: cycleHUDWindowSort)
         guard !orderedWindows.isEmpty else { return nil }
 
-        if direction == .up || direction == .down {
+        if direction == .up || direction == .down || direction == .windowUp || direction == .windowDown {
             guard orderedWindows.count > 1 else { return orderedWindows.first }
 
             let preferredID = appFocusMemoryStore.preferredWindowID(
@@ -217,7 +217,7 @@ final class NavigationSharedContext {
                 ? focusedWindowID
                 : (preferredID ?? orderedWindows[0].windowId)
             let baseIndex = orderedWindows.firstIndex(where: { $0.windowId == baseID }) ?? 0
-            let step = direction == .up ? 1 : -1
+            let step = (direction == .up || direction == .windowUp) ? 1 : -1
             let nextIndex = (baseIndex + step + orderedWindows.count) % orderedWindows.count
             return orderedWindows[nextIndex]
         }

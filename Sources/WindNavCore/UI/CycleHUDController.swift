@@ -310,7 +310,9 @@ private struct VisualEffectBackground: NSViewRepresentable {
 final class CycleHUDController: CycleHUDControlling {
     private var panel: NSPanel?
     private var hostingView: NSHostingView<ModernHUDView>?
+    private var lastModel: CycleHUDModel?
     private var hideWorkItem: DispatchWorkItem?
+    private var previouslyActiveApp: NSRunningApplication?
 
     func show(model: CycleHUDModel, config: HUDConfig, timeoutMs: Int) {
         guard config.enabled, !model.items.isEmpty else {
@@ -357,8 +359,11 @@ final class CycleHUDController: CycleHUDControlling {
         position(panel: panel, monitorID: model.monitorID, position: config.position)
 
         if !panel.isVisible {
+            previouslyActiveApp = NSWorkspace.shared.frontmostApplication
             panel.alphaValue = 0
             panel.orderFrontRegardless()
+            panel.makeKey()
+            NSApp.activate(ignoringOtherApps: true)
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.15
                 panel.animator().alphaValue = 1.0
@@ -380,6 +385,7 @@ final class CycleHUDController: CycleHUDControlling {
     func hide() {
         hideWorkItem?.cancel()
         hideWorkItem = nil
+        previouslyActiveApp = nil
 
         guard let panel = panel, panel.isVisible else { return }
 
@@ -399,7 +405,7 @@ final class CycleHUDController: CycleHUDControlling {
 
         let panel = NSPanel(
             contentRect: .zero,
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: true
         )
@@ -412,7 +418,6 @@ final class CycleHUDController: CycleHUDControlling {
         panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = true
         panel.isMovableByWindowBackground = false
-        panel.becomesKeyOnlyIfNeeded = false
         panel.worksWhenModal = true
 
         self.panel = panel

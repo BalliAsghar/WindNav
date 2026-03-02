@@ -79,7 +79,13 @@ final class BrowseFlowController {
         }
 
         guard session != nil else { return }
-        applyDirection(direction)
+        
+        switch direction {
+            case .windowUp, .windowDown:
+                cycleWindowInSelectedApp(direction)
+            default:
+                applyDirection(direction)
+        }
     }
 
     func commitSessionOnModifierRelease() {
@@ -198,6 +204,29 @@ final class BrowseFlowController {
         Logger.info(
             .navigation,
             "[flow=browse] app selection moved direction=\(browseDirection.rawValue) selected-app=\(targetGroup.label) selected-index=\(targetIndex)"
+        )
+    }
+    
+    private func cycleWindowInSelectedApp(_ direction: Direction) {
+        guard var session else { return }
+        guard let selectedIndex = session.selectedIndex else { return }
+        guard session.orderedGroups.indices.contains(selectedIndex) else { return }
+        
+        let selectedGroup = session.orderedGroups[selectedIndex]
+        let windowDirection: Direction = direction == .windowUp ? .up : .down
+        let selectedWindowID = shared.selectWindow(
+            in: selectedGroup,
+            monitorID: session.monitorID,
+            direction: windowDirection,
+            focusedWindowID: session.selectedWindowID ?? 0,
+            policy: navigationConfig.fixedAppRing.inAppWindow
+        )?.windowId
+        session.selectedWindowID = selectedWindowID
+        self.session = session
+        showHUD(for: session)
+        Logger.info(
+            .navigation,
+            "[flow=browse] window selection moved direction=\(windowDirection.rawValue) selected-app=\(selectedGroup.label) selected-window=\(selectedWindowID ?? 0)"
         )
     }
 

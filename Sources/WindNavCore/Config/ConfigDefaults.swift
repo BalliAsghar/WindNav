@@ -43,8 +43,8 @@ enum WindNavDefaultsCatalog {
     static let hotkeys = HotkeysConfig(
         focusLeft: "cmd-left",
         focusRight: "cmd-right",
-        focusUp: "cmd-up",
-        focusDown: "cmd-down",
+        windowUp: "cmd-up",
+        windowDown: "cmd-down",
         browseNext: "cmd-tab",
         browsePrevious: "cmd-shift-tab"
     )
@@ -106,16 +106,16 @@ enum WindNavDefaultsCatalog {
                     description: "Move focus to the next app/window target."
                 ),
                 ConfigSettingSpec(
-                    key: "focus-up",
-                    defaultValue: .string(hotkeys.focusUp),
+                    key: "window-up",
+                    defaultValue: .string(hotkeys.windowUp),
                     allowedValues: "modifiers cmd|command|opt|option|alt|ctrl|control|ctl|shift + key token",
-                    description: "Open the browse HUD; when browsing, move to the next window in the selected app."
+                    description: "Cycle to the next window within the same app (up/forward)."
                 ),
                 ConfigSettingSpec(
-                    key: "focus-down",
-                    defaultValue: .string(hotkeys.focusDown),
+                    key: "window-down",
+                    defaultValue: .string(hotkeys.windowDown),
                     allowedValues: "modifiers cmd|command|opt|option|alt|ctrl|control|ctl|shift + key token",
-                    description: "Open the browse HUD; when browsing, move to the previous window in the selected app."
+                    description: "Cycle to the previous window within the same app (down/backward)."
                 ),
                 ConfigSettingSpec(
                     key: "browse-next",
