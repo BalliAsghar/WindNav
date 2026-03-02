@@ -56,13 +56,13 @@ sed \
     -e "s|__ICON_FILE__|$ICON_FILENAME|g" \
     "$PLIST_TEMPLATE" > "$INFO_PLIST"
 
-echo
-echo "Built app bundle:"
-echo "  $APP_DIR"
-echo "Bundle ID:"
-echo "  $BUNDLE_ID"
-echo "Signing:"
-echo "  skipped"
-echo
-echo "Run it with:"
-echo "  open \"$APP_DIR\""
+
+# Copy WindNav.app to Applications
+APPS_DIR="/Applications"
+if [[ -d "$APPS_DIR/WindNav.app" ]]; then
+    echo "Removing existing app at $APPS_DIR/WindNav.app"
+    rm -rf "$APPS_DIR/WindNav.app"
+fi
+echo "Copying WindNav.app to $APPS_DIR"
+cp -R "$APP_DIR" "$APPS_DIR"
+echo "Build complete! You can find WindNav.app in $APPS_DIR"
