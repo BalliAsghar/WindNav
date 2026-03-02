@@ -380,7 +380,14 @@ public final class WindNavRuntime {
         }
         
         let terminated = app.terminate()
-        if !terminated {
+        if terminated {
+            // Give system time to process termination, then refresh cache and handle the change
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 75_000_000) // 75ms delay
+                await cache.refresh()
+                browseController?.handleAppTerminated(pid: selectedPid)
+            }
+        } else {
             Logger.error(.navigation, "Failed to terminate app: \(appName)")
         }
     }

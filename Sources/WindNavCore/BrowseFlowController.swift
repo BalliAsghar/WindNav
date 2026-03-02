@@ -134,6 +134,16 @@ final class BrowseFlowController {
         let selectedGroup = session.orderedGroups[selectedIndex]
         return selectedGroup.windows.first?.pid
     }
+    
+    func handleAppTerminated(pid: pid_t) {
+        guard isSessionActive else { return }
+        
+        Logger.info(.navigation, "[flow=browse] handling terminated app pid=\(pid)")
+        
+        // Exit browse mode since we chose option A (simple approach)
+        // This ensures clean state and the HUD won't get stuck
+        clearSession(hideHUD: true, invalidatePendingStart: true)
+    }
 
     private func initializeSession(generation: UInt64) async {
         let snapshots = await shared.refreshAndGetSnapshots()
