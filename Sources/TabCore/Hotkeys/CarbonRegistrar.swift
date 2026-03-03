@@ -3,7 +3,7 @@ import Foundation
 
 protocol HotkeyRegistrar: AnyObject {
     @MainActor
-    func register(bindings: [Direction: ParsedHotkey], handler: @escaping (Direction, UInt32) -> Void) throws
+    func register(bindings: [HotkeyAction: ParsedHotkey], handler: @escaping (HotkeyAction, UInt32) -> Void) throws
 
     @MainActor
     func unregisterAll()
@@ -11,11 +11,11 @@ protocol HotkeyRegistrar: AnyObject {
 
 @MainActor
 final class CarbonHotkeyRegistrar: HotkeyRegistrar {
-    private var hotKeyRefs: [Direction: EventHotKeyRef?] = [:]
-    private var idToDirection: [UInt32: Direction] = [:]
-    private var directionToModifiers: [Direction: UInt32] = [:]
+    private var hotKeyRefs: [HotkeyAction: EventHotKeyRef?] = [:]
+    private var idToAction: [UInt32: HotkeyAction] = [:]
+    private var actionToModifiers: [HotkeyAction: UInt32] = [:]
     private var handlerRef: EventHandlerRef?
-    private var callback: ((Direction, UInt32) -> Void)?
+    private var callback: ((HotkeyAction, UInt32) -> Void)?
 
     private lazy var eventHandler: EventHandlerUPP = { _, event, userData in
         guard let event, let userData else { return noErr }
@@ -23,19 +23,19 @@ final class CarbonHotkeyRegistrar: HotkeyRegistrar {
         return me.handleHotKeyEvent(event)
     }
 
-    func register(bindings: [Direction: ParsedHotkey], handler: @escaping (Direction, UInt32) -> Void) throws {
+    func register(bindings: [HotkeyAction: ParsedHotkey], handler: @escaping (HotkeyAction, UInt32) -> Void) throws {
         callback = handler
         installEventHandlerIfNeeded()
 
         unregisterAll()
-        idToDirection = [:]
-        directionToModifiers = [:]
+        idToAction = [:]
+        actionToModifiers = [:]
 
-        for direction in Direction.allCases {
-            guard let binding = bindings[direction] else { continue }
+        for action in HotkeyAction.allCases {
+            guard let binding = bindings[action] else { continue }
 
             var hotKeyRef: EventHotKeyRef?
-            let hotKeyID = EventHotKeyID(signature: Self.signature, id: hotkeyID(for: direction))
+            let hotKeyID = EventHotKeyID(signature: Self.signature, id: hotkeyID(for: action))
             let status = RegisterEventHotKey(
                 binding.keyCode,
                 binding.modifiers,
@@ -49,13 +49,13 @@ final class CarbonHotkeyRegistrar: HotkeyRegistrar {
                 throw NSError(
                     domain: "TabPlusPlus.Hotkeys",
                     code: Int(status),
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to register hotkey for \(direction.rawValue). OSStatus=\(status)"]
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to register hotkey for \(action.rawValue). OSStatus=\(status)"]
                 )
             }
 
-            hotKeyRefs[direction] = hotKeyRef
-            idToDirection[hotKeyID.id] = direction
-            directionToModifiers[direction] = binding.modifiers
+            hotKeyRefs[action] = hotKeyRef
+            idToAction[hotKeyID.id] = action
+            actionToModifiers[action] = binding.modifiers
         }
     }
 
@@ -68,21 +68,21 @@ final class CarbonHotkeyRegistrar: HotkeyRegistrar {
         hotKeyRefs = [:]
     }
 
-    func direction(forHotkeyID hotkeyID: UInt32) -> Direction? {
-        idToDirection[hotkeyID] ?? Self.direction(forHotkeyID: hotkeyID)
+    func action(forHotkeyID hotkeyID: UInt32) -> HotkeyAction? {
+        idToAction[hotkeyID] ?? Self.action(forHotkeyID: hotkeyID)
     }
 
-    func hotkeyID(for direction: Direction) -> UInt32 {
-        Self.hotkeyID(for: direction)
+    func hotkeyID(for action: HotkeyAction) -> UInt32 {
+        Self.hotkeyID(for: action)
     }
 
-    nonisolated static func hotkeyID(for direction: Direction) -> UInt32 {
-        UInt32(Direction.allCases.firstIndex(of: direction)! + 1)
+    nonisolated static func hotkeyID(for action: HotkeyAction) -> UInt32 {
+        UInt32(HotkeyAction.allCases.firstIndex(of: action)! + 1)
     }
 
-    nonisolated static func direction(forHotkeyID hotkeyID: UInt32) -> Direction? {
-        guard hotkeyID > 0, hotkeyID <= UInt32(Direction.allCases.count) else { return nil }
-        return Direction.allCases[Int(hotkeyID - 1)]
+    nonisolated static func action(forHotkeyID hotkeyID: UInt32) -> HotkeyAction? {
+        guard hotkeyID > 0, hotkeyID <= UInt32(HotkeyAction.allCases.count) else { return nil }
+        return HotkeyAction.allCases[Int(hotkeyID - 1)]
     }
 
     private func installEventHandlerIfNeeded() {
@@ -120,8 +120,8 @@ final class CarbonHotkeyRegistrar: HotkeyRegistrar {
             return status
         }
 
-        if let direction = idToDirection[hotKeyID.id] {
-            callback?(direction, directionToModifiers[direction] ?? 0)
+        if let action = idToAction[hotKeyID.id] {
+            callback?(action, actionToModifiers[action] ?? 0)
         }
 
         return noErr

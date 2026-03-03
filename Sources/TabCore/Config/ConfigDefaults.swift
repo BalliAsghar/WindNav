@@ -13,10 +13,7 @@ extension TabConfig {
     right = "opt-cmd-right"
     up = "opt-cmd-up"
     down = "opt-cmd-down"
-    vim-left = "opt-cmd-h"
-    vim-down = "opt-cmd-j"
-    vim-up = "opt-cmd-k"
-    vim-right = "opt-cmd-l"
+    browse-left-right-mode = "immediate"
     commit-on-modifier-release = true
 
     [visibility]

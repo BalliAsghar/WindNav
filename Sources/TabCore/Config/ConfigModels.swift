@@ -57,15 +57,17 @@ public struct ActivationConfig: Equatable, Sendable {
 }
 
 public struct DirectionalConfig: Equatable, Sendable {
+    public enum BrowseLeftRightMode: String, Sendable {
+        case immediate
+        case selection
+    }
+
     public var enabled: Bool
     public var left: String
     public var right: String
     public var up: String
     public var down: String
-    public var vimLeft: String
-    public var vimDown: String
-    public var vimUp: String
-    public var vimRight: String
+    public var browseLeftRightMode: BrowseLeftRightMode
     public var commitOnModifierRelease: Bool
 
     public init(
@@ -74,10 +76,7 @@ public struct DirectionalConfig: Equatable, Sendable {
         right: String,
         up: String,
         down: String,
-        vimLeft: String,
-        vimDown: String,
-        vimUp: String,
-        vimRight: String,
+        browseLeftRightMode: BrowseLeftRightMode,
         commitOnModifierRelease: Bool
     ) {
         self.enabled = enabled
@@ -85,10 +84,7 @@ public struct DirectionalConfig: Equatable, Sendable {
         self.right = right
         self.up = up
         self.down = down
-        self.vimLeft = vimLeft
-        self.vimDown = vimDown
-        self.vimUp = vimUp
-        self.vimRight = vimRight
+        self.browseLeftRightMode = browseLeftRightMode
         self.commitOnModifierRelease = commitOnModifierRelease
     }
 
@@ -98,10 +94,7 @@ public struct DirectionalConfig: Equatable, Sendable {
         right: "opt-cmd-right",
         up: "opt-cmd-up",
         down: "opt-cmd-down",
-        vimLeft: "opt-cmd-h",
-        vimDown: "opt-cmd-j",
-        vimUp: "opt-cmd-k",
-        vimRight: "opt-cmd-l",
+        browseLeftRightMode: .immediate,
         commitOnModifierRelease: true
     )
 }

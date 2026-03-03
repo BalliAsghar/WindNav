@@ -85,7 +85,7 @@ final class ConfigLoader {
 
         if let directionalTable = table["directional"]?.table {
             logUnknownKeys(in: directionalTable, section: "directional", known: [
-                "enabled", "left", "right", "up", "down", "vim-left", "vim-down", "vim-up", "vim-right", "commit-on-modifier-release",
+                "enabled", "left", "right", "up", "down", "browse-left-right-mode", "commit-on-modifier-release",
             ])
 
             if let value = directionalTable["enabled"]?.bool {
@@ -98,10 +98,22 @@ final class ConfigLoader {
             directional.right = try parseStringIfPresent(table: directionalTable, key: "right", section: "directional", defaultValue: directional.right)
             directional.up = try parseStringIfPresent(table: directionalTable, key: "up", section: "directional", defaultValue: directional.up)
             directional.down = try parseStringIfPresent(table: directionalTable, key: "down", section: "directional", defaultValue: directional.down)
-            directional.vimLeft = try parseStringIfPresent(table: directionalTable, key: "vim-left", section: "directional", defaultValue: directional.vimLeft)
-            directional.vimDown = try parseStringIfPresent(table: directionalTable, key: "vim-down", section: "directional", defaultValue: directional.vimDown)
-            directional.vimUp = try parseStringIfPresent(table: directionalTable, key: "vim-up", section: "directional", defaultValue: directional.vimUp)
-            directional.vimRight = try parseStringIfPresent(table: directionalTable, key: "vim-right", section: "directional", defaultValue: directional.vimRight)
+            if let modeRaw = directionalTable["browse-left-right-mode"]?.string {
+                guard let mode = DirectionalConfig.BrowseLeftRightMode(rawValue: modeRaw) else {
+                    throw ConfigError.invalidValue(
+                        key: "directional.browse-left-right-mode",
+                        expected: "immediate|selection",
+                        actual: modeRaw
+                    )
+                }
+                directional.browseLeftRightMode = mode
+            } else if let raw = directionalTable["browse-left-right-mode"] {
+                throw ConfigError.invalidValue(
+                    key: "directional.browse-left-right-mode",
+                    expected: "immediate|selection",
+                    actual: renderedValue(raw)
+                )
+            }
 
             if let value = directionalTable["commit-on-modifier-release"]?.bool {
                 directional.commitOnModifierRelease = value

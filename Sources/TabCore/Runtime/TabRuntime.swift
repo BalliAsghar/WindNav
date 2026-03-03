@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import Foundation
 
 @MainActor
@@ -10,11 +11,12 @@ public final class TabRuntime {
     private let hudController: any HUDControlling
 
     private var navigationCoordinator: NavigationCoordinator?
+    private var directionalCoordinator: DirectionalCoordinator?
     private var modifierEventTap: CFMachPort?
     private var arrowKeyEventTap: CFMachPort?
     private var config: TabConfig?
     private var inputSession: InputSession?
-    nonisolated(unsafe) private let cycleCaptureState = CycleCaptureState()
+    nonisolated(unsafe) private let captureState = SessionCaptureState()
 
     public convenience init(configURL: URL? = nil) {
         self.init(
@@ -64,15 +66,22 @@ public final class TabRuntime {
                 hudController: hudController,
                 config: loaded
             )
+            directionalCoordinator = DirectionalCoordinator(
+                windowProvider: windowProvider,
+                focusedWindowProvider: windowProvider,
+                focusPerformer: focusPerformer,
+                hudController: hudController,
+                config: loaded
+            )
 
             if loaded.activation.overrideSystemCmdTab {
                 SystemHotkeyOverride.disableSystemCmdTab()
             }
 
-            let bindings = try parseActivationBindings(loaded.activation)
-            try hotkeys.register(bindings: bindings) { [weak self] direction, carbonModifiers in
+            let bindings = try parseBindings(loaded)
+            try hotkeys.register(bindings: bindings) { [weak self] action, carbonModifiers in
                 guard let self else { return }
-                self.handleHotkey(direction, carbonModifiers: carbonModifiers)
+                self.handleHotkeyAction(action, carbonModifiers: carbonModifiers)
             }
             installModifierMonitorIfNeeded()
             installArrowKeyMonitorIfNeeded()
@@ -85,7 +94,8 @@ public final class TabRuntime {
 
     public func stop() {
         navigationCoordinator?.cancelCycleSession()
-        cycleCaptureState.setActive(false)
+        directionalCoordinator?.cancelSession()
+        captureState.set(activation: false, directional: false)
         inputSession = nil
         removeModifierMonitor()
         removeArrowKeyMonitor()
@@ -94,51 +104,130 @@ public final class TabRuntime {
         Logger.info(.runtime, "Tab++ runtime stopped")
     }
 
-    private func parseActivationBindings(_ activation: ActivationConfig) throws -> [Direction: ParsedHotkey] {
-        [
-            .right: try HotkeyParser.parse(activation.trigger),
-            .left: try HotkeyParser.parse(activation.reverseTrigger),
+    private func parseBindings(_ config: TabConfig) throws -> [HotkeyAction: ParsedHotkey] {
+        var bindings: [HotkeyAction: ParsedHotkey] = [
+            .activationForward: try HotkeyParser.parse(config.activation.trigger),
+            .activationBackward: try HotkeyParser.parse(config.activation.reverseTrigger),
         ]
+
+        if config.directional.enabled {
+            bindings[.directionalLeft] = try HotkeyParser.parse(config.directional.left)
+            bindings[.directionalRight] = try HotkeyParser.parse(config.directional.right)
+            bindings[.directionalBrowseUp] = try HotkeyParser.parse(config.directional.up)
+            bindings[.directionalBrowseDown] = try HotkeyParser.parse(config.directional.down)
+        }
+
+        return bindings
     }
 
-    private func handleHotkey(_ direction: Direction, carbonModifiers: UInt32) {
+    private func handleHotkeyAction(_ action: HotkeyAction, carbonModifiers: UInt32) {
+        guard let flow = flowForAction(action) else { return }
+
         if inputSession == nil {
             var required = Self.eventModifierFlags(fromCarbonModifiers: carbonModifiers)
-            if required.contains(.command), direction == .left || direction == .right {
+            if flow == .activationCycle {
                 required = [.command]
             }
-            inputSession = InputSession(requiredModifiers: required)
+            inputSession = InputSession(requiredModifiers: required, flow: flow)
+        } else if inputSession?.flow == .activationCycle && flow != .activationCycle {
+            return
         }
-        cycleCaptureState.setActive(true)
 
-        Task { @MainActor in
-            await navigationCoordinator?.startOrAdvanceCycle(direction: direction, hotkeyTimestamp: DispatchTime.now())
-            cycleCaptureState.setActive(navigationCoordinator?.hasActiveCycleSession() ?? false)
+        switch flow {
+            case .activationCycle:
+                captureState.set(activation: true, directional: false)
+                if let direction = activationDirection(for: action) {
+                    Task { @MainActor in
+                        await navigationCoordinator?.startOrAdvanceCycle(direction: direction, hotkeyTimestamp: DispatchTime.now())
+                        syncCaptureStateFromCoordinators()
+                    }
+                }
+            case .directionalNavigation, .directionalBrowse:
+                captureState.set(activation: false, directional: true)
+                if let direction = directionalDirection(for: action) {
+                    Task { @MainActor in
+                        await directionalCoordinator?.handleHotkey(direction: direction, hotkeyTimestamp: DispatchTime.now())
+                        syncCaptureStateFromCoordinators()
+                    }
+                }
+        }
+    }
+
+    private func activationDirection(for action: HotkeyAction) -> Direction? {
+        switch action {
+            case .activationForward:
+                return .right
+            case .activationBackward:
+                return .left
+            default:
+                return nil
+        }
+    }
+
+    private func directionalDirection(for action: HotkeyAction) -> Direction? {
+        switch action {
+            case .directionalLeft:
+                return .left
+            case .directionalRight:
+                return .right
+            case .directionalBrowseUp:
+                return .up
+            case .directionalBrowseDown:
+                return .down
+            default:
+                return nil
+        }
+    }
+
+    private func flowForAction(_ action: HotkeyAction) -> InputSessionFlow? {
+        switch action {
+            case .activationForward, .activationBackward:
+                return .activationCycle
+            case .directionalLeft, .directionalRight:
+                return .directionalNavigation
+            case .directionalBrowseUp, .directionalBrowseDown:
+                return .directionalBrowse
         }
     }
 
     private func handleMoveCycleInput(_ direction: Direction) {
         Logger.info(.hotkey, "cycle-input=arrow direction=\(direction.rawValue)")
-        cycleCaptureState.setActive(true)
+        captureState.set(activation: true, directional: false)
         Task { @MainActor in
             await navigationCoordinator?.startOrAdvanceCycle(direction: direction, hotkeyTimestamp: DispatchTime.now())
-            cycleCaptureState.setActive(navigationCoordinator?.hasActiveCycleSession() ?? false)
+            syncCaptureStateFromCoordinators()
         }
     }
 
     private func handleQuitSelectedAppInput() {
-        cycleCaptureState.setActive(true)
+        captureState.set(activation: true, directional: false)
         Task { @MainActor in
             await navigationCoordinator?.requestQuitSelectedAppInCycle()
-            cycleCaptureState.setActive(navigationCoordinator?.hasActiveCycleSession() ?? false)
+            syncCaptureStateFromCoordinators()
         }
     }
 
     private func handleCloseSelectedWindowInput() {
-        cycleCaptureState.setActive(true)
+        captureState.set(activation: true, directional: false)
         Task { @MainActor in
             await navigationCoordinator?.requestCloseSelectedWindowInCycle()
-            cycleCaptureState.setActive(navigationCoordinator?.hasActiveCycleSession() ?? false)
+            syncCaptureStateFromCoordinators()
+        }
+    }
+
+    private func handleDirectionalQuitSelectedAppInput() {
+        captureState.set(activation: false, directional: true)
+        Task { @MainActor in
+            await directionalCoordinator?.requestQuitSelectedAppInSession()
+            syncCaptureStateFromCoordinators()
+        }
+    }
+
+    private func handleDirectionalCloseSelectedWindowInput() {
+        captureState.set(activation: false, directional: true)
+        Task { @MainActor in
+            await directionalCoordinator?.requestCloseSelectedWindowInSession()
+            syncCaptureStateFromCoordinators()
         }
     }
 
@@ -199,11 +288,13 @@ public final class TabRuntime {
             if type == .keyDown {
                 let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
                 let flags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
-                if let command = CycleKeyRouter.routeCommand(
-                    keyCode: keyCode,
-                    flags: flags,
-                    cycleActive: runtime.cycleCaptureState.isActive
-                ) {
+
+                if runtime.captureState.isActivationActive,
+                   let command = CycleKeyRouter.routeCommand(
+                       keyCode: keyCode,
+                       flags: flags,
+                       cycleActive: true
+                   ) {
                     DispatchQueue.main.async {
                         switch command {
                             case .move(let direction):
@@ -215,6 +306,21 @@ public final class TabRuntime {
                         }
                     }
                     return nil
+                }
+
+                if runtime.captureState.isDirectionalActive, flags.contains(.command) {
+                    if keyCode == UInt16(kVK_ANSI_Q) {
+                        DispatchQueue.main.async {
+                            runtime.handleDirectionalQuitSelectedAppInput()
+                        }
+                        return nil
+                    }
+                    if keyCode == UInt16(kVK_ANSI_W) {
+                        DispatchQueue.main.async {
+                            runtime.handleDirectionalCloseSelectedWindowInput()
+                        }
+                        return nil
+                    }
                 }
             } else if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
                 if let tap = runtime.arrowKeyEventTap {
@@ -256,13 +362,26 @@ public final class TabRuntime {
 
         let current = flags.intersection([.command, .option, .control, .shift])
         if !current.isSuperset(of: inputSession.requiredModifiers) {
+            let endedFlow = inputSession.flow
             self.inputSession = nil
-            cycleCaptureState.setActive(false)
+            captureState.set(activation: false, directional: false)
             let commitTimestamp = DispatchTime.now()
             Task { @MainActor in
-                await navigationCoordinator?.commitCycleOnModifierRelease(commitTimestamp: commitTimestamp)
+                switch endedFlow {
+                    case .activationCycle:
+                        await navigationCoordinator?.commitCycleOnModifierRelease(commitTimestamp: commitTimestamp)
+                    case .directionalNavigation, .directionalBrowse:
+                        await directionalCoordinator?.commitOrEndSessionOnModifierRelease(commitTimestamp: commitTimestamp)
+                }
+                syncCaptureStateFromCoordinators()
             }
         }
+    }
+
+    private func syncCaptureStateFromCoordinators() {
+        let activation = navigationCoordinator?.hasActiveCycleSession() ?? false
+        let directional = directionalCoordinator?.hasActiveSession() ?? false
+        captureState.set(activation: activation, directional: directional)
     }
 
     private static func eventModifierFlags(fromCarbonModifiers modifiers: UInt32) -> NSEvent.ModifierFlags {
@@ -280,23 +399,38 @@ public final class TabRuntime {
     }
 }
 
-private struct InputSession {
-    let requiredModifiers: NSEvent.ModifierFlags
+private enum InputSessionFlow {
+    case activationCycle
+    case directionalNavigation
+    case directionalBrowse
 }
 
-private final class CycleCaptureState {
-    private let lock = NSLock()
-    private var active = false
+private struct InputSession {
+    let requiredModifiers: NSEvent.ModifierFlags
+    let flow: InputSessionFlow
+}
 
-    var isActive: Bool {
+private final class SessionCaptureState {
+    private let lock = NSLock()
+    private var activation = false
+    private var directional = false
+
+    var isActivationActive: Bool {
         lock.lock()
         defer { lock.unlock() }
-        return active
+        return activation
     }
 
-    func setActive(_ newValue: Bool) {
+    var isDirectionalActive: Bool {
         lock.lock()
-        active = newValue
+        defer { lock.unlock() }
+        return directional
+    }
+
+    func set(activation: Bool, directional: Bool) {
+        lock.lock()
+        self.activation = activation
+        self.directional = directional
         lock.unlock()
     }
 }

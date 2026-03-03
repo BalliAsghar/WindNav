@@ -70,6 +70,9 @@ final class ConfigLoaderTests: XCTestCase {
             trigger = "cmd-tab"
             unknown-activation = "value"
 
+            [directional]
+            vim-left = "opt-cmd-h"
+
             [performance]
             log-level = "debug"
             log-color = "always"
@@ -88,6 +91,7 @@ final class ConfigLoaderTests: XCTestCase {
         XCTAssertEqual(cfg.activation.trigger, "cmd-tab")
         XCTAssertEqual(cfg.activation.reverseTrigger, "cmd-shift-tab")
         XCTAssertTrue(cfg.activation.overrideSystemCmdTab)
+        XCTAssertEqual(cfg.directional.browseLeftRightMode, .immediate)
 
         XCTAssertTrue(cfg.visibility.showMinimized)
         XCTAssertTrue(cfg.visibility.showHidden)
@@ -109,6 +113,41 @@ final class ConfigLoaderTests: XCTestCase {
         )
 
         XCTAssertEqual(cfg.performance.logColor, .always)
+    }
+
+    func testParseDirectionalBrowseLeftRightModeSelection() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [directional]
+            browse-left-right-mode = "selection"
+            """
+        )
+
+        XCTAssertEqual(cfg.directional.browseLeftRightMode, .selection)
+    }
+
+    func testParseInvalidDirectionalBrowseLeftRightModeThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [directional]
+                browse-left-right-mode = "hybrid"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "directional.browse-left-right-mode")
+                    XCTAssertEqual(expected, "immediate|selection")
+                    XCTAssertEqual(actual, "hybrid")
+                default:
+                    XCTFail("Expected invalidValue, got \(configError)")
+            }
+        }
     }
 
     func testParseShowEmptyAppsStringHide() throws {

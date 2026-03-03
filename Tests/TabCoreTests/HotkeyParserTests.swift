@@ -24,9 +24,10 @@ final class HotkeyParserTests: XCTestCase {
     }
 
     func testStaticDirectionIdMapping() {
-        XCTAssertEqual(CarbonHotkeyRegistrar.hotkeyID(for: .left), 1)
-        XCTAssertEqual(CarbonHotkeyRegistrar.hotkeyID(for: .right), 2)
-        XCTAssertEqual(CarbonHotkeyRegistrar.direction(forHotkeyID: 2), .right)
-        XCTAssertNil(CarbonHotkeyRegistrar.direction(forHotkeyID: 999))
+        XCTAssertEqual(CarbonHotkeyRegistrar.hotkeyID(for: .activationForward), 1)
+        XCTAssertEqual(CarbonHotkeyRegistrar.hotkeyID(for: .activationBackward), 2)
+        XCTAssertEqual(CarbonHotkeyRegistrar.hotkeyID(for: .directionalLeft), 3)
+        XCTAssertEqual(CarbonHotkeyRegistrar.action(forHotkeyID: 4), .directionalRight)
+        XCTAssertNil(CarbonHotkeyRegistrar.action(forHotkeyID: 999))
     }
 }
