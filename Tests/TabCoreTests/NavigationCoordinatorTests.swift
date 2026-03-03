@@ -109,6 +109,34 @@ final class NavigationCoordinatorTests: XCTestCase {
         XCTAssertTrue(items.allSatisfy { $0.windowIndexInApp == nil })
     }
 
+    func testHUDItemMarksWindowlessEntries() async {
+        var config = TabConfig.default
+        config.visibility.showEmptyApps = .show
+        let pid: pid_t = 4321
+        let synthetic = UInt32.max - UInt32(pid % Int32.max)
+        let harness = makeHarness(
+            snapshots: [
+                WindowSnapshot(
+                    windowId: synthetic,
+                    pid: pid,
+                    bundleId: "bundle.synthetic",
+                    appName: "Synthetic",
+                    frame: .zero,
+                    isMinimized: false,
+                    appIsHidden: false,
+                    isFullscreen: false,
+                    title: "Synthetic",
+                    isWindowlessApp: true
+                )
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: nil),
+            config: config
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        XCTAssertEqual(harness.hud.lastModel?.items.first?.isWindowlessApp, true)
+    }
+
     func testSingleCommitOnRelease() async {
         let harness = makeHarness(
             snapshots: [
@@ -330,7 +358,7 @@ final class NavigationCoordinatorTests: XCTestCase {
         let pid: pid_t = 4321
         let synthetic = UInt32.max - UInt32(pid % Int32.max)
         var config = TabConfig.default
-        config.visibility.showEmptyApps = true
+        config.visibility.showEmptyApps = .show
         let harness = makeHarness(
             snapshots: [
                 WindowSnapshot(
@@ -404,6 +432,122 @@ final class NavigationCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(harness.focus.calls.count, 1)
         XCTAssertEqual(harness.focus.calls[0].windowId, 30)
+    }
+
+    func testWindowlessPolicyHideExcludesWindowlessEntries() async {
+        let pid: pid_t = 4321
+        let synthetic = UInt32.max - UInt32(pid % Int32.max)
+        var config = TabConfig.default
+        config.visibility.showEmptyApps = .hide
+        let harness = makeHarness(
+            snapshots: [
+                WindowSnapshot(
+                    windowId: synthetic,
+                    pid: pid,
+                    bundleId: "bundle.synthetic",
+                    appName: "Synthetic",
+                    frame: .zero,
+                    isMinimized: false,
+                    appIsHidden: false,
+                    isFullscreen: false,
+                    title: "Synthetic",
+                    isWindowlessApp: true
+                )
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: nil),
+            config: config
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        XCTAssertFalse(harness.coordinator.hasActiveCycleSession())
+    }
+
+    func testWindowlessPolicyShowKeepsWindowlessInline() async {
+        var config = TabConfig.default
+        config.visibility.showEmptyApps = .show
+        let pid: pid_t = 4321
+        let synthetic = UInt32.max - UInt32(pid % Int32.max)
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+                WindowSnapshot(
+                    windowId: synthetic,
+                    pid: pid,
+                    bundleId: "bundle.synthetic",
+                    appName: "Aardvark",
+                    frame: .zero,
+                    isMinimized: false,
+                    appIsHidden: false,
+                    isFullscreen: false,
+                    title: "Aardvark",
+                    isWindowlessApp: true
+                ),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", title: "B"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10),
+            config: config
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        XCTAssertEqual(harness.hud.lastModel?.items.map(\.id), ["10", "\(synthetic)", "20"])
+    }
+
+    func testWindowlessPolicyShowAtEndMovesWindowlessToTail() async {
+        var config = TabConfig.default
+        config.visibility.showEmptyApps = .showAtEnd
+        let pid: pid_t = 4321
+        let synthetic = UInt32.max - UInt32(pid % Int32.max)
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+                WindowSnapshot(
+                    windowId: synthetic,
+                    pid: pid,
+                    bundleId: "bundle.synthetic",
+                    appName: "Aardvark",
+                    frame: .zero,
+                    isMinimized: false,
+                    appIsHidden: false,
+                    isFullscreen: false,
+                    title: "Aardvark",
+                    isWindowlessApp: true
+                ),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", title: "B"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10),
+            config: config
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        XCTAssertEqual(harness.hud.lastModel?.items.map(\.id), ["10", "20", "\(synthetic)"])
+    }
+
+    func testFinderWindowlessAlwaysExcludedEvenWhenPolicyShow() async {
+        var config = TabConfig.default
+        config.visibility.showEmptyApps = .show
+        let finderWindowless = WindowSnapshot(
+            windowId: UInt32.max - UInt32(2001 % Int32.max),
+            pid: 2001,
+            bundleId: "com.apple.finder",
+            appName: "Finder",
+            frame: .zero,
+            isMinimized: false,
+            appIsHidden: false,
+            isFullscreen: false,
+            title: "Finder",
+            isWindowlessApp: true
+        )
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+                finderWindowless
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10),
+            config: config
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        XCTAssertEqual(harness.hud.lastModel?.items.map(\.id), ["10"])
     }
 
     func testReleaseWithoutSessionNoop() async {

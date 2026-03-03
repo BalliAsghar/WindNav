@@ -260,6 +260,7 @@ final class NavigationCoordinator {
                 label: snapshot.appName ?? snapshot.bundleId ?? "App",
                 pid: snapshot.pid,
                 isSelected: index == session.selectedIndex,
+                isWindowlessApp: snapshot.isWindowlessApp,
                 windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil
             )
         }
@@ -308,7 +309,7 @@ final class NavigationCoordinator {
             .filter { !used.contains($0.windowId) }
             .sorted(by: snapshotSortOrder(lhs:rhs:))
         ordered.append(contentsOf: remaining)
-        return ordered
+        return applyWindowlessOrdering(ordered)
     }
 
     private func snapshotSortOrder(lhs: WindowSnapshot, rhs: WindowSnapshot) -> Bool {
@@ -331,15 +332,17 @@ final class NavigationCoordinator {
         let excludedNames = Set(config.filters.excludeApps.map { $0.lowercased() })
         let excludedBundleIds = Set(config.filters.excludeBundleIds.map { $0.lowercased() })
 
-        return snapshots.filter { snapshot in
+        let filtered = snapshots.filter { snapshot in
             if !config.visibility.showMinimized && snapshot.isMinimized { return false }
             if !config.visibility.showHidden && snapshot.appIsHidden { return false }
             if !config.visibility.showFullscreen && snapshot.isFullscreen { return false }
-            if !config.visibility.showEmptyApps && snapshot.isWindowlessApp { return false }
+            if snapshot.isWindowlessApp && snapshot.bundleId == "com.apple.finder" { return false }
+            if config.visibility.showEmptyApps == .hide && snapshot.isWindowlessApp { return false }
             if let appName = snapshot.appName, excludedNames.contains(appName.lowercased()) { return false }
             if let bundleId = snapshot.bundleId, excludedBundleIds.contains(bundleId.lowercased()) { return false }
             return true
         }
+        return applyWindowlessOrdering(filtered)
     }
 
     private func orderByMostRecent(_ snapshots: [WindowSnapshot], focusedWindowID: UInt32?) -> [WindowSnapshot] {
@@ -368,7 +371,16 @@ final class NavigationCoordinator {
             .sorted(by: snapshotSortOrder(lhs:rhs:))
 
         ordered.append(contentsOf: remaining)
-        return ordered
+        return applyWindowlessOrdering(ordered)
+    }
+
+    private func applyWindowlessOrdering(_ snapshots: [WindowSnapshot]) -> [WindowSnapshot] {
+        guard config.visibility.showEmptyApps == .showAtEnd else {
+            return snapshots
+        }
+        let windowed = snapshots.filter { !$0.isWindowlessApp }
+        let windowless = snapshots.filter(\.isWindowlessApp)
+        return windowed + windowless
     }
 
     private func initialSelectionIndex(direction: Direction, ordered: [WindowSnapshot], focusedWindowID: UInt32?) -> Int {

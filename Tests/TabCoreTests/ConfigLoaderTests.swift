@@ -92,7 +92,7 @@ final class ConfigLoaderTests: XCTestCase {
         XCTAssertTrue(cfg.visibility.showMinimized)
         XCTAssertTrue(cfg.visibility.showHidden)
         XCTAssertTrue(cfg.visibility.showFullscreen)
-        XCTAssertFalse(cfg.visibility.showEmptyApps)
+        XCTAssertEqual(cfg.visibility.showEmptyApps, .showAtEnd)
 
         XCTAssertEqual(cfg.ordering.mode, .mostRecent)
         XCTAssertEqual(cfg.appearance.theme, .system)
@@ -109,6 +109,74 @@ final class ConfigLoaderTests: XCTestCase {
         )
 
         XCTAssertEqual(cfg.performance.logColor, .always)
+    }
+
+    func testParseShowEmptyAppsStringHide() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [visibility]
+            show-empty-apps = "hide"
+            """
+        )
+
+        XCTAssertEqual(cfg.visibility.showEmptyApps, .hide)
+    }
+
+    func testParseShowEmptyAppsStringShow() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [visibility]
+            show-empty-apps = "show"
+            """
+        )
+
+        XCTAssertEqual(cfg.visibility.showEmptyApps, .show)
+    }
+
+    func testParseShowEmptyAppsLegacyTrueMapsToShow() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [visibility]
+            show-empty-apps = true
+            """
+        )
+
+        XCTAssertEqual(cfg.visibility.showEmptyApps, .show)
+    }
+
+    func testParseShowEmptyAppsLegacyFalseMapsToHide() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [visibility]
+            show-empty-apps = false
+            """
+        )
+
+        XCTAssertEqual(cfg.visibility.showEmptyApps, .hide)
+    }
+
+    func testParseInvalidShowEmptyAppsThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [visibility]
+                show-empty-apps = "middle"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "visibility.show-empty-apps")
+                    XCTAssertEqual(expected, "hide|show|show-at-end")
+                    XCTAssertEqual(actual, "middle")
+                default:
+                    XCTFail("Expected invalidValue, got \(configError)")
+            }
+        }
     }
 
     func testParseInvalidLogColorThrowsPreciseError() {

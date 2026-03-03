@@ -118,7 +118,24 @@ final class ConfigLoader {
             visibility.showMinimized = try parseBoolIfPresent(table: visibilityTable, key: "show-minimized", section: "visibility", defaultValue: visibility.showMinimized)
             visibility.showHidden = try parseBoolIfPresent(table: visibilityTable, key: "show-hidden", section: "visibility", defaultValue: visibility.showHidden)
             visibility.showFullscreen = try parseBoolIfPresent(table: visibilityTable, key: "show-fullscreen", section: "visibility", defaultValue: visibility.showFullscreen)
-            visibility.showEmptyApps = try parseBoolIfPresent(table: visibilityTable, key: "show-empty-apps", section: "visibility", defaultValue: visibility.showEmptyApps)
+            if let raw = visibilityTable["show-empty-apps"]?.string {
+                guard let policy = VisibilityConfig.ShowEmptyAppsPolicy(rawValue: raw) else {
+                    throw ConfigError.invalidValue(
+                        key: "visibility.show-empty-apps",
+                        expected: "hide|show|show-at-end",
+                        actual: raw
+                    )
+                }
+                visibility.showEmptyApps = policy
+            } else if let raw = visibilityTable["show-empty-apps"]?.bool {
+                visibility.showEmptyApps = raw ? .show : .hide
+            } else if let raw = visibilityTable["show-empty-apps"] {
+                throw ConfigError.invalidValue(
+                    key: "visibility.show-empty-apps",
+                    expected: "hide|show|show-at-end",
+                    actual: renderedValue(raw)
+                )
+            }
         }
 
         if let orderingTable = table["ordering"]?.table {

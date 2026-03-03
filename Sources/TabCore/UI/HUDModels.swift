@@ -5,13 +5,22 @@ struct HUDItem: Equatable, Identifiable {
     let label: String
     let pid: pid_t
     let isSelected: Bool
+    let isWindowlessApp: Bool
     let windowIndexInApp: Int?
 
-    init(id: String, label: String, pid: pid_t, isSelected: Bool, windowIndexInApp: Int? = nil) {
+    init(
+        id: String,
+        label: String,
+        pid: pid_t,
+        isSelected: Bool,
+        isWindowlessApp: Bool = false,
+        windowIndexInApp: Int? = nil
+    ) {
         self.id = id
         self.label = label
         self.pid = pid
         self.isSelected = isSelected
+        self.isWindowlessApp = isWindowlessApp
         self.windowIndexInApp = windowIndexInApp
     }
 }

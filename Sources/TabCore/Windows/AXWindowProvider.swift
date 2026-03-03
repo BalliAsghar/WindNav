@@ -53,9 +53,12 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
     }
 
     private func createWindowlessAppSnapshotIfNeeded(_ app: NSRunningApplication) -> [WindowSnapshot] {
-        guard config.visibility.showEmptyApps else { return [] }
+        guard config.visibility.showEmptyApps != .hide else { return [] }
         guard app.activationPolicy == .regular else { return [] }
         guard !app.isTerminated else { return [] }
+        if app.bundleIdentifier == "com.apple.finder" {
+            return []
+        }
 
         let syntheticWindowId = UInt32.max - UInt32(app.processIdentifier % Int32.max)
         let snapshot = WindowSnapshot(

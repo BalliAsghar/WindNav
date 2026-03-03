@@ -23,7 +23,7 @@ extension TabConfig {
     show-minimized = true
     show-hidden = true
     show-fullscreen = true
-    show-empty-apps = false
+    show-empty-apps = "show-at-end"
 
     [ordering]
     mode = "most-recent"

@@ -107,12 +107,23 @@ public struct DirectionalConfig: Equatable, Sendable {
 }
 
 public struct VisibilityConfig: Equatable, Sendable {
+    public enum ShowEmptyAppsPolicy: String, Sendable {
+        case hide
+        case show
+        case showAtEnd = "show-at-end"
+    }
+
     public var showMinimized: Bool
     public var showHidden: Bool
     public var showFullscreen: Bool
-    public var showEmptyApps: Bool
+    public var showEmptyApps: ShowEmptyAppsPolicy
 
-    public init(showMinimized: Bool, showHidden: Bool, showFullscreen: Bool, showEmptyApps: Bool) {
+    public init(
+        showMinimized: Bool,
+        showHidden: Bool,
+        showFullscreen: Bool,
+        showEmptyApps: ShowEmptyAppsPolicy
+    ) {
         self.showMinimized = showMinimized
         self.showHidden = showHidden
         self.showFullscreen = showFullscreen
@@ -123,7 +134,7 @@ public struct VisibilityConfig: Equatable, Sendable {
         showMinimized: true,
         showHidden: true,
         showFullscreen: true,
-        showEmptyApps: false
+        showEmptyApps: .showAtEnd
     )
 }
 

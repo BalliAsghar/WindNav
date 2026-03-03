@@ -14,6 +14,7 @@ final class MinimalHUDController: HUDControlling {
                 label: $0.label,
                 icon: NSRunningApplication(processIdentifier: $0.pid)?.icon,
                 isSelected: $0.isSelected,
+                isWindowlessApp: $0.isWindowlessApp,
                 windowIndexInApp: $0.windowIndexInApp
             )
         }
@@ -75,6 +76,7 @@ private struct HUDRenderItem: Identifiable {
     let label: String
     let icon: NSImage?
     let isSelected: Bool
+    let isWindowlessApp: Bool
     let windowIndexInApp: Int?
 }
 
@@ -113,6 +115,14 @@ private struct MinimalHUDView: View {
                             )
                             .foregroundStyle(item.isSelected ? Color.black : Color.white)
                             .offset(x: 6, y: -6)
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if item.isWindowlessApp {
+                        Circle()
+                            .fill(Color.orange.opacity(0.9))
+                            .frame(width: 7, height: 7)
+                            .offset(x: 3, y: 3)
                     }
                 }
                 .padding(CGFloat(appearance.itemPadding))
