@@ -1,0 +1,239 @@
+import Foundation
+
+public struct TabConfig: Equatable, Sendable {
+    public var activation: ActivationConfig
+    public var directional: DirectionalConfig
+    public var visibility: VisibilityConfig
+    public var ordering: OrderingConfig
+    public var filters: FiltersConfig
+    public var appearance: AppearanceConfig
+    public var performance: PerformanceConfig
+
+    public init(
+        activation: ActivationConfig,
+        directional: DirectionalConfig,
+        visibility: VisibilityConfig,
+        ordering: OrderingConfig,
+        filters: FiltersConfig,
+        appearance: AppearanceConfig,
+        performance: PerformanceConfig
+    ) {
+        self.activation = activation
+        self.directional = directional
+        self.visibility = visibility
+        self.ordering = ordering
+        self.filters = filters
+        self.appearance = appearance
+        self.performance = performance
+    }
+
+    public static let `default` = TabConfig(
+        activation: .default,
+        directional: .default,
+        visibility: .default,
+        ordering: .default,
+        filters: .default,
+        appearance: .default,
+        performance: .default
+    )
+}
+
+public struct ActivationConfig: Equatable, Sendable {
+    public var trigger: String
+    public var reverseTrigger: String
+    public var overrideSystemCmdTab: Bool
+
+    public init(trigger: String, reverseTrigger: String, overrideSystemCmdTab: Bool) {
+        self.trigger = trigger
+        self.reverseTrigger = reverseTrigger
+        self.overrideSystemCmdTab = overrideSystemCmdTab
+    }
+
+    public static let `default` = ActivationConfig(
+        trigger: "cmd-tab",
+        reverseTrigger: "cmd-shift-tab",
+        overrideSystemCmdTab: true
+    )
+}
+
+public struct DirectionalConfig: Equatable, Sendable {
+    public var enabled: Bool
+    public var left: String
+    public var right: String
+    public var up: String
+    public var down: String
+    public var vimLeft: String
+    public var vimDown: String
+    public var vimUp: String
+    public var vimRight: String
+    public var commitOnModifierRelease: Bool
+
+    public init(
+        enabled: Bool,
+        left: String,
+        right: String,
+        up: String,
+        down: String,
+        vimLeft: String,
+        vimDown: String,
+        vimUp: String,
+        vimRight: String,
+        commitOnModifierRelease: Bool
+    ) {
+        self.enabled = enabled
+        self.left = left
+        self.right = right
+        self.up = up
+        self.down = down
+        self.vimLeft = vimLeft
+        self.vimDown = vimDown
+        self.vimUp = vimUp
+        self.vimRight = vimRight
+        self.commitOnModifierRelease = commitOnModifierRelease
+    }
+
+    public static let `default` = DirectionalConfig(
+        enabled: true,
+        left: "opt-cmd-left",
+        right: "opt-cmd-right",
+        up: "opt-cmd-up",
+        down: "opt-cmd-down",
+        vimLeft: "opt-cmd-h",
+        vimDown: "opt-cmd-j",
+        vimUp: "opt-cmd-k",
+        vimRight: "opt-cmd-l",
+        commitOnModifierRelease: true
+    )
+}
+
+public struct VisibilityConfig: Equatable, Sendable {
+    public var showMinimized: Bool
+    public var showHidden: Bool
+    public var showFullscreen: Bool
+    public var showEmptyApps: Bool
+
+    public init(showMinimized: Bool, showHidden: Bool, showFullscreen: Bool, showEmptyApps: Bool) {
+        self.showMinimized = showMinimized
+        self.showHidden = showHidden
+        self.showFullscreen = showFullscreen
+        self.showEmptyApps = showEmptyApps
+    }
+
+    public static let `default` = VisibilityConfig(
+        showMinimized: true,
+        showHidden: true,
+        showFullscreen: true,
+        showEmptyApps: false
+    )
+}
+
+public enum OrderingMode: String, Sendable {
+    case fixed
+    case mostRecent = "most-recent"
+    case pinned
+}
+
+public enum UnpinnedAppsPolicy: String, Sendable {
+    case append
+    case ignore
+}
+
+public struct OrderingConfig: Equatable, Sendable {
+    public var mode: OrderingMode
+    public var fixedApps: [String]
+    public var pinnedApps: [String]
+    public var unpinnedApps: UnpinnedAppsPolicy
+
+    public init(mode: OrderingMode, fixedApps: [String], pinnedApps: [String], unpinnedApps: UnpinnedAppsPolicy) {
+        self.mode = mode
+        self.fixedApps = fixedApps
+        self.pinnedApps = pinnedApps
+        self.unpinnedApps = unpinnedApps
+    }
+
+    public static let `default` = OrderingConfig(
+        mode: .mostRecent,
+        fixedApps: [],
+        pinnedApps: [],
+        unpinnedApps: .append
+    )
+}
+
+public struct FiltersConfig: Equatable, Sendable {
+    public var excludeApps: [String]
+    public var excludeBundleIds: [String]
+
+    public init(excludeApps: [String], excludeBundleIds: [String]) {
+        self.excludeApps = excludeApps
+        self.excludeBundleIds = excludeBundleIds
+    }
+
+    public static let `default` = FiltersConfig(
+        excludeApps: ["Finder", "Spotify"],
+        excludeBundleIds: []
+    )
+}
+
+public enum ThemeMode: String, Sendable {
+    case light
+    case dark
+    case system
+}
+
+public struct AppearanceConfig: Equatable, Sendable {
+    public var theme: ThemeMode
+    public var iconSize: Int
+    public var itemPadding: Int
+    public var itemSpacing: Int
+    public var showWindowCount: Bool
+
+    public init(theme: ThemeMode, iconSize: Int, itemPadding: Int, itemSpacing: Int, showWindowCount: Bool) {
+        self.theme = theme
+        self.iconSize = iconSize
+        self.itemPadding = itemPadding
+        self.itemSpacing = itemSpacing
+        self.showWindowCount = showWindowCount
+    }
+
+    public static let `default` = AppearanceConfig(
+        theme: .system,
+        iconSize: 22,
+        itemPadding: 8,
+        itemSpacing: 8,
+        showWindowCount: true
+    )
+}
+
+public enum IdleCacheRefreshMode: String, Sendable {
+    case eventDriven = "event-driven"
+    case interval
+}
+
+public struct PerformanceConfig: Equatable, Sendable {
+    public var idleCacheRefresh: IdleCacheRefreshMode
+    public var logLevel: LogLevel
+
+    public init(idleCacheRefresh: IdleCacheRefreshMode, logLevel: LogLevel) {
+        self.idleCacheRefresh = idleCacheRefresh
+        self.logLevel = logLevel
+    }
+
+    public static let `default` = PerformanceConfig(idleCacheRefresh: .eventDriven, logLevel: .info)
+}
+
+enum ConfigError: LocalizedError, Equatable {
+    case invalidToml(String)
+    case invalidValue(key: String, expected: String, actual: String)
+    case io(String)
+
+    var errorDescription: String? {
+        switch self {
+            case .invalidToml(let message):
+                return "Invalid config TOML: \(message)"
+            case .invalidValue(let key, let expected, let actual):
+                return "Invalid value for '\(key)'. Expected \(expected), got '\(actual)'"
+            case .io(let message):
+                return "Config I/O error: \(message)"
+        }
+    }
+}

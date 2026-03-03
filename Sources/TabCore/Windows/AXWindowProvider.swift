@@ -1,0 +1,133 @@
+import AppKit
+import ApplicationServices
+import Foundation
+
+@MainActor
+final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
+    private var config: TabConfig = .default
+
+    func updateConfig(_ config: TabConfig) {
+        self.config = config
+    }
+
+    func currentSnapshot() async throws -> [WindowSnapshot] {
+        var snapshots: [WindowSnapshot] = []
+
+        for app in NSWorkspace.shared.runningApplications where shouldConsider(app: app) {
+            snapshots.append(contentsOf: snapshotsForApp(app))
+        }
+
+        return snapshots
+    }
+
+    func focusedWindowID() async -> UInt32? {
+        guard let frontmost = NSWorkspace.shared.frontmostApplication else { return nil }
+        let appElement = AXUIElementCreateApplication(frontmost.processIdentifier)
+        guard let focusedRaw = appElement.tabCopyAttribute(kAXFocusedWindowAttribute as String) else { return nil }
+        let focusedElement = focusedRaw as! AXUIElement
+        return focusedElement.tabWindowID()
+    }
+
+    private func snapshotsForApp(_ app: NSRunningApplication) -> [WindowSnapshot] {
+        let appElement = AXUIElementCreateApplication(app.processIdentifier)
+        guard let windows = appElement.tabCopyAttribute(kAXWindowsAttribute as String) as? [AnyObject] else {
+            return createWindowlessAppSnapshotIfNeeded(app)
+        }
+
+        if windows.isEmpty {
+            return createWindowlessAppSnapshotIfNeeded(app)
+        }
+
+        var snapshots: [WindowSnapshot] = []
+        for raw in windows {
+            let axWindow = raw as! AXUIElement
+            guard let snapshot = makeSnapshot(from: axWindow, app: app) else { continue }
+            snapshots.append(snapshot)
+        }
+
+        if snapshots.isEmpty {
+            return createWindowlessAppSnapshotIfNeeded(app)
+        }
+
+        return snapshots
+    }
+
+    private func createWindowlessAppSnapshotIfNeeded(_ app: NSRunningApplication) -> [WindowSnapshot] {
+        guard config.visibility.showEmptyApps else { return [] }
+        guard app.activationPolicy == .regular else { return [] }
+        guard !app.isTerminated else { return [] }
+
+        let syntheticWindowId = UInt32.max - UInt32(app.processIdentifier % Int32.max)
+        let snapshot = WindowSnapshot(
+            windowId: syntheticWindowId,
+            pid: app.processIdentifier,
+            bundleId: app.bundleIdentifier,
+            appName: app.localizedName,
+            frame: .zero,
+            isMinimized: false,
+            appIsHidden: app.isHidden,
+            isFullscreen: false,
+            title: app.localizedName,
+            isWindowlessApp: true
+        )
+        return [snapshot]
+    }
+
+    private func makeSnapshot(from window: AXUIElement, app: NSRunningApplication) -> WindowSnapshot? {
+        guard let windowId = window.tabWindowID() else { return nil }
+
+        let role = (window.tabCopyAttribute(kAXRoleAttribute as String) as? String) ?? ""
+        guard role == (kAXWindowRole as String) else { return nil }
+
+        let subrole = (window.tabCopyAttribute(kAXSubroleAttribute as String) as? String) ?? ""
+        guard subrole == (kAXStandardWindowSubrole as String) else { return nil }
+
+        let isMinimized = (window.tabCopyAttribute(kAXMinimizedAttribute as String) as? Bool) ?? false
+        let isFullscreen = (window.tabCopyAttribute("AXFullScreen") as? Bool) ?? false
+
+        guard let position = pointAttribute(window, key: kAXPositionAttribute as String) else { return nil }
+        guard let size = sizeAttribute(window, key: kAXSizeAttribute as String) else { return nil }
+        if size.width <= 1 || size.height <= 1 { return nil }
+
+        let frame = CGRect(origin: position, size: size)
+        let title = window.tabCopyAttribute(kAXTitleAttribute as String) as? String
+
+        return WindowSnapshot(
+            windowId: windowId,
+            pid: app.processIdentifier,
+            bundleId: app.bundleIdentifier,
+            appName: app.localizedName,
+            frame: frame,
+            isMinimized: isMinimized,
+            appIsHidden: app.isHidden,
+            isFullscreen: isFullscreen,
+            title: title
+        )
+    }
+
+    private func pointAttribute(_ element: AXUIElement, key: String) -> CGPoint? {
+        guard let raw = element.tabCopyAttribute(key) else { return nil }
+        guard CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        let value = raw as! AXValue
+        guard AXValueGetType(value) == .cgPoint else { return nil }
+        var point: CGPoint = .zero
+        guard AXValueGetValue(value, .cgPoint, &point) else { return nil }
+        return point
+    }
+
+    private func sizeAttribute(_ element: AXUIElement, key: String) -> CGSize? {
+        guard let raw = element.tabCopyAttribute(key) else { return nil }
+        guard CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        let value = raw as! AXValue
+        guard AXValueGetType(value) == .cgSize else { return nil }
+        var size: CGSize = .zero
+        guard AXValueGetValue(value, .cgSize, &size) else { return nil }
+        return size
+    }
+
+    private func shouldConsider(app: NSRunningApplication) -> Bool {
+        guard app.activationPolicy == .regular else { return false }
+        guard app.processIdentifier != getpid() else { return false }
+        return !app.isTerminated
+    }
+}
