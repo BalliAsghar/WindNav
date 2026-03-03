@@ -2,20 +2,27 @@ import AppKit
 import Carbon
 import Foundation
 
+enum CycleInputCommand: Equatable {
+    case move(Direction)
+    case quitSelectedApp
+}
+
 enum CycleKeyRouter {
-    static func routeDirection(
+    static func routeCommand(
         keyCode: UInt16,
         flags: NSEvent.ModifierFlags,
         cycleActive: Bool
-    ) -> Direction? {
+    ) -> CycleInputCommand? {
         guard cycleActive else { return nil }
         guard flags.contains(.command) else { return nil }
 
         switch keyCode {
             case UInt16(kVK_LeftArrow):
-                return .left
+                return .move(.left)
             case UInt16(kVK_RightArrow):
-                return .right
+                return .move(.right)
+            case UInt16(kVK_ANSI_Q):
+                return .quitSelectedApp
             default:
                 return nil
         }

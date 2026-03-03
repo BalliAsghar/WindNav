@@ -5,22 +5,26 @@ final class NavigationCoordinator {
     private let windowProvider: WindowProvider
     private let focusedWindowProvider: FocusedWindowProvider
     private let focusPerformer: FocusPerformer
+    private let appTerminationPerformer: any AppTerminationPerformer
     private let hudController: any HUDControlling
 
     private var config: TabConfig
     private var focusHistory: [UInt32] = []
     private var cycleSession: CycleSession?
+    private var quitRequestedPIDs = Set<pid_t>()
 
     init(
         windowProvider: WindowProvider,
         focusedWindowProvider: FocusedWindowProvider,
         focusPerformer: FocusPerformer,
+        appTerminationPerformer: any AppTerminationPerformer = NSRunningAppTerminationPerformer(),
         hudController: any HUDControlling,
         config: TabConfig
     ) {
         self.windowProvider = windowProvider
         self.focusedWindowProvider = focusedWindowProvider
         self.focusPerformer = focusPerformer
+        self.appTerminationPerformer = appTerminationPerformer
         self.hudController = hudController
         self.config = config
     }
@@ -78,6 +82,7 @@ final class NavigationCoordinator {
                 startedAt: hotkeyTimestamp
             )
             cycleSession = session
+            quitRequestedPIDs.removeAll()
             showHUD(for: session)
             Logger.info(.ui, "hud-selection-latency-ms=\(msSince(hotkeyTimestamp))")
         } catch {
@@ -91,6 +96,7 @@ final class NavigationCoordinator {
         defer {
             hudController.hide()
             cycleSession = nil
+            quitRequestedPIDs.removeAll()
         }
 
         guard session.ordered.indices.contains(session.selectedIndex) else { return }
@@ -120,7 +126,64 @@ final class NavigationCoordinator {
 
     func cancelCycleSession() {
         cycleSession = nil
+        quitRequestedPIDs.removeAll()
         hudController.hide()
+    }
+
+    func requestQuitSelectedAppInCycle() async {
+        guard let session = cycleSession else { return }
+        guard session.ordered.indices.contains(session.selectedIndex) else {
+            cancelCycleSession()
+            return
+        }
+
+        let selected = session.ordered[session.selectedIndex]
+        let bundleID = appTerminationPerformer.bundleIdentifier(pid: selected.pid) ?? selected.bundleId
+        if bundleID == "com.apple.finder" {
+            Logger.info(.navigation, "quit-selected-app skipped finder pid=\(selected.pid)")
+            return
+        }
+
+        let action: String
+        if quitRequestedPIDs.contains(selected.pid) {
+            action = "force"
+            appTerminationPerformer.forceTerminate(pid: selected.pid)
+        } else {
+            action = "terminate"
+            appTerminationPerformer.terminate(pid: selected.pid)
+            quitRequestedPIDs.insert(selected.pid)
+        }
+        Logger.info(.navigation, "cycle-input=quit-selected-app pid=\(selected.pid) action=\(action)")
+
+        do {
+            let snapshots = try await windowProvider.currentSnapshot()
+            let filtered = applyFilters(snapshots)
+            guard !filtered.isEmpty else {
+                cancelCycleSession()
+                return
+            }
+
+            let reconciled = reconcileSessionOrder(previous: session.ordered, filtered: filtered)
+            guard !reconciled.isEmpty else {
+                cancelCycleSession()
+                return
+            }
+
+            let nextIndex = nextSelectionIndexAfterSessionRefresh(
+                previousSession: session,
+                refreshed: reconciled
+            )
+            let refreshedSession = CycleSession(
+                ordered: reconciled,
+                selectedIndex: nextIndex,
+                startedAt: session.startedAt
+            )
+            cycleSession = refreshedSession
+            showHUD(for: refreshedSession)
+            Logger.info(.navigation, "quit-selected-app session-updated remaining=\(reconciled.count) selected-index=\(nextIndex)")
+        } catch {
+            Logger.error(.windows, "Failed to refresh snapshot after quit request: \(error.localizedDescription)")
+        }
     }
 
     private func resolveCommitTarget(selected: WindowSnapshot, from filtered: [WindowSnapshot]) -> WindowSnapshot? {
@@ -146,6 +209,64 @@ final class NavigationCoordinator {
             model: HUDModel(items: items, selectedIndex: session.selectedIndex),
             appearance: config.appearance
         )
+    }
+
+    private func nextSelectionIndexAfterSessionRefresh(
+        previousSession: CycleSession,
+        refreshed: [WindowSnapshot]
+    ) -> Int {
+        let currentSelectedID = previousSession.ordered[previousSession.selectedIndex].windowId
+        if let sameWindow = refreshed.firstIndex(where: { $0.windowId == currentSelectedID }) {
+            return sameWindow
+        }
+
+        if refreshed.isEmpty {
+            return 0
+        }
+        let preferred = previousSession.selectedIndex
+        if preferred >= refreshed.count {
+            return refreshed.count - 1
+        }
+        return max(0, preferred)
+    }
+
+    private func reconcileSessionOrder(previous: [WindowSnapshot], filtered: [WindowSnapshot]) -> [WindowSnapshot] {
+        var byWindowID: [UInt32: WindowSnapshot] = [:]
+        for snapshot in filtered {
+            byWindowID[snapshot.windowId] = snapshot
+        }
+
+        var ordered: [WindowSnapshot] = []
+        var used = Set<UInt32>()
+
+        for snapshot in previous {
+            if let current = byWindowID[snapshot.windowId] {
+                ordered.append(current)
+                used.insert(current.windowId)
+            }
+        }
+
+        let remaining = filtered
+            .filter { !used.contains($0.windowId) }
+            .sorted(by: snapshotSortOrder(lhs:rhs:))
+        ordered.append(contentsOf: remaining)
+        return ordered
+    }
+
+    private func snapshotSortOrder(lhs: WindowSnapshot, rhs: WindowSnapshot) -> Bool {
+        let lhsName = lhs.appName ?? lhs.bundleId ?? ""
+        let rhsName = rhs.appName ?? rhs.bundleId ?? ""
+        let cmp = lhsName.localizedCaseInsensitiveCompare(rhsName)
+        if cmp != .orderedSame {
+            return cmp == .orderedAscending
+        }
+        let lhsTitle = lhs.title ?? ""
+        let rhsTitle = rhs.title ?? ""
+        let titleCmp = lhsTitle.localizedCaseInsensitiveCompare(rhsTitle)
+        if titleCmp != .orderedSame {
+            return titleCmp == .orderedAscending
+        }
+        return lhs.windowId < rhs.windowId
     }
 
     private func applyFilters(_ snapshots: [WindowSnapshot]) -> [WindowSnapshot] {
@@ -186,21 +307,7 @@ final class NavigationCoordinator {
 
         let remaining = snapshots
             .filter { !used.contains($0.windowId) }
-            .sorted { lhs, rhs in
-                let lhsName = lhs.appName ?? lhs.bundleId ?? ""
-                let rhsName = rhs.appName ?? rhs.bundleId ?? ""
-                let cmp = lhsName.localizedCaseInsensitiveCompare(rhsName)
-                if cmp != .orderedSame {
-                    return cmp == .orderedAscending
-                }
-                let lhsTitle = lhs.title ?? ""
-                let rhsTitle = rhs.title ?? ""
-                let titleCmp = lhsTitle.localizedCaseInsensitiveCompare(rhsTitle)
-                if titleCmp != .orderedSame {
-                    return titleCmp == .orderedAscending
-                }
-                return lhs.windowId < rhs.windowId
-            }
+            .sorted(by: snapshotSortOrder(lhs:rhs:))
 
         ordered.append(contentsOf: remaining)
         return ordered

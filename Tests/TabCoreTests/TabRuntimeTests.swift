@@ -11,52 +11,82 @@ final class TabRuntimeTests: XCTestCase {
     }
 
     func testRightArrowWithCmdAndActiveSessionRoutesRight() {
-        let direction = CycleKeyRouter.routeDirection(
+        let command = CycleKeyRouter.routeCommand(
             keyCode: UInt16(kVK_RightArrow),
             flags: [.command],
             cycleActive: true
         )
 
-        XCTAssertEqual(direction, .right)
+        XCTAssertEqual(command, .move(.right))
     }
 
     func testLeftArrowWithCmdAndActiveSessionRoutesLeft() {
-        let direction = CycleKeyRouter.routeDirection(
+        let command = CycleKeyRouter.routeCommand(
             keyCode: UInt16(kVK_LeftArrow),
             flags: [.command],
             cycleActive: true
         )
 
-        XCTAssertEqual(direction, .left)
+        XCTAssertEqual(command, .move(.left))
     }
 
     func testArrowWithoutActiveSessionIsIgnored() {
-        let direction = CycleKeyRouter.routeDirection(
+        let command = CycleKeyRouter.routeCommand(
             keyCode: UInt16(kVK_RightArrow),
             flags: [.command],
             cycleActive: false
         )
 
-        XCTAssertNil(direction)
+        XCTAssertNil(command)
     }
 
     func testArrowWithoutCmdIsIgnored() {
-        let direction = CycleKeyRouter.routeDirection(
+        let command = CycleKeyRouter.routeCommand(
             keyCode: UInt16(kVK_RightArrow),
             flags: [],
             cycleActive: true
         )
 
-        XCTAssertNil(direction)
+        XCTAssertNil(command)
     }
 
     func testNonArrowKeysAreIgnored() {
-        let direction = CycleKeyRouter.routeDirection(
+        let command = CycleKeyRouter.routeCommand(
             keyCode: UInt16(kVK_Tab),
             flags: [.command],
             cycleActive: true
         )
 
-        XCTAssertNil(direction)
+        XCTAssertNil(command)
+    }
+
+    func testCmdQWithActiveCycleRoutesQuitCommand() {
+        let command = CycleKeyRouter.routeCommand(
+            keyCode: UInt16(kVK_ANSI_Q),
+            flags: [.command],
+            cycleActive: true
+        )
+
+        XCTAssertEqual(command, .quitSelectedApp)
+    }
+
+    func testQWithoutCmdIsIgnored() {
+        let command = CycleKeyRouter.routeCommand(
+            keyCode: UInt16(kVK_ANSI_Q),
+            flags: [],
+            cycleActive: true
+        )
+
+        XCTAssertNil(command)
+    }
+
+    func testCmdQWithoutActiveCycleIsIgnored() {
+        let command = CycleKeyRouter.routeCommand(
+            keyCode: UInt16(kVK_ANSI_Q),
+            flags: [.command],
+            cycleActive: false
+        )
+
+        XCTAssertNil(command)
     }
 }

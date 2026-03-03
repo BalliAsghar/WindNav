@@ -111,6 +111,124 @@ final class NavigationCoordinatorTests: XCTestCase {
         XCTAssertEqual(hud.hideCalls, 1)
     }
 
+    func testQuitSelectedAppTerminatesFirstRequest() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", title: "B"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10)
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        await harness.coordinator.requestQuitSelectedAppInCycle()
+
+        XCTAssertEqual(harness.terminator.terminateCalls, [1002])
+        XCTAssertTrue(harness.terminator.forceTerminateCalls.isEmpty)
+    }
+
+    func testQuitSelectedAppSecondRequestForceTerminates() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", title: "B"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10)
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        await harness.coordinator.requestQuitSelectedAppInCycle()
+        await harness.coordinator.requestQuitSelectedAppInCycle()
+
+        XCTAssertEqual(harness.terminator.terminateCalls, [1002])
+        XCTAssertEqual(harness.terminator.forceTerminateCalls, [1002])
+    }
+
+    func testQuitSelectedAppNeverQuitsFinder() async {
+        let finder = WindowSnapshot(
+            windowId: 40,
+            pid: 2001,
+            bundleId: "com.apple.finder",
+            appName: nil,
+            frame: CGRect(x: 20, y: 20, width: 120, height: 90),
+            isMinimized: false,
+            appIsHidden: false,
+            isFullscreen: false,
+            title: "Finder"
+        )
+        let harness = makeHarness(
+            snapshots: [snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"), finder],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10)
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        await harness.coordinator.requestQuitSelectedAppInCycle()
+
+        XCTAssertTrue(harness.terminator.terminateCalls.isEmpty)
+        XCTAssertTrue(harness.terminator.forceTerminateCalls.isEmpty)
+        XCTAssertEqual(harness.hud.lastModel?.selectedIndex, 1)
+    }
+
+    func testQuitSelectedAppRemovesTerminatedTargetAndAdvancesSelection() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", title: "B"),
+                snapshot(windowId: 30, pid: 1003, appName: "Gamma", title: "C"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10)
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        harness.provider.snapshots = [
+            snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+            snapshot(windowId: 30, pid: 1003, appName: "Gamma", title: "C"),
+        ]
+
+        await harness.coordinator.requestQuitSelectedAppInCycle()
+
+        XCTAssertEqual(harness.hud.lastModel?.items.map(\.id), ["10", "30"])
+        XCTAssertEqual(harness.hud.lastModel?.selectedIndex, 1)
+    }
+
+    func testQuitSelectedAppWhenLastCandidateCancelsSession() async {
+        let harness = makeHarness(
+            snapshots: [snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A")],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: nil)
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        harness.provider.snapshots = []
+
+        await harness.coordinator.requestQuitSelectedAppInCycle()
+
+        XCTAssertFalse(harness.coordinator.hasActiveCycleSession())
+        XCTAssertEqual(harness.hud.hideCalls, 1)
+    }
+
+    func testReleaseAfterQuitCommitsCurrentRemainingSelectionOnce() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", title: "B"),
+                snapshot(windowId: 30, pid: 1003, appName: "Gamma", title: "C"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10)
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        harness.provider.snapshots = [
+            snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+            snapshot(windowId: 30, pid: 1003, appName: "Gamma", title: "C"),
+        ]
+
+        await harness.coordinator.requestQuitSelectedAppInCycle()
+        await harness.coordinator.commitCycleOnModifierRelease(commitTimestamp: .now())
+
+        XCTAssertEqual(harness.focus.calls.count, 1)
+        XCTAssertEqual(harness.focus.calls[0].windowId, 30)
+    }
+
     func testReleaseWithoutSessionNoop() async {
         let harness = makeHarness(
             snapshots: [snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A")],
@@ -146,14 +264,16 @@ final class NavigationCoordinatorTests: XCTestCase {
         let provider = FakeWindowProvider(snapshots: snapshots)
         let focus = FakeFocusPerformer()
         let hud = FakeHUDController()
+        let terminator = FakeAppTerminationPerformer()
         let coordinator = NavigationCoordinator(
             windowProvider: provider,
             focusedWindowProvider: focusedProvider,
             focusPerformer: focus,
+            appTerminationPerformer: terminator,
             hudController: hud,
             config: .default
         )
-        return Harness(coordinator: coordinator, provider: provider, focused: focusedProvider, focus: focus, hud: hud)
+        return Harness(coordinator: coordinator, provider: provider, focused: focusedProvider, focus: focus, hud: hud, terminator: terminator)
     }
 
     private func snapshot(windowId: UInt32, pid: pid_t, appName: String, title: String) -> WindowSnapshot {
@@ -177,6 +297,7 @@ private struct Harness {
     let focused: FakeFocusedWindowProvider
     let focus: FakeFocusPerformer
     let hud: FakeHUDController
+    let terminator: FakeAppTerminationPerformer
 }
 
 @MainActor
@@ -225,5 +346,24 @@ private final class FakeHUDController: HUDControlling {
 
     func hide() {
         hideCalls += 1
+    }
+}
+
+@MainActor
+private final class FakeAppTerminationPerformer: AppTerminationPerformer {
+    var terminateCalls: [pid_t] = []
+    var forceTerminateCalls: [pid_t] = []
+    var bundleIDByPID: [pid_t: String] = [:]
+
+    func terminate(pid: pid_t) {
+        terminateCalls.append(pid)
+    }
+
+    func forceTerminate(pid: pid_t) {
+        forceTerminateCalls.append(pid)
+    }
+
+    func bundleIdentifier(pid: pid_t) -> String? {
+        bundleIDByPID[pid]
     }
 }

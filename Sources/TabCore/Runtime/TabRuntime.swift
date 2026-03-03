@@ -117,11 +117,19 @@ public final class TabRuntime {
         }
     }
 
-    private func handleArrowCycleInput(_ direction: Direction) {
+    private func handleMoveCycleInput(_ direction: Direction) {
         Logger.info(.hotkey, "cycle-input=arrow direction=\(direction.rawValue)")
         cycleCaptureState.setActive(true)
         Task { @MainActor in
             await navigationCoordinator?.startOrAdvanceCycle(direction: direction, hotkeyTimestamp: DispatchTime.now())
+            cycleCaptureState.setActive(navigationCoordinator?.hasActiveCycleSession() ?? false)
+        }
+    }
+
+    private func handleQuitSelectedAppInput() {
+        cycleCaptureState.setActive(true)
+        Task { @MainActor in
+            await navigationCoordinator?.requestQuitSelectedAppInCycle()
             cycleCaptureState.setActive(navigationCoordinator?.hasActiveCycleSession() ?? false)
         }
     }
@@ -183,13 +191,18 @@ public final class TabRuntime {
             if type == .keyDown {
                 let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
                 let flags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
-                if let direction = CycleKeyRouter.routeDirection(
+                if let command = CycleKeyRouter.routeCommand(
                     keyCode: keyCode,
                     flags: flags,
                     cycleActive: runtime.cycleCaptureState.isActive
                 ) {
                     DispatchQueue.main.async {
-                        runtime.handleArrowCycleInput(direction)
+                        switch command {
+                            case .move(let direction):
+                                runtime.handleMoveCycleInput(direction)
+                            case .quitSelectedApp:
+                                runtime.handleQuitSelectedAppInput()
+                        }
                     }
                     return nil
                 }
