@@ -6,6 +6,7 @@ final class NavigationCoordinator {
     private let focusedWindowProvider: FocusedWindowProvider
     private let focusPerformer: FocusPerformer
     private let appTerminationPerformer: any AppTerminationPerformer
+    private let windowClosePerformer: any WindowClosePerformer
     private let hudController: any HUDControlling
 
     private var config: TabConfig
@@ -18,6 +19,7 @@ final class NavigationCoordinator {
         focusedWindowProvider: FocusedWindowProvider,
         focusPerformer: FocusPerformer,
         appTerminationPerformer: any AppTerminationPerformer = NSRunningAppTerminationPerformer(),
+        windowClosePerformer: any WindowClosePerformer = AXWindowClosePerformer(),
         hudController: any HUDControlling,
         config: TabConfig
     ) {
@@ -25,6 +27,7 @@ final class NavigationCoordinator {
         self.focusedWindowProvider = focusedWindowProvider
         self.focusPerformer = focusPerformer
         self.appTerminationPerformer = appTerminationPerformer
+        self.windowClosePerformer = windowClosePerformer
         self.hudController = hudController
         self.config = config
     }
@@ -183,6 +186,54 @@ final class NavigationCoordinator {
             Logger.info(.navigation, "quit-selected-app session-updated remaining=\(reconciled.count) selected-index=\(nextIndex)")
         } catch {
             Logger.error(.windows, "Failed to refresh snapshot after quit request: \(error.localizedDescription)")
+        }
+    }
+
+    func requestCloseSelectedWindowInCycle() async {
+        guard let session = cycleSession else { return }
+        guard session.ordered.indices.contains(session.selectedIndex) else {
+            cancelCycleSession()
+            return
+        }
+
+        let selected = session.ordered[session.selectedIndex]
+        let dispatched = windowClosePerformer.close(windowId: selected.windowId, pid: selected.pid)
+        Logger.info(
+            .navigation,
+            "cycle-input=close-selected-window window=\(selected.windowId) pid=\(selected.pid) dispatched=\(dispatched)"
+        )
+
+        do {
+            let snapshots = try await windowProvider.currentSnapshot()
+            let filtered = applyFilters(snapshots)
+            guard !filtered.isEmpty else {
+                cancelCycleSession()
+                return
+            }
+
+            let reconciled = reconcileSessionOrder(previous: session.ordered, filtered: filtered)
+            guard !reconciled.isEmpty else {
+                cancelCycleSession()
+                return
+            }
+
+            let nextIndex = nextSelectionIndexAfterSessionRefresh(
+                previousSession: session,
+                refreshed: reconciled
+            )
+            let refreshedSession = CycleSession(
+                ordered: reconciled,
+                selectedIndex: nextIndex,
+                startedAt: session.startedAt
+            )
+            cycleSession = refreshedSession
+            showHUD(for: refreshedSession)
+            Logger.info(
+                .navigation,
+                "close-selected-window session-updated remaining=\(reconciled.count) selected-index=\(nextIndex)"
+            )
+        } catch {
+            Logger.error(.windows, "Failed to refresh snapshot after close request: \(error.localizedDescription)")
         }
     }
 

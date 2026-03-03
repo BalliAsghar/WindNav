@@ -134,6 +134,14 @@ public final class TabRuntime {
         }
     }
 
+    private func handleCloseSelectedWindowInput() {
+        cycleCaptureState.setActive(true)
+        Task { @MainActor in
+            await navigationCoordinator?.requestCloseSelectedWindowInCycle()
+            cycleCaptureState.setActive(navigationCoordinator?.hasActiveCycleSession() ?? false)
+        }
+    }
+
     private func installModifierMonitorIfNeeded() {
         guard modifierEventTap == nil else { return }
 
@@ -202,6 +210,8 @@ public final class TabRuntime {
                                 runtime.handleMoveCycleInput(direction)
                             case .quitSelectedApp:
                                 runtime.handleQuitSelectedAppInput()
+                            case .closeSelectedWindow:
+                                runtime.handleCloseSelectedWindowInput()
                         }
                     }
                     return nil

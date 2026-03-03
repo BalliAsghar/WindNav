@@ -5,6 +5,7 @@ import Foundation
 enum CycleInputCommand: Equatable {
     case move(Direction)
     case quitSelectedApp
+    case closeSelectedWindow
 }
 
 enum CycleKeyRouter {
@@ -23,6 +24,8 @@ enum CycleKeyRouter {
                 return .move(.right)
             case UInt16(kVK_ANSI_Q):
                 return .quitSelectedApp
+            case UInt16(kVK_ANSI_W):
+                return .closeSelectedWindow
             default:
                 return nil
         }

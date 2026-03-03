@@ -89,4 +89,34 @@ final class TabRuntimeTests: XCTestCase {
 
         XCTAssertNil(command)
     }
+
+    func testCmdWWithActiveCycleRoutesCloseCommand() {
+        let command = CycleKeyRouter.routeCommand(
+            keyCode: UInt16(kVK_ANSI_W),
+            flags: [.command],
+            cycleActive: true
+        )
+
+        XCTAssertEqual(command, .closeSelectedWindow)
+    }
+
+    func testWWithoutCmdIsIgnored() {
+        let command = CycleKeyRouter.routeCommand(
+            keyCode: UInt16(kVK_ANSI_W),
+            flags: [],
+            cycleActive: true
+        )
+
+        XCTAssertNil(command)
+    }
+
+    func testCmdWWithoutActiveCycleIsIgnored() {
+        let command = CycleKeyRouter.routeCommand(
+            keyCode: UInt16(kVK_ANSI_W),
+            flags: [.command],
+            cycleActive: false
+        )
+
+        XCTAssertNil(command)
+    }
 }
