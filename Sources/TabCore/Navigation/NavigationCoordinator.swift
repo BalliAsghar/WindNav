@@ -29,6 +29,10 @@ final class NavigationCoordinator {
         self.config = config
     }
 
+    func hasActiveCycleSession() -> Bool {
+        cycleSession != nil
+    }
+
     func startOrAdvanceCycle(direction: Direction, hotkeyTimestamp: DispatchTime) async {
         let normalizedDirection = normalizeCycleDirection(direction)
 

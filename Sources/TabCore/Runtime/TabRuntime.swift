@@ -11,8 +11,10 @@ public final class TabRuntime {
 
     private var navigationCoordinator: NavigationCoordinator?
     private var modifierEventTap: CFMachPort?
+    private var arrowKeyEventTap: CFMachPort?
     private var config: TabConfig?
     private var inputSession: InputSession?
+    nonisolated(unsafe) private let cycleCaptureState = CycleCaptureState()
 
     public convenience init(configURL: URL? = nil) {
         self.init(
@@ -73,6 +75,7 @@ public final class TabRuntime {
                 self.handleHotkey(direction, carbonModifiers: carbonModifiers)
             }
             installModifierMonitorIfNeeded()
+            installArrowKeyMonitorIfNeeded()
             Logger.info(.runtime, "Tab++ runtime started")
         } catch {
             Logger.error(.runtime, "Failed to start runtime: \(error.localizedDescription)")
@@ -81,11 +84,13 @@ public final class TabRuntime {
     }
 
     public func stop() {
-        hotkeys.unregisterAll()
-        removeModifierMonitor()
         navigationCoordinator?.cancelCycleSession()
-        SystemHotkeyOverride.restoreSystemCmdTab()
+        cycleCaptureState.setActive(false)
         inputSession = nil
+        removeModifierMonitor()
+        removeArrowKeyMonitor()
+        hotkeys.unregisterAll()
+        SystemHotkeyOverride.restoreSystemCmdTab()
         Logger.info(.runtime, "Tab++ runtime stopped")
     }
 
@@ -104,9 +109,20 @@ public final class TabRuntime {
             }
             inputSession = InputSession(requiredModifiers: required)
         }
+        cycleCaptureState.setActive(true)
 
         Task { @MainActor in
             await navigationCoordinator?.startOrAdvanceCycle(direction: direction, hotkeyTimestamp: DispatchTime.now())
+            cycleCaptureState.setActive(navigationCoordinator?.hasActiveCycleSession() ?? false)
+        }
+    }
+
+    private func handleArrowCycleInput(_ direction: Direction) {
+        Logger.info(.hotkey, "cycle-input=arrow direction=\(direction.rawValue)")
+        cycleCaptureState.setActive(true)
+        Task { @MainActor in
+            await navigationCoordinator?.startOrAdvanceCycle(direction: direction, hotkeyTimestamp: DispatchTime.now())
+            cycleCaptureState.setActive(navigationCoordinator?.hasActiveCycleSession() ?? false)
         }
     }
 
@@ -156,6 +172,61 @@ public final class TabRuntime {
         modifierEventTap = nil
     }
 
+    private func installArrowKeyMonitorIfNeeded() {
+        guard arrowKeyEventTap == nil else { return }
+
+        let eventMask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+        let callback: CGEventTapCallBack = { _, type, event, userInfo in
+            guard let userInfo else { return Unmanaged.passUnretained(event) }
+            let runtime = Unmanaged<TabRuntime>.fromOpaque(userInfo).takeUnretainedValue()
+
+            if type == .keyDown {
+                let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+                let flags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
+                if let direction = CycleKeyRouter.routeDirection(
+                    keyCode: keyCode,
+                    flags: flags,
+                    cycleActive: runtime.cycleCaptureState.isActive
+                ) {
+                    DispatchQueue.main.async {
+                        runtime.handleArrowCycleInput(direction)
+                    }
+                    return nil
+                }
+            } else if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
+                if let tap = runtime.arrowKeyEventTap {
+                    CGEvent.tapEnable(tap: tap, enable: true)
+                }
+            }
+
+            return Unmanaged.passUnretained(event)
+        }
+
+        arrowKeyEventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: eventMask,
+            callback: callback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        )
+
+        guard let tap = arrowKeyEventTap else {
+            Logger.error(.hotkey, "Failed to install arrow key monitor")
+            return
+        }
+
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+    }
+
+    private func removeArrowKeyMonitor() {
+        guard let tap = arrowKeyEventTap else { return }
+        CFMachPortInvalidate(tap)
+        arrowKeyEventTap = nil
+    }
+
     private func handleModifierFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard let inputSession else { return }
         guard !inputSession.requiredModifiers.isEmpty else { return }
@@ -163,6 +234,7 @@ public final class TabRuntime {
         let current = flags.intersection([.command, .option, .control, .shift])
         if !current.isSuperset(of: inputSession.requiredModifiers) {
             self.inputSession = nil
+            cycleCaptureState.setActive(false)
             let commitTimestamp = DispatchTime.now()
             Task { @MainActor in
                 await navigationCoordinator?.commitCycleOnModifierRelease(commitTimestamp: commitTimestamp)
@@ -187,4 +259,21 @@ public final class TabRuntime {
 
 private struct InputSession {
     let requiredModifiers: NSEvent.ModifierFlags
+}
+
+private final class CycleCaptureState {
+    private let lock = NSLock()
+    private var active = false
+
+    var isActive: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return active
+    }
+
+    func setActive(_ newValue: Bool) {
+        lock.lock()
+        active = newValue
+        lock.unlock()
+    }
 }
