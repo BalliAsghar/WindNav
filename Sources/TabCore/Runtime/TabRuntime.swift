@@ -58,6 +58,12 @@ public final class TabRuntime {
                 return
             }
 
+            guard KeyboardListenPermission.ensureAccess(prompt: true) else {
+                Logger.error(.runtime, "Input Monitoring permission is required")
+                abortStartup(reason: "keyboard-listen permission denied", showPermissionAlert: true)
+                return
+            }
+
             windowProvider.updateConfig(loaded)
             navigationCoordinator = NavigationCoordinator(
                 windowProvider: windowProvider,
@@ -74,20 +80,30 @@ public final class TabRuntime {
                 config: loaded
             )
 
-            if loaded.activation.overrideSystemCmdTab {
-                SystemHotkeyOverride.disableSystemCmdTab()
-            }
-
             let bindings = try parseBindings(loaded)
             try hotkeys.register(bindings: bindings) { [weak self] action, carbonModifiers in
                 guard let self else { return }
                 self.handleHotkeyAction(action, carbonModifiers: carbonModifiers)
             }
-            installModifierMonitorIfNeeded()
-            installArrowKeyMonitorIfNeeded()
+
+            guard installModifierMonitorIfNeeded() else {
+                abortStartup(reason: "modifier monitor install failed", showPermissionAlert: true)
+                return
+            }
+
+            guard installArrowKeyMonitorIfNeeded() else {
+                abortStartup(reason: "arrow key monitor install failed", showPermissionAlert: true)
+                return
+            }
+
+            if loaded.activation.overrideSystemCmdTab {
+                SystemHotkeyOverride.disableSystemCmdTab()
+            }
+
             Logger.info(.runtime, "Tab++ runtime started")
         } catch {
             Logger.error(.runtime, "Failed to start runtime: \(error.localizedDescription)")
+            Logger.error(.runtime, "Startup aborted: initialization error")
             NSApp.terminate(nil)
         }
     }
@@ -231,8 +247,8 @@ public final class TabRuntime {
         }
     }
 
-    private func installModifierMonitorIfNeeded() {
-        guard modifierEventTap == nil else { return }
+    private func installModifierMonitorIfNeeded() -> Bool {
+        guard modifierEventTap == nil else { return true }
 
         let eventMask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
@@ -263,12 +279,13 @@ public final class TabRuntime {
 
         guard let tap = modifierEventTap else {
             Logger.error(.hotkey, "Failed to install modifier monitor")
-            return
+            return false
         }
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        return true
     }
 
     private func removeModifierMonitor() {
@@ -277,8 +294,8 @@ public final class TabRuntime {
         modifierEventTap = nil
     }
 
-    private func installArrowKeyMonitorIfNeeded() {
-        guard arrowKeyEventTap == nil else { return }
+    private func installArrowKeyMonitorIfNeeded() -> Bool {
+        guard arrowKeyEventTap == nil else { return true }
 
         let eventMask = CGEventMask(1 << CGEventType.keyDown.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
@@ -342,12 +359,27 @@ public final class TabRuntime {
 
         guard let tap = arrowKeyEventTap else {
             Logger.error(.hotkey, "Failed to install arrow key monitor")
-            return
+            return false
         }
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        return true
+    }
+
+    private func abortStartup(reason: String, showPermissionAlert: Bool) {
+        Logger.error(.runtime, "Startup aborted: \(reason)")
+        hotkeys.unregisterAll()
+        removeModifierMonitor()
+        removeArrowKeyMonitor()
+        captureState.set(activation: false, directional: false)
+        inputSession = nil
+        SystemHotkeyOverride.restoreSystemCmdTab()
+        if showPermissionAlert {
+            KeyboardListenPermission.presentMissingAccessAlert()
+        }
+        NSApp.terminate(nil)
     }
 
     private func removeArrowKeyMonitor() {
