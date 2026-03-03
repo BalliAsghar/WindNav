@@ -2,6 +2,16 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
+enum CGWindowEvidence: Int, Comparable {
+    case none = 0
+    case weak = 1
+    case strong = 2
+
+    static func < (lhs: CGWindowEvidence, rhs: CGWindowEvidence) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 enum AXWindowFallbackKind: Equatable {
     case none
     case activationFallback
@@ -12,20 +22,15 @@ enum AXWindowFallbackClassifier {
     static func fallbackKind(
         bundleId: String?,
         showEmptyApps: VisibilityConfig.ShowEmptyAppsPolicy,
-        cgHasLikelyWindow: Bool
+        cgEvidence: CGWindowEvidence
     ) -> AXWindowFallbackKind {
         if bundleId == "com.apple.finder" {
             return .none
         }
-        if cgHasLikelyWindow {
-            return .activationFallback
+        if showEmptyApps == .hide {
+            return .none
         }
-        switch showEmptyApps {
-            case .hide:
-                return .none
-            case .show, .showAtEnd:
-                return .confirmedWindowless
-        }
+        return cgEvidence == .strong ? .activationFallback : .confirmedWindowless
     }
 }
 
@@ -36,17 +41,17 @@ enum AXWindowEligibility {
 }
 
 enum CGWindowPresence {
-    static func collectLikelyWindowOwnerPIDs() -> Set<pid_t> {
+    static func collectWindowEvidenceByPID() -> [pid_t: CGWindowEvidence] {
         guard
             let info = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]]
         else {
-            return []
+            return [:]
         }
-        return likelyWindowOwnerPIDs(from: info)
+        return windowEvidenceByPID(from: info)
     }
 
-    static func likelyWindowOwnerPIDs(from windowInfo: [[String: Any]]) -> Set<pid_t> {
-        var result = Set<pid_t>()
+    static func windowEvidenceByPID(from windowInfo: [[String: Any]]) -> [pid_t: CGWindowEvidence] {
+        var result: [pid_t: CGWindowEvidence] = [:]
         for entry in windowInfo {
             guard let ownerPID = numberValue(entry[kCGWindowOwnerPID as String]) else { continue }
             guard numberValue(entry[kCGWindowLayer as String])?.intValue == 0 else { continue }
@@ -57,9 +62,17 @@ enum CGWindowPresence {
 
             guard let boundsRaw = entry[kCGWindowBounds as String] else { continue }
             guard let bounds = cgRectValue(boundsRaw) else { continue }
-            if bounds.width <= 1 || bounds.height <= 1 { continue }
+            if bounds.width <= 100 || bounds.height <= 50 { continue }
 
-            result.insert(pid_t(ownerPID.intValue))
+            let isOnScreen = boolValue(entry[kCGWindowIsOnscreen as String]) ?? false
+            let isLargeOffscreen = bounds.width >= 700 && bounds.height >= 400
+            let evidence: CGWindowEvidence = (isOnScreen || isLargeOffscreen) ? .strong : .weak
+
+            let pid = pid_t(ownerPID.intValue)
+            let previous = result[pid] ?? .none
+            if evidence > previous {
+                result[pid] = evidence
+            }
         }
         return result
     }
@@ -73,6 +86,16 @@ enum CGWindowPresence {
         }
         if let double = value as? Double {
             return NSNumber(value: double)
+        }
+        return nil
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool? {
+        if let bool = value as? Bool {
+            return bool
+        }
+        if let number = value as? NSNumber {
+            return number.boolValue
         }
         return nil
     }

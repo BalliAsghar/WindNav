@@ -4,6 +4,12 @@ import Foundation
 
 @MainActor
 final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
+    private enum AXMissReason: String {
+        case missingAXWindowsAttribute = "missing-ax"
+        case emptyAXWindowsArray = "empty-ax"
+        case allAXWindowsFilteredOut = "filtered-ax"
+    }
+
     private var config: TabConfig = .default
 
     func updateConfig(_ config: TabConfig) {
@@ -11,11 +17,11 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
     }
 
     func currentSnapshot() async throws -> [WindowSnapshot] {
-        let cgLikelyWindowOwnerPIDs = CGWindowPresence.collectLikelyWindowOwnerPIDs()
+        let cgEvidenceByPID = CGWindowPresence.collectWindowEvidenceByPID()
         var snapshots: [WindowSnapshot] = []
 
         for app in NSWorkspace.shared.runningApplications where shouldConsider(app: app) {
-            snapshots.append(contentsOf: snapshotsForApp(app, cgLikelyWindowOwnerPIDs: cgLikelyWindowOwnerPIDs))
+            snapshots.append(contentsOf: snapshotsForApp(app, cgEvidenceByPID: cgEvidenceByPID))
         }
 
         return snapshots
@@ -31,16 +37,23 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
 
     private func snapshotsForApp(
         _ app: NSRunningApplication,
-        cgLikelyWindowOwnerPIDs: Set<pid_t>
+        cgEvidenceByPID: [pid_t: CGWindowEvidence]
     ) -> [WindowSnapshot] {
-        let cgHasLikelyWindow = cgLikelyWindowOwnerPIDs.contains(app.processIdentifier)
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         guard let windows = appElement.tabCopyAttribute(kAXWindowsAttribute as String) as? [AnyObject] else {
-            return fallbackSnapshotsForAXMiss(app: app, cgHasLikelyWindow: cgHasLikelyWindow)
+            return fallbackSnapshotsForAXMiss(
+                app: app,
+                reason: .missingAXWindowsAttribute,
+                cgEvidence: cgEvidenceByPID[app.processIdentifier] ?? .none
+            )
         }
 
         if windows.isEmpty {
-            return fallbackSnapshotsForAXMiss(app: app, cgHasLikelyWindow: cgHasLikelyWindow)
+            return fallbackSnapshotsForAXMiss(
+                app: app,
+                reason: .emptyAXWindowsArray,
+                cgEvidence: cgEvidenceByPID[app.processIdentifier] ?? .none
+            )
         }
 
         var snapshots: [WindowSnapshot] = []
@@ -51,28 +64,42 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
         }
 
         if snapshots.isEmpty {
-            return fallbackSnapshotsForAXMiss(app: app, cgHasLikelyWindow: cgHasLikelyWindow)
+            return fallbackSnapshotsForAXMiss(
+                app: app,
+                reason: .allAXWindowsFilteredOut,
+                cgEvidence: cgEvidenceByPID[app.processIdentifier] ?? .none
+            )
         }
 
         return snapshots
     }
 
-    private func fallbackSnapshotsForAXMiss(app: NSRunningApplication, cgHasLikelyWindow: Bool) -> [WindowSnapshot] {
+    private func fallbackSnapshotsForAXMiss(
+        app: NSRunningApplication,
+        reason: AXMissReason,
+        cgEvidence: CGWindowEvidence
+    ) -> [WindowSnapshot] {
         let fallbackKind = AXWindowFallbackClassifier.fallbackKind(
             bundleId: app.bundleIdentifier,
             showEmptyApps: config.visibility.showEmptyApps,
-            cgHasLikelyWindow: cgHasLikelyWindow
+            cgEvidence: cgEvidence
         )
 
         switch fallbackKind {
             case .none:
                 return []
             case .activationFallback:
-                Logger.debug(.windows, "ax-miss pid=\(app.processIdentifier) cg-has-windows=true -> activation-fallback")
+                Logger.debug(
+                    .windows,
+                    "ax-miss reason=\(reason.rawValue) pid=\(app.processIdentifier) cg-evidence=\(cgEvidence) -> activation-fallback"
+                )
                 guard let snapshot = makeSyntheticAppSnapshot(app: app, isWindowlessApp: false) else { return [] }
                 return [snapshot]
             case .confirmedWindowless:
-                Logger.debug(.windows, "ax-miss pid=\(app.processIdentifier) cg-has-windows=false -> confirmed-windowless")
+                Logger.debug(
+                    .windows,
+                    "ax-miss reason=\(reason.rawValue) pid=\(app.processIdentifier) cg-evidence=\(cgEvidence) -> confirmed-windowless"
+                )
                 guard let snapshot = makeSyntheticAppSnapshot(app: app, isWindowlessApp: true) else { return [] }
                 return [snapshot]
         }
