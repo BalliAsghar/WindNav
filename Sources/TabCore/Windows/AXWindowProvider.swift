@@ -11,10 +11,11 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
     }
 
     func currentSnapshot() async throws -> [WindowSnapshot] {
+        let cgLikelyWindowOwnerPIDs = CGWindowPresence.collectLikelyWindowOwnerPIDs()
         var snapshots: [WindowSnapshot] = []
 
         for app in NSWorkspace.shared.runningApplications where shouldConsider(app: app) {
-            snapshots.append(contentsOf: snapshotsForApp(app))
+            snapshots.append(contentsOf: snapshotsForApp(app, cgLikelyWindowOwnerPIDs: cgLikelyWindowOwnerPIDs))
         }
 
         return snapshots
@@ -28,14 +29,18 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
         return focusedElement.tabWindowID()
     }
 
-    private func snapshotsForApp(_ app: NSRunningApplication) -> [WindowSnapshot] {
+    private func snapshotsForApp(
+        _ app: NSRunningApplication,
+        cgLikelyWindowOwnerPIDs: Set<pid_t>
+    ) -> [WindowSnapshot] {
+        let cgHasLikelyWindow = cgLikelyWindowOwnerPIDs.contains(app.processIdentifier)
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         guard let windows = appElement.tabCopyAttribute(kAXWindowsAttribute as String) as? [AnyObject] else {
-            return createWindowlessAppSnapshotIfNeeded(app)
+            return fallbackSnapshotsForAXMiss(app: app, cgHasLikelyWindow: cgHasLikelyWindow)
         }
 
         if windows.isEmpty {
-            return createWindowlessAppSnapshotIfNeeded(app)
+            return fallbackSnapshotsForAXMiss(app: app, cgHasLikelyWindow: cgHasLikelyWindow)
         }
 
         var snapshots: [WindowSnapshot] = []
@@ -46,22 +51,39 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
         }
 
         if snapshots.isEmpty {
-            return createWindowlessAppSnapshotIfNeeded(app)
+            return fallbackSnapshotsForAXMiss(app: app, cgHasLikelyWindow: cgHasLikelyWindow)
         }
 
         return snapshots
     }
 
-    private func createWindowlessAppSnapshotIfNeeded(_ app: NSRunningApplication) -> [WindowSnapshot] {
-        guard config.visibility.showEmptyApps != .hide else { return [] }
-        guard app.activationPolicy == .regular else { return [] }
-        guard !app.isTerminated else { return [] }
-        if app.bundleIdentifier == "com.apple.finder" {
-            return []
+    private func fallbackSnapshotsForAXMiss(app: NSRunningApplication, cgHasLikelyWindow: Bool) -> [WindowSnapshot] {
+        let fallbackKind = AXWindowFallbackClassifier.fallbackKind(
+            bundleId: app.bundleIdentifier,
+            showEmptyApps: config.visibility.showEmptyApps,
+            cgHasLikelyWindow: cgHasLikelyWindow
+        )
+
+        switch fallbackKind {
+            case .none:
+                return []
+            case .activationFallback:
+                Logger.debug(.windows, "ax-miss pid=\(app.processIdentifier) cg-has-windows=true -> activation-fallback")
+                guard let snapshot = makeSyntheticAppSnapshot(app: app, isWindowlessApp: false) else { return [] }
+                return [snapshot]
+            case .confirmedWindowless:
+                Logger.debug(.windows, "ax-miss pid=\(app.processIdentifier) cg-has-windows=false -> confirmed-windowless")
+                guard let snapshot = makeSyntheticAppSnapshot(app: app, isWindowlessApp: true) else { return [] }
+                return [snapshot]
         }
+    }
+
+    private func makeSyntheticAppSnapshot(app: NSRunningApplication, isWindowlessApp: Bool) -> WindowSnapshot? {
+        guard app.activationPolicy == .regular else { return nil }
+        guard !app.isTerminated else { return nil }
 
         let syntheticWindowId = UInt32.max - UInt32(app.processIdentifier % Int32.max)
-        let snapshot = WindowSnapshot(
+        return WindowSnapshot(
             windowId: syntheticWindowId,
             pid: app.processIdentifier,
             bundleId: app.bundleIdentifier,
@@ -71,9 +93,8 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
             appIsHidden: app.isHidden,
             isFullscreen: false,
             title: app.localizedName,
-            isWindowlessApp: true
+            isWindowlessApp: isWindowlessApp
         )
-        return [snapshot]
     }
 
     private func makeSnapshot(from window: AXUIElement, app: NSRunningApplication) -> WindowSnapshot? {
@@ -82,11 +103,14 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
         let role = (window.tabCopyAttribute(kAXRoleAttribute as String) as? String) ?? ""
         guard role == (kAXWindowRole as String) else { return nil }
 
+        let isFullscreen = (window.tabCopyAttribute("AXFullScreen") as? Bool) ?? false
         let subrole = (window.tabCopyAttribute(kAXSubroleAttribute as String) as? String) ?? ""
-        guard subrole == (kAXStandardWindowSubrole as String) else { return nil }
+        guard AXWindowEligibility.acceptsSubrole(subrole, isFullscreen: isFullscreen) else { return nil }
+        if subrole != (kAXStandardWindowSubrole as String) && isFullscreen {
+            Logger.debug(.windows, "fullscreen-nonstandard-subrole accepted pid=\(app.processIdentifier) window=\(windowId)")
+        }
 
         let isMinimized = (window.tabCopyAttribute(kAXMinimizedAttribute as String) as? Bool) ?? false
-        let isFullscreen = (window.tabCopyAttribute("AXFullScreen") as? Bool) ?? false
 
         guard let position = pointAttribute(window, key: kAXPositionAttribute as String) else { return nil }
         guard let size = sizeAttribute(window, key: kAXSizeAttribute as String) else { return nil }
