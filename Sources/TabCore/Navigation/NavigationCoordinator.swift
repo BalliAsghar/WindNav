@@ -197,12 +197,19 @@ final class NavigationCoordinator {
     }
 
     private func showHUD(for session: CycleSession) {
-        let items = session.ordered.enumerated().map { index, snapshot in
-            HUDItem(
+        let windowTotalsByPID = Dictionary(grouping: session.ordered, by: \.pid).mapValues(\.count)
+        var nextWindowIndexByPID: [pid_t: Int] = [:]
+        let items = session.ordered.enumerated().map { entry in
+            let (index, snapshot) = entry
+            let totalForPID = windowTotalsByPID[snapshot.pid] ?? 1
+            let windowIndex = (nextWindowIndexByPID[snapshot.pid] ?? 0) + 1
+            nextWindowIndexByPID[snapshot.pid] = windowIndex
+            return HUDItem(
                 id: "\(snapshot.windowId)",
                 label: snapshot.appName ?? snapshot.bundleId ?? "App",
                 pid: snapshot.pid,
-                isSelected: index == session.selectedIndex
+                isSelected: index == session.selectedIndex,
+                windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil
             )
         }
         hudController.show(

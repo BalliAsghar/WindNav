@@ -43,6 +43,72 @@ final class NavigationCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.focus.calls.count, 0)
     }
 
+    func testHUDItemsIncludeIndexForMultiWindowApp() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A-1"),
+                snapshot(windowId: 11, pid: 1001, appName: "Alpha", title: "A-2"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", title: "B"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10)
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        let items = harness.hud.lastModel?.items ?? []
+        XCTAssertEqual(items.first(where: { $0.id == "10" })?.windowIndexInApp, 1)
+        XCTAssertEqual(items.first(where: { $0.id == "11" })?.windowIndexInApp, 2)
+        XCTAssertNil(items.first(where: { $0.id == "20" })?.windowIndexInApp)
+    }
+
+    func testHUDItemsIndexRespectsSessionOrder() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A-1"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", title: "B"),
+                snapshot(windowId: 11, pid: 1001, appName: "Alpha", title: "A-2"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10)
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        let items = harness.hud.lastModel?.items ?? []
+        XCTAssertEqual(items.first(where: { $0.id == "10" })?.windowIndexInApp, 1)
+        XCTAssertEqual(items.first(where: { $0.id == "11" })?.windowIndexInApp, 2)
+        XCTAssertNil(items.first(where: { $0.id == "20" })?.windowIndexInApp)
+    }
+
+    func testHUDItemsHideIndexWhenDisabled() async {
+        var config = TabConfig.default
+        config.appearance.showWindowCount = false
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A-1"),
+                snapshot(windowId: 11, pid: 1001, appName: "Alpha", title: "A-2"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10),
+            config: config
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        let items = harness.hud.lastModel?.items ?? []
+        XCTAssertTrue(items.allSatisfy { $0.windowIndexInApp == nil })
+    }
+
+    func testHUDItemsHideIndexForSingleWindowApps() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", title: "A"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", title: "B"),
+                snapshot(windowId: 30, pid: 1003, appName: "Gamma", title: "C"),
+            ],
+            focusedProvider: FakeFocusedWindowProvider(focusedWindowID: 10)
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        let items = harness.hud.lastModel?.items ?? []
+        XCTAssertTrue(items.allSatisfy { $0.windowIndexInApp == nil })
+    }
+
     func testSingleCommitOnRelease() async {
         let harness = makeHarness(
             snapshots: [
@@ -259,7 +325,8 @@ final class NavigationCoordinatorTests: XCTestCase {
 
     private func makeHarness(
         snapshots: [WindowSnapshot],
-        focusedProvider: FakeFocusedWindowProvider
+        focusedProvider: FakeFocusedWindowProvider,
+        config: TabConfig = .default
     ) -> Harness {
         let provider = FakeWindowProvider(snapshots: snapshots)
         let focus = FakeFocusPerformer()
@@ -271,7 +338,7 @@ final class NavigationCoordinatorTests: XCTestCase {
             focusPerformer: focus,
             appTerminationPerformer: terminator,
             hudController: hud,
-            config: .default
+            config: config
         )
         return Harness(coordinator: coordinator, provider: provider, focused: focusedProvider, focus: focus, hud: hud, terminator: terminator)
     }

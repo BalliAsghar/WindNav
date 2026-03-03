@@ -9,7 +9,13 @@ final class MinimalHUDController: HUDControlling {
 
     func show(model: HUDModel, appearance: AppearanceConfig) {
         let renderItems = model.items.map {
-            HUDRenderItem(id: $0.id, label: $0.label, icon: NSRunningApplication(processIdentifier: $0.pid)?.icon, isSelected: $0.isSelected)
+            HUDRenderItem(
+                id: $0.id,
+                label: $0.label,
+                icon: NSRunningApplication(processIdentifier: $0.pid)?.icon,
+                isSelected: $0.isSelected,
+                windowIndexInApp: $0.windowIndexInApp
+            )
         }
 
         let view = MinimalHUDView(items: renderItems, appearance: appearance)
@@ -69,6 +75,7 @@ private struct HUDRenderItem: Identifiable {
     let label: String
     let icon: NSImage?
     let isSelected: Bool
+    let windowIndexInApp: Int?
 }
 
 private struct MinimalHUDView: View {
@@ -88,6 +95,24 @@ private struct MinimalHUDView: View {
                         Text(String(item.label.prefix(1)).uppercased())
                             .font(.system(size: max(12, CGFloat(appearance.iconSize) * 0.45), weight: .semibold))
                             .frame(width: CGFloat(appearance.iconSize), height: CGFloat(appearance.iconSize))
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if let badgeText = HUDBadgeFormatter.badgeText(for: item.windowIndexInApp) {
+                        Text(badgeText)
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 5)
+                            .frame(minHeight: 14)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(
+                                        item.isSelected
+                                            ? Color.white.opacity(0.95)
+                                            : Color.black.opacity(0.72)
+                                    )
+                            )
+                            .foregroundStyle(item.isSelected ? Color.black : Color.white)
+                            .offset(x: 6, y: -6)
                     }
                 }
                 .padding(CGFloat(appearance.itemPadding))
@@ -115,5 +140,12 @@ private struct MinimalHUDView: View {
             case .dark: return .dark
             case .system: return nil
         }
+    }
+}
+
+enum HUDBadgeFormatter {
+    static func badgeText(for windowIndexInApp: Int?) -> String? {
+        guard let windowIndexInApp, windowIndexInApp > 0 else { return nil }
+        return "\(windowIndexInApp)"
     }
 }
