@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 public enum LogCategory: String, Sendable {
@@ -23,56 +24,171 @@ public enum LogLevel: String, Sendable {
     }
 }
 
-public enum Logger {
-    public typealias Sink = @Sendable (String) -> Void
+public enum LogColorMode: String, Sendable {
+    case auto
+    case always
+    case never
+}
 
-    private static let lock = NSLock()
-    private nonisolated(unsafe) static var level: LogLevel = .info
-    private nonisolated(unsafe) static var sink: Sink = { print($0) }
+public struct Logger {
+    nonisolated(unsafe) private static var state = State()
+    private static let queue = DispatchQueue(label: "tabpp.logger")
 
-    public static func configure(level: LogLevel) {
-        lock.lock()
-        Self.level = level
-        lock.unlock()
-    }
-
-    static func _setSinkForTests(_ sink: @escaping Sink) {
-        lock.lock()
-        Self.sink = sink
-        lock.unlock()
-    }
-
-    static func _resetSinkForTests() {
-        lock.lock()
-        sink = { print($0) }
-        lock.unlock()
+    public static func configure(level: LogLevel, colorMode: LogColorMode) {
+        queue.sync {
+            state.level = level
+            state.colorMode = colorMode
+            state.useColor = resolveColorUsage(colorMode: colorMode, isTTY: state.isTTYProvider())
+        }
     }
 
     public static func debug(_ category: LogCategory, _ message: @autoclosure () -> String) {
-        log(.debug, category, message())
+        log(level: .debug, category: category, message: message())
     }
 
     public static func info(_ category: LogCategory, _ message: @autoclosure () -> String) {
-        log(.info, category, message())
+        log(level: .info, category: category, message: message())
     }
 
     public static func error(_ category: LogCategory, _ message: @autoclosure () -> String) {
-        log(.error, category, message())
+        log(level: .error, category: category, message: message())
     }
 
-    public static func log(_ level: LogLevel, _ category: LogCategory, _ message: String) {
-        lock.lock()
-        let configured = Self.level
-        let output = sink
-        lock.unlock()
+    private static func log(level: LogLevel, category: LogCategory, message: String) {
+        queue.sync {
+            guard shouldEmit(incoming: level, configured: state.level) else {
+                return
+            }
 
-        guard level.priority >= configured.priority else { return }
-        output("[\(timestamp())] [\(level.rawValue.uppercased())] [\(category.rawValue)] \(message)")
+            let timestamp = timestampString(from: state.nowProvider())
+            let system = category.displayName.padding(toLength: 10, withPad: " ", startingAt: 0)
+            let line = formatLine(
+                timestamp: timestamp,
+                system: system,
+                systemColor: category.ansiColor,
+                message: message,
+                useColor: state.useColor
+            )
+            state.sink(line)
+        }
     }
 
-    private static func timestamp() -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: Date())
+    private static func shouldEmit(incoming: LogLevel, configured: LogLevel) -> Bool {
+        incoming.priority >= configured.priority
     }
+
+    private static func resolveColorUsage(colorMode: LogColorMode, isTTY: Bool) -> Bool {
+        switch colorMode {
+            case .auto:
+                return isTTY
+            case .always:
+                return true
+            case .never:
+                return false
+        }
+    }
+
+    private static func timestampString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: date)
+    }
+
+    private static func formatLine(
+        timestamp: String,
+        system: String,
+        systemColor: String,
+        message: String,
+        useColor: Bool
+    ) -> String {
+        if useColor {
+            return "\(ANSIColor.gray)[\(timestamp)]\(ANSIColor.reset) \(systemColor)\(system)\(ANSIColor.reset) -> \(message)\n"
+        }
+        return "[\(timestamp)] \(system) -> \(message)\n"
+    }
+
+    private static func defaultSink(_ line: String) {
+        guard let data = line.data(using: .utf8) else { return }
+        FileHandle.standardOutput.write(data)
+        fflush(stdout)
+    }
+
+    private static func defaultIsTTY() -> Bool {
+        isatty(fileno(stdout)) == 1
+    }
+
+    private struct State {
+        var level: LogLevel = .info
+        var colorMode: LogColorMode = .auto
+        var useColor = Logger.defaultIsTTY()
+
+        var nowProvider: @Sendable () -> Date = Date.init
+        var isTTYProvider: @Sendable () -> Bool = Logger.defaultIsTTY
+        var sink: @Sendable (String) -> Void = Logger.defaultSink
+    }
+}
+
+extension Logger {
+    static func _setTestNowProvider(_ nowProvider: @escaping @Sendable () -> Date) {
+        queue.sync {
+            state.nowProvider = nowProvider
+            state.useColor = resolveColorUsage(colorMode: state.colorMode, isTTY: state.isTTYProvider())
+        }
+    }
+
+    static func _setTestIsTTYProvider(_ isTTYProvider: @escaping @Sendable () -> Bool) {
+        queue.sync {
+            state.isTTYProvider = isTTYProvider
+            state.useColor = resolveColorUsage(colorMode: state.colorMode, isTTY: state.isTTYProvider())
+        }
+    }
+
+    static func _setTestSink(_ sink: @escaping @Sendable (String) -> Void) {
+        queue.sync {
+            state.sink = sink
+        }
+    }
+
+    static func _resetForTests() {
+        queue.sync {
+            state = State()
+            state.useColor = resolveColorUsage(colorMode: state.colorMode, isTTY: state.isTTYProvider())
+        }
+    }
+}
+
+private extension LogCategory {
+    var displayName: String {
+        switch self {
+            case .runtime: return "Runtime"
+            case .config: return "Config"
+            case .hotkey: return "Hotkey"
+            case .windows: return "Windows"
+            case .navigation: return "Navigation"
+            case .ui: return "UI"
+        }
+    }
+
+    var ansiColor: String {
+        switch self {
+            case .runtime: return ANSIColor.cyan
+            case .config: return ANSIColor.yellow
+            case .hotkey: return ANSIColor.magenta
+            case .windows: return ANSIColor.green
+            case .navigation: return ANSIColor.blue
+            case .ui: return ANSIColor.brightCyan
+        }
+    }
+}
+
+private enum ANSIColor {
+    static let reset = "\u{001B}[0m"
+    static let gray = "\u{001B}[90m"
+    static let cyan = "\u{001B}[36m"
+    static let yellow = "\u{001B}[33m"
+    static let magenta = "\u{001B}[35m"
+    static let green = "\u{001B}[32m"
+    static let blue = "\u{001B}[34m"
+    static let brightCyan = "\u{001B}[96m"
 }

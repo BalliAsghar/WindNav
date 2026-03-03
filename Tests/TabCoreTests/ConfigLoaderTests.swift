@@ -72,12 +72,14 @@ final class ConfigLoaderTests: XCTestCase {
 
             [performance]
             log-level = "debug"
+            log-color = "always"
             noisy = true
             """
         )
 
         XCTAssertEqual(cfg.activation.trigger, "cmd-tab")
         XCTAssertEqual(cfg.performance.logLevel, .debug)
+        XCTAssertEqual(cfg.performance.logColor, .always)
     }
 
     func testParseDefaultToml() throws {
@@ -95,5 +97,41 @@ final class ConfigLoaderTests: XCTestCase {
         XCTAssertEqual(cfg.ordering.mode, .mostRecent)
         XCTAssertEqual(cfg.appearance.theme, .system)
         XCTAssertEqual(cfg.appearance.iconSize, 22)
+        XCTAssertEqual(cfg.performance.logColor, .auto)
+    }
+
+    func testParseCustomLogColor() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [performance]
+            log-color = "always"
+            """
+        )
+
+        XCTAssertEqual(cfg.performance.logColor, .always)
+    }
+
+    func testParseInvalidLogColorThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [performance]
+                log-color = "rainbow"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "performance.log-color")
+                    XCTAssertEqual(expected, "auto|always|never")
+                    XCTAssertEqual(actual, "rainbow")
+                default:
+                    XCTFail("Expected invalidValue, got \(configError)")
+            }
+        }
     }
 }

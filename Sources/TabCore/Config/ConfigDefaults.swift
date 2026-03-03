@@ -45,5 +45,6 @@ extension TabConfig {
     [performance]
     idle-cache-refresh = "event-driven"
     log-level = "info"
+    log-color = "auto"
     """
 }

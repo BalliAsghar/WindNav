@@ -212,13 +212,15 @@ public enum IdleCacheRefreshMode: String, Sendable {
 public struct PerformanceConfig: Equatable, Sendable {
     public var idleCacheRefresh: IdleCacheRefreshMode
     public var logLevel: LogLevel
+    public var logColor: LogColorMode
 
-    public init(idleCacheRefresh: IdleCacheRefreshMode, logLevel: LogLevel) {
+    public init(idleCacheRefresh: IdleCacheRefreshMode, logLevel: LogLevel, logColor: LogColorMode) {
         self.idleCacheRefresh = idleCacheRefresh
         self.logLevel = logLevel
+        self.logColor = logColor
     }
 
-    public static let `default` = PerformanceConfig(idleCacheRefresh: .eventDriven, logLevel: .info)
+    public static let `default` = PerformanceConfig(idleCacheRefresh: .eventDriven, logLevel: .info, logColor: .auto)
 }
 
 enum ConfigError: LocalizedError, Equatable {

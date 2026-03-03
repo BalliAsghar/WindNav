@@ -41,13 +41,13 @@ public final class TabRuntime {
     }
 
     public func start() {
-        Logger.configure(level: .info)
+        Logger.configure(level: .info, colorMode: .auto)
         Logger.info(.runtime, "Starting Tab++ runtime")
 
         do {
             let loaded = try configLoader.loadOrCreate()
             config = loaded
-            Logger.configure(level: loaded.performance.logLevel)
+            Logger.configure(level: loaded.performance.logLevel, colorMode: loaded.performance.logColor)
             Logger.info(.config, "Loaded config at \(configLoader.configURL.path)")
 
             guard AXPermission.ensureTrusted(prompt: true) else {

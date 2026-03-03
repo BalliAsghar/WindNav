@@ -178,7 +178,7 @@ final class ConfigLoader {
 
         if let performanceTable = table["performance"]?.table {
             logUnknownKeys(in: performanceTable, section: "performance", known: [
-                "idle-cache-refresh", "log-level",
+                "idle-cache-refresh", "log-level", "log-color",
             ])
 
             if let modeRaw = performanceTable["idle-cache-refresh"]?.string {
@@ -197,6 +197,15 @@ final class ConfigLoader {
                 performance.logLevel = level
             } else if let raw = performanceTable["log-level"] {
                 throw ConfigError.invalidValue(key: "performance.log-level", expected: "debug|info|error", actual: renderedValue(raw))
+            }
+
+            if let colorRaw = performanceTable["log-color"]?.string {
+                guard let color = LogColorMode(rawValue: colorRaw) else {
+                    throw ConfigError.invalidValue(key: "performance.log-color", expected: "auto|always|never", actual: colorRaw)
+                }
+                performance.logColor = color
+            } else if let raw = performanceTable["log-color"] {
+                throw ConfigError.invalidValue(key: "performance.log-color", expected: "auto|always|never", actual: renderedValue(raw))
             }
         }
 
