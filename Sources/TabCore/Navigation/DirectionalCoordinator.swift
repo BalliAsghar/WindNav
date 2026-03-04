@@ -9,9 +9,8 @@ final class DirectionalCoordinator {
 
     private struct SessionState {
         var flow: Flow
-        var orderedGroups: [AppRingGroup]
-        var selectedIndex: Int?
-        var selectedWindowID: UInt32?
+        var orderedWindows: [WindowSnapshot]
+        var selectedIndex: Int
         var needsCommitOnRelease: Bool
         var startedAt: DispatchTime
     }
@@ -210,8 +209,9 @@ final class DirectionalCoordinator {
         guard current.flow == .browse else { return }
         guard config.directional.commitOnModifierRelease else { return }
         guard current.needsCommitOnRelease else { return }
-        guard let selected = await resolveCommitTarget(from: current) else { return }
+        guard current.orderedWindows.indices.contains(current.selectedIndex) else { return }
 
+        let selected = current.orderedWindows[current.selectedIndex]
         do {
             try await focusPerformer.focus(windowId: selected.windowId, pid: selected.pid)
             appFocusMemoryStore.recordFocused(window: selected)
@@ -264,37 +264,30 @@ final class DirectionalCoordinator {
 
     private func advanceNavigation(direction: Direction, hotkeyTimestamp: DispatchTime) async {
         do {
-            let groups = try await appGroups(includeWindowless: false)
-            guard !groups.isEmpty else {
+            let windows = try await orderedWindows(includeWindowless: false)
+            guard !windows.isEmpty else {
                 cancelSession()
                 return
             }
 
             let currentIndex: Int?
             if let current = session,
-               current.flow == .navigation,
-               let selectedIndex = current.selectedIndex,
-               current.orderedGroups.indices.contains(selectedIndex),
-               let idx = groups.firstIndex(where: { $0.key == current.orderedGroups[selectedIndex].key }) {
-                currentIndex = idx
+               current.flow == .navigation {
+                currentIndex = current.selectedIndex
             } else {
-                currentIndex = await focusedGroupIndex(in: groups)
+                currentIndex = await focusedWindowIndex(in: windows)
             }
 
             let step = direction == .left ? -1 : 1
             let nextIndex: Int
             if let currentIndex {
-                nextIndex = wrappedIndex(currentIndex + step, count: groups.count)
+                nextIndex = wrappedIndex(currentIndex + step, count: windows.count)
             } else {
-                nextIndex = direction == .left ? groups.count - 1 : 0
+                nextIndex = direction == .left ? windows.count - 1 : 0
             }
 
-            guard let target = selectWindow(in: groups[nextIndex]) else {
-                cancelSession()
-                return
-            }
-
-            showHUD(groups: groups, selectedIndex: nextIndex)
+            let target = windows[nextIndex]
+            showHUD(windows: windows, selectedIndex: nextIndex)
             Logger.info(.ui, "hud-selection-latency-ms=\(msSince(hotkeyTimestamp))")
 
             do {
@@ -306,9 +299,8 @@ final class DirectionalCoordinator {
 
             session = SessionState(
                 flow: .navigation,
-                orderedGroups: groups,
+                orderedWindows: windows,
                 selectedIndex: nextIndex,
-                selectedWindowID: target.windowId,
                 needsCommitOnRelease: false,
                 startedAt: hotkeyTimestamp
             )
@@ -321,37 +313,32 @@ final class DirectionalCoordinator {
 
     private func advanceBrowse(direction: Direction, hotkeyTimestamp: DispatchTime) async {
         do {
-            let groups = try await appGroups(includeWindowless: true)
-            guard !groups.isEmpty else {
+            let windows = try await orderedWindows(includeWindowless: true)
+            guard !windows.isEmpty else {
                 cancelSession()
                 return
             }
 
             let previous = session
-            var currentIndex: Int?
+            let currentIndex: Int?
             if let previous,
-               previous.flow == .browse,
-               let selectedIndex = previous.selectedIndex,
-               previous.orderedGroups.indices.contains(selectedIndex),
-               let idx = groups.firstIndex(where: { $0.key == previous.orderedGroups[selectedIndex].key }) {
-                currentIndex = idx
+               previous.flow == .browse {
+                currentIndex = previous.selectedIndex
+            } else {
+                currentIndex = nil
             }
 
             let goesForward = direction == .right || direction == .up
             let step = goesForward ? 1 : -1
             let nextIndex: Int
             if let currentIndex {
-                nextIndex = wrappedIndex(currentIndex + step, count: groups.count)
+                nextIndex = wrappedIndex(currentIndex + step, count: windows.count)
             } else {
-                nextIndex = goesForward ? 0 : groups.count - 1
+                nextIndex = goesForward ? 0 : windows.count - 1
             }
 
-            guard let target = selectWindow(in: groups[nextIndex]) else {
-                cancelSession()
-                return
-            }
-
-            showHUD(groups: groups, selectedIndex: nextIndex)
+            let target = windows[nextIndex]
+            showHUD(windows: windows, selectedIndex: nextIndex)
             Logger.info(.ui, "hud-selection-latency-ms=\(msSince(hotkeyTimestamp))")
 
             let shouldFocusNow = shouldFocusImmediatelyInBrowse(for: direction)
@@ -370,9 +357,8 @@ final class DirectionalCoordinator {
 
             session = SessionState(
                 flow: .browse,
-                orderedGroups: groups,
+                orderedWindows: windows,
                 selectedIndex: nextIndex,
-                selectedWindowID: target.windowId,
                 needsCommitOnRelease: needsCommitOnRelease,
                 startedAt: hotkeyTimestamp
             )
@@ -388,39 +374,30 @@ final class DirectionalCoordinator {
 
         let includeWindowless = previous.flow == .browse
         do {
-            let groups = try await appGroups(includeWindowless: includeWindowless)
-            guard !groups.isEmpty else {
+            let windows = try await orderedWindows(includeWindowless: includeWindowless)
+            guard !windows.isEmpty else {
                 cancelSession()
                 return
             }
 
-            let previousSelectedKey: AppRingKey? = {
-                guard let index = previous.selectedIndex, previous.orderedGroups.indices.contains(index) else {
-                    return nil
-                }
-                return previous.orderedGroups[index].key
-            }()
+            let previousSelectedWindowID = previous.orderedWindows[previous.selectedIndex].windowId
 
             let nextIndex: Int
-            if let previousSelectedKey, let idx = groups.firstIndex(where: { $0.key == previousSelectedKey }) {
+            if let idx = windows.firstIndex(where: { $0.windowId == previousSelectedWindowID }) {
                 nextIndex = idx
-            } else if let oldIndex = previous.selectedIndex {
-                nextIndex = min(max(oldIndex, 0), groups.count - 1)
             } else {
-                nextIndex = 0
+                nextIndex = min(max(previous.selectedIndex, 0), windows.count - 1)
             }
 
-            let selectedWindow = selectWindow(in: groups[nextIndex])
             session = SessionState(
                 flow: previous.flow,
-                orderedGroups: groups,
+                orderedWindows: windows,
                 selectedIndex: nextIndex,
-                selectedWindowID: selectedWindow?.windowId,
                 needsCommitOnRelease: previous.needsCommitOnRelease,
                 startedAt: previous.startedAt
             )
 
-            showHUD(groups: groups, selectedIndex: nextIndex)
+            showHUD(windows: windows, selectedIndex: nextIndex)
         } catch {
             Logger.error(.windows, "Failed to refresh directional session: \(error.localizedDescription)")
         }
@@ -438,54 +415,29 @@ final class DirectionalCoordinator {
 
     private func selectedSnapshot(in state: SessionState?) -> WindowSnapshot? {
         guard let state,
-              let selectedIndex = state.selectedIndex,
-              state.orderedGroups.indices.contains(selectedIndex)
+              state.orderedWindows.indices.contains(state.selectedIndex)
         else {
             return nil
         }
-
-        let group = state.orderedGroups[selectedIndex]
-        if let selectedWindowID = state.selectedWindowID,
-           let match = group.windows.first(where: { $0.windowId == selectedWindowID }) {
-            return match
-        }
-        return selectWindow(in: group)
+        return state.orderedWindows[state.selectedIndex]
     }
 
-    private func resolveCommitTarget(from state: SessionState) async -> WindowSnapshot? {
-        let selectedKey: AppRingKey? = {
-            guard let selectedIndex = state.selectedIndex, state.orderedGroups.indices.contains(selectedIndex) else {
-                return nil
-            }
-            return state.orderedGroups[selectedIndex].key
-        }()
+    private func showHUD(windows: [WindowSnapshot], selectedIndex: Int) {
+        let windowTotalsByPID = Dictionary(grouping: windows, by: \.pid).mapValues(\.count)
+        var nextWindowIndexByPID: [pid_t: Int] = [:]
 
-        guard let selectedKey else {
-            return selectedSnapshot(in: state)
-        }
+        let items = windows.enumerated().map { index, window in
+            let totalForPID = windowTotalsByPID[window.pid] ?? 1
+            let windowIndex = (nextWindowIndexByPID[window.pid] ?? 0) + 1
+            nextWindowIndexByPID[window.pid] = windowIndex
 
-        guard let groups = try? await appGroups(includeWindowless: true),
-              let group = groups.first(where: { $0.key == selectedKey }) else {
-            return nil
-        }
-
-        if let selectedWindowID = state.selectedWindowID,
-           let exact = group.windows.first(where: { $0.windowId == selectedWindowID }) {
-            return exact
-        }
-        return selectWindow(in: group)
-    }
-
-    private func showHUD(groups: [AppRingGroup], selectedIndex: Int?) {
-        let items = groups.enumerated().map { index, group in
-            let representative = group.windows.sorted(by: snapshotSortOrder(lhs:rhs:)).first
             return HUDItem(
-                id: group.key.rawValue,
-                label: group.label,
-                pid: representative?.pid ?? 0,
+                id: "\(window.windowId)",
+                label: window.appName ?? window.bundleId ?? "App",
+                pid: window.pid,
                 isSelected: index == selectedIndex,
-                isWindowlessApp: group.windows.allSatisfy(\.isWindowlessApp),
-                windowIndexInApp: nil
+                isWindowlessApp: window.isWindowlessApp,
+                windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil
             )
         }
 
@@ -495,26 +447,12 @@ final class DirectionalCoordinator {
         )
     }
 
-    private func selectWindow(in group: AppRingGroup) -> WindowSnapshot? {
-        let ordered = group.windows.sorted(by: snapshotSortOrder(lhs:rhs:))
-        guard !ordered.isEmpty else { return nil }
-
-        if let preferredID = appFocusMemoryStore.preferredWindowID(appKey: group.key, candidateWindows: ordered),
-           let preferred = ordered.first(where: { $0.windowId == preferredID }) {
-            return preferred
-        }
-
-        return ordered.first
-    }
-
-    private func focusedGroupIndex(in groups: [AppRingGroup]) async -> Int? {
+    private func focusedWindowIndex(in windows: [WindowSnapshot]) async -> Int? {
         guard let focusedWindowID = await focusedWindowProvider.focusedWindowID() else { return nil }
-        return groups.firstIndex { group in
-            group.windows.contains(where: { $0.windowId == focusedWindowID })
-        }
+        return windows.firstIndex(where: { $0.windowId == focusedWindowID })
     }
 
-    private func appGroups(includeWindowless: Bool) async throws -> [AppRingGroup] {
+    private func orderedWindows(includeWindowless: Bool) async throws -> [WindowSnapshot] {
         let snapshots = try await windowProvider.currentSnapshot()
         appFocusMemoryStore.prune(using: snapshots)
 
@@ -522,17 +460,21 @@ final class DirectionalCoordinator {
         let candidates = includeWindowless ? filtered : filtered.filter { !$0.isWindowlessApp }
         guard !candidates.isEmpty else { return [] }
 
+        let groups = appGroups(from: candidates)
+        let windows = groups.flatMap { group in
+            group.windows.sorted(by: snapshotSortOrder(lhs:rhs:))
+        }
+
+        return windows
+    }
+
+    private func appGroups(from candidates: [WindowSnapshot]) -> [AppRingGroup] {
         let seeds = buildAppRingSeeds(from: candidates)
-        var groups = appRingStateStore.orderedGroups(
+        return appRingStateStore.orderedGroups(
             from: seeds,
             ordering: config.ordering,
             showEmptyApps: config.visibility.showEmptyApps
         )
-
-        if !includeWindowless {
-            groups = groups.filter { !$0.windows.allSatisfy(\.isWindowlessApp) }
-        }
-        return groups
     }
 
     private func buildAppRingSeeds(from candidates: [WindowSnapshot]) -> [AppRingGroupSeed] {
