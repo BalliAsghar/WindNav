@@ -9,6 +9,7 @@ public final class TabRuntime {
     private let windowProvider: AXWindowProvider
     private let focusPerformer: FocusPerformer
     private let hudController: any HUDControlling
+    private let permissionService: any PermissionServiceProtocol
 
     private var navigationCoordinator: NavigationCoordinator?
     private var directionalCoordinator: DirectionalCoordinator?
@@ -24,7 +25,8 @@ public final class TabRuntime {
             hotkeys: CarbonHotkeyRegistrar(),
             windowProvider: AXWindowProvider(),
             focusPerformer: AXFocusPerformer(),
-            hudController: MinimalHUDController()
+            hudController: MinimalHUDController(),
+            permissionService: PermissionService()
         )
     }
 
@@ -33,13 +35,15 @@ public final class TabRuntime {
         hotkeys: any HotkeyRegistrar,
         windowProvider: AXWindowProvider,
         focusPerformer: FocusPerformer,
-        hudController: any HUDControlling
+        hudController: any HUDControlling,
+        permissionService: any PermissionServiceProtocol = PermissionService()
     ) {
         self.configLoader = configLoader
         self.hotkeys = hotkeys
         self.windowProvider = windowProvider
         self.focusPerformer = focusPerformer
         self.hudController = hudController
+        self.permissionService = permissionService
     }
 
     public func start() {
@@ -48,64 +52,35 @@ public final class TabRuntime {
 
         do {
             let loaded = try configLoader.loadOrCreate()
-            config = loaded
             Logger.configure(level: loaded.performance.logLevel, colorMode: loaded.performance.logColor)
             Logger.info(.config, "Loaded config at \(configLoader.configURL.path)")
-
-            guard AXPermission.ensureTrusted(prompt: true) else {
-                Logger.error(.runtime, "Accessibility permission is required")
-                NSApp.terminate(nil)
-                return
-            }
-
-            guard KeyboardListenPermission.ensureAccess(prompt: true) else {
-                Logger.error(.runtime, "Input Monitoring permission is required")
-                abortStartup(reason: "keyboard-listen permission denied", showPermissionAlert: true)
-                return
-            }
-
-            windowProvider.updateConfig(loaded)
-            navigationCoordinator = NavigationCoordinator(
-                windowProvider: windowProvider,
-                focusedWindowProvider: windowProvider,
-                focusPerformer: focusPerformer,
-                hudController: hudController,
-                config: loaded
-            )
-            directionalCoordinator = DirectionalCoordinator(
-                windowProvider: windowProvider,
-                focusedWindowProvider: windowProvider,
-                focusPerformer: focusPerformer,
-                hudController: hudController,
-                config: loaded
-            )
-
-            let bindings = try parseBindings(loaded)
-            try hotkeys.register(bindings: bindings) { [weak self] action, carbonModifiers in
-                guard let self else { return }
-                self.handleHotkeyAction(action, carbonModifiers: carbonModifiers)
-            }
-
-            guard installModifierMonitorIfNeeded() else {
-                abortStartup(reason: "modifier monitor install failed", showPermissionAlert: true)
-                return
-            }
-
-            guard installArrowKeyMonitorIfNeeded() else {
-                abortStartup(reason: "arrow key monitor install failed", showPermissionAlert: true)
-                return
-            }
-
-            if loaded.activation.overrideSystemCmdTab {
-                SystemHotkeyOverride.disableSystemCmdTab()
-            }
-
+            try configureRuntime(with: loaded)
             Logger.info(.runtime, "Tab++ runtime started")
         } catch {
             Logger.error(.runtime, "Failed to start runtime: \(error.localizedDescription)")
             Logger.error(.runtime, "Startup aborted: initialization error")
             NSApp.terminate(nil)
         }
+    }
+
+    public func applyConfig(_ updated: TabConfig) throws {
+        try configureRuntime(with: updated)
+    }
+
+    public func currentConfig() -> TabConfig? {
+        config
+    }
+
+    public func permissionStatus(for permission: PermissionKind) -> PermissionStatus {
+        permissionService.status(for: permission)
+    }
+
+    public func requestPermission(_ permission: PermissionKind) -> PermissionRequestResult {
+        permissionService.request(permission)
+    }
+
+    public func openSystemSettings(for permission: PermissionKind) {
+        permissionService.openSystemSettings(for: permission)
     }
 
     public func stop() {
@@ -120,11 +95,48 @@ public final class TabRuntime {
         Logger.info(.runtime, "Tab++ runtime stopped")
     }
 
+    private func configureRuntime(with loaded: TabConfig) throws {
+        navigationCoordinator?.cancelCycleSession()
+        directionalCoordinator?.cancelSession()
+        captureState.set(activation: false, directional: false)
+        inputSession = nil
+        removeModifierMonitor()
+        removeArrowKeyMonitor()
+        hotkeys.unregisterAll()
+        SystemHotkeyOverride.restoreSystemCmdTab()
+
+        config = loaded
+        windowProvider.updateConfig(loaded)
+        navigationCoordinator = NavigationCoordinator(
+            windowProvider: windowProvider,
+            focusedWindowProvider: windowProvider,
+            focusPerformer: focusPerformer,
+            hudController: hudController,
+            config: loaded
+        )
+        directionalCoordinator = DirectionalCoordinator(
+            windowProvider: windowProvider,
+            focusedWindowProvider: windowProvider,
+            focusPerformer: focusPerformer,
+            hudController: hudController,
+            config: loaded
+        )
+
+        let bindings = try parseBindings(loaded)
+        try hotkeys.register(bindings: bindings) { [weak self] action, carbonModifiers in
+            guard let self else { return }
+            self.handleHotkeyAction(action, carbonModifiers: carbonModifiers)
+        }
+        refreshPermissionDependentCapabilities(config: loaded)
+    }
+
     private func parseBindings(_ config: TabConfig) throws -> [HotkeyAction: ParsedHotkey] {
-        var bindings: [HotkeyAction: ParsedHotkey] = [
-            .activationForward: try HotkeyParser.parse(config.activation.trigger),
-            .activationBackward: try HotkeyParser.parse(config.activation.reverseTrigger),
-        ]
+        var bindings: [HotkeyAction: ParsedHotkey] = [:]
+
+        if config.activation.overrideSystemCmdTab {
+            bindings[.activationForward] = try HotkeyParser.parse(config.activation.trigger)
+            bindings[.activationBackward] = try HotkeyParser.parse(config.activation.reverseTrigger)
+        }
 
         if config.directional.enabled {
             bindings[.directionalLeft] = try HotkeyParser.parse(config.directional.left)
@@ -134,6 +146,40 @@ public final class TabRuntime {
         }
 
         return bindings
+    }
+
+    private func refreshPermissionDependentCapabilities(config: TabConfig) {
+        let accessibilityGranted = permissionService.status(for: .accessibility) == .granted
+        let inputMonitoringGranted = permissionService.status(for: .inputMonitoring) == .granted
+        let shouldEnableAdvancedInput = accessibilityGranted && inputMonitoringGranted
+
+        if !accessibilityGranted {
+            Logger.info(.runtime, "Accessibility permission missing; running in limited mode")
+        }
+        if !inputMonitoringGranted {
+            Logger.info(.runtime, "Input Monitoring permission missing; running in limited mode")
+        }
+
+        if config.activation.overrideSystemCmdTab && shouldEnableAdvancedInput {
+            SystemHotkeyOverride.disableSystemCmdTab()
+        } else {
+            SystemHotkeyOverride.restoreSystemCmdTab()
+        }
+
+        let needsEventTaps = shouldEnableAdvancedInput && (config.activation.overrideSystemCmdTab || config.directional.enabled)
+        if needsEventTaps {
+            if !installModifierMonitorIfNeeded() {
+                Logger.error(.hotkey, "Failed to install modifier monitor; continuing without event taps")
+                removeModifierMonitor()
+            }
+            if !installArrowKeyMonitorIfNeeded() {
+                Logger.error(.hotkey, "Failed to install arrow key monitor; continuing without event taps")
+                removeArrowKeyMonitor()
+            }
+        } else {
+            removeModifierMonitor()
+            removeArrowKeyMonitor()
+        }
     }
 
     private func handleHotkeyAction(_ action: HotkeyAction, carbonModifiers: UInt32) {
@@ -366,20 +412,6 @@ public final class TabRuntime {
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         return true
-    }
-
-    private func abortStartup(reason: String, showPermissionAlert: Bool) {
-        Logger.error(.runtime, "Startup aborted: \(reason)")
-        hotkeys.unregisterAll()
-        removeModifierMonitor()
-        removeArrowKeyMonitor()
-        captureState.set(activation: false, directional: false)
-        inputSession = nil
-        SystemHotkeyOverride.restoreSystemCmdTab()
-        if showPermissionAlert {
-            KeyboardListenPermission.presentMissingAccessAlert()
-        }
-        NSApp.terminate(nil)
     }
 
     private func removeArrowKeyMonitor() {

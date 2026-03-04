@@ -92,6 +92,7 @@ final class ConfigLoaderTests: XCTestCase {
         XCTAssertEqual(cfg.activation.reverseTrigger, "cmd-shift-tab")
         XCTAssertTrue(cfg.activation.overrideSystemCmdTab)
         XCTAssertEqual(cfg.directional.browseLeftRightMode, .immediate)
+        XCTAssertFalse(cfg.onboarding.permissionExplainerShown)
 
         XCTAssertTrue(cfg.visibility.showMinimized)
         XCTAssertTrue(cfg.visibility.showHidden)
@@ -102,6 +103,41 @@ final class ConfigLoaderTests: XCTestCase {
         XCTAssertEqual(cfg.appearance.theme, .system)
         XCTAssertEqual(cfg.appearance.iconSize, 22)
         XCTAssertEqual(cfg.performance.logColor, .auto)
+    }
+
+    func testParseOnboardingPermissionExplainerShownTrue() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            [onboarding]
+            permission-explainer-shown = true
+            """
+        )
+
+        XCTAssertTrue(cfg.onboarding.permissionExplainerShown)
+    }
+
+    func testParseInvalidOnboardingPermissionExplainerShownThrowsPreciseError() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                [onboarding]
+                permission-explainer-shown = "yes"
+                """
+            )
+        ) { error in
+            guard let configError = error as? ConfigError else {
+                XCTFail("Expected ConfigError, got \(type(of: error))")
+                return
+            }
+            switch configError {
+                case let .invalidValue(key, expected, actual):
+                    XCTAssertEqual(key, "onboarding.permission-explainer-shown")
+                    XCTAssertEqual(expected, "true|false")
+                    XCTAssertEqual(actual, "\"yes\"")
+                default:
+                    XCTFail("Expected invalidValue, got \(configError)")
+            }
+        }
     }
 
     func testParseCustomLogColor() throws {
@@ -240,5 +276,19 @@ final class ConfigLoaderTests: XCTestCase {
                     XCTFail("Expected invalidValue, got \(configError)")
             }
         }
+    }
+
+    func testSerializeRoundTripPreservesOnboardingAndMasterToggles() throws {
+        var input = TabConfig.default
+        input.activation.overrideSystemCmdTab = false
+        input.directional.enabled = false
+        input.onboarding.permissionExplainerShown = true
+
+        let rendered = ConfigLoader.serialize(input)
+        let reparsed = try ConfigLoader.parse(rendered)
+
+        XCTAssertFalse(reparsed.activation.overrideSystemCmdTab)
+        XCTAssertFalse(reparsed.directional.enabled)
+        XCTAssertTrue(reparsed.onboarding.permissionExplainerShown)
     }
 }

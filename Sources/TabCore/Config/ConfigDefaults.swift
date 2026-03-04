@@ -16,6 +16,9 @@ extension TabConfig {
     browse-left-right-mode = "immediate"
     commit-on-modifier-release = true
 
+    [onboarding]
+    permission-explainer-shown = false
+
     [visibility]
     show-minimized = true
     show-hidden = true

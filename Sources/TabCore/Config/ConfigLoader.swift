@@ -26,6 +26,17 @@ final class ConfigLoader {
         return try Self.parse(text)
     }
 
+    func save(_ config: TabConfig) throws {
+        try ensureExists()
+        try ConfigValidation.validate(config)
+        let text = Self.serialize(config)
+        do {
+            try text.write(to: configURL, atomically: true, encoding: .utf8)
+        } catch {
+            throw ConfigError.io(error.localizedDescription)
+        }
+    }
+
     private func ensureExists() throws {
         let dir = configURL.deletingLastPathComponent()
         do {
@@ -50,6 +61,7 @@ final class ConfigLoader {
 
         var activation = ActivationConfig.default
         var directional = DirectionalConfig.default
+        var onboarding = OnboardingConfig.default
         var visibility = VisibilityConfig.default
         var ordering = OrderingConfig.default
         var filters = FiltersConfig.default
@@ -57,7 +69,7 @@ final class ConfigLoader {
         var performance = PerformanceConfig.default
 
         logUnknownKeys(in: table, section: "root", known: [
-            "activation", "directional", "visibility", "ordering", "filters", "appearance", "performance",
+            "activation", "directional", "onboarding", "visibility", "ordering", "filters", "appearance", "performance",
         ])
 
         if let activationTable = table["activation"]?.table {
@@ -119,6 +131,17 @@ final class ConfigLoader {
                 directional.commitOnModifierRelease = value
             } else if let raw = directionalTable["commit-on-modifier-release"] {
                 throw ConfigError.invalidValue(key: "directional.commit-on-modifier-release", expected: "true|false", actual: renderedValue(raw))
+            }
+        }
+
+        if let onboardingTable = table["onboarding"]?.table {
+            logUnknownKeys(in: onboardingTable, section: "onboarding", known: [
+                "permission-explainer-shown",
+            ])
+            if let value = onboardingTable["permission-explainer-shown"]?.bool {
+                onboarding.permissionExplainerShown = value
+            } else if let raw = onboardingTable["permission-explainer-shown"] {
+                throw ConfigError.invalidValue(key: "onboarding.permission-explainer-shown", expected: "true|false", actual: renderedValue(raw))
             }
         }
 
@@ -241,6 +264,7 @@ final class ConfigLoader {
         let config = TabConfig(
             activation: activation,
             directional: directional,
+            onboarding: onboarding,
             visibility: visibility,
             ordering: ordering,
             filters: filters,
@@ -250,6 +274,60 @@ final class ConfigLoader {
 
         try ConfigValidation.validate(config)
         return config
+    }
+
+    static func serialize(_ config: TabConfig) -> String {
+        let fixedApps = serializeStringArray(config.ordering.fixedApps)
+        let pinnedApps = serializeStringArray(config.ordering.pinnedApps)
+        let excludeApps = serializeStringArray(config.filters.excludeApps)
+        let excludeBundleIDs = serializeStringArray(config.filters.excludeBundleIds)
+
+        return """
+        [activation]
+        trigger = "\(escape(config.activation.trigger))"
+        reverse-trigger = "\(escape(config.activation.reverseTrigger))"
+        override-system-cmd-tab = \(config.activation.overrideSystemCmdTab)
+
+        [directional]
+        enabled = \(config.directional.enabled)
+        left = "\(escape(config.directional.left))"
+        right = "\(escape(config.directional.right))"
+        up = "\(escape(config.directional.up))"
+        down = "\(escape(config.directional.down))"
+        browse-left-right-mode = "\(config.directional.browseLeftRightMode.rawValue)"
+        commit-on-modifier-release = \(config.directional.commitOnModifierRelease)
+
+        [onboarding]
+        permission-explainer-shown = \(config.onboarding.permissionExplainerShown)
+
+        [visibility]
+        show-minimized = \(config.visibility.showMinimized)
+        show-hidden = \(config.visibility.showHidden)
+        show-fullscreen = \(config.visibility.showFullscreen)
+        show-empty-apps = "\(config.visibility.showEmptyApps.rawValue)"
+
+        [ordering]
+        mode = "\(config.ordering.mode.rawValue)"
+        fixed-apps = \(fixedApps)
+        pinned-apps = \(pinnedApps)
+        unpinned-apps = "\(config.ordering.unpinnedApps.rawValue)"
+
+        [filters]
+        exclude-apps = \(excludeApps)
+        exclude-bundle-ids = \(excludeBundleIDs)
+
+        [appearance]
+        theme = "\(config.appearance.theme.rawValue)"
+        icon-size = \(config.appearance.iconSize)
+        item-padding = \(config.appearance.itemPadding)
+        item-spacing = \(config.appearance.itemSpacing)
+        show-window-count = \(config.appearance.showWindowCount)
+
+        [performance]
+        idle-cache-refresh = "\(config.performance.idleCacheRefresh.rawValue)"
+        log-level = "\(config.performance.logLevel.rawValue)"
+        log-color = "\(config.performance.logColor.rawValue)"
+        """
     }
 
     private static func parseStringIfPresent(
@@ -332,6 +410,15 @@ final class ConfigLoader {
 
     private static func renderedValue(_ value: any TOMLValueConvertible) -> String {
         String(describing: value).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func serializeStringArray(_ values: [String]) -> String {
+        let rendered = values.map { "\"\(escape($0))\"" }.joined(separator: ", ")
+        return "[\(rendered)]"
+    }
+
+    private static func escape(_ value: String) -> String {
+        value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
     }
 
     private static func logUnknownKeys(in table: TOMLTable, section: String, known: Set<String>) {
