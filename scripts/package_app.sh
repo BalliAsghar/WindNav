@@ -127,3 +127,5 @@ echo "Validating Info.plist..."
 plutil -lint "${PLIST_PATH}" >/dev/null
 
 echo "App bundle ready: ${APP_BUNDLE}"
+
+open "${DIST_DIR}"
