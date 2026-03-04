@@ -12,7 +12,7 @@ private func emergencyExit(_ logs: Any?...) {
 @MainActor
 private final class TabAppDelegate: NSObject, NSApplicationDelegate {
     var runtime: TabRuntime?
-    var settingsStore: (any SettingsStateStore)?
+    var settingsStore: FileSettingsStateStore?
     var menuController: MenuBarSettingsController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {

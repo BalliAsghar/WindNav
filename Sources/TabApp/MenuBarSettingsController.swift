@@ -10,16 +10,16 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
 
         var title: String {
             switch self {
-                case .cmdTabOverride:
-                    "Cmd+Tab override"
-                case .directionalNavigation:
-                    "directional navigation"
+            case .cmdTabOverride:
+                "Cmd+Tab override"
+            case .directionalNavigation:
+                "directional navigation"
             }
         }
     }
 
     private let runtime: TabRuntime
-    private let settingsStore: any SettingsStateStore
+    private let settingsStore: FileSettingsStateStore
     private var config: TabConfig
 
     private let statusItem: NSStatusItem
@@ -27,13 +27,17 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
 
     private let titleItem = NSMenuItem(title: "WindNav", action: nil, keyEquivalent: "")
     private let summaryItem = NSMenuItem(title: "Status: Ready", action: nil, keyEquivalent: "")
-    private let cmdTabToggleItem = NSMenuItem(title: "Enable Cmd+Tab override", action: nil, keyEquivalent: "")
-    private let directionalToggleItem = NSMenuItem(title: "Enable directional navigation", action: nil, keyEquivalent: "")
-    private let accessibilityPermissionItem = NSMenuItem(title: "Accessibility: Not Granted", action: nil, keyEquivalent: "")
-    private let inputMonitoringPermissionItem = NSMenuItem(title: "Input Monitoring: Not Granted", action: nil, keyEquivalent: "")
+    private let cmdTabToggleItem = NSMenuItem(
+        title: "Enable Cmd+Tab override", action: nil, keyEquivalent: "")
+    private let directionalToggleItem = NSMenuItem(
+        title: "Enable directional navigation", action: nil, keyEquivalent: "")
+    private let accessibilityPermissionItem = NSMenuItem(
+        title: "Accessibility: Not Granted", action: nil, keyEquivalent: "")
+    private let inputMonitoringPermissionItem = NSMenuItem(
+        title: "Input Monitoring: Not Granted", action: nil, keyEquivalent: "")
     private let quitItem = NSMenuItem(title: "Quit WindNav", action: nil, keyEquivalent: "q")
 
-    init(runtime: TabRuntime, settingsStore: any SettingsStateStore) throws {
+    init(runtime: TabRuntime, settingsStore: FileSettingsStateStore) throws {
         self.runtime = runtime
         self.settingsStore = settingsStore
         self.config = try settingsStore.loadOrCreate()
@@ -126,16 +130,18 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         accessibilityPermissionItem.title = "Accessibility: \(statusLabel(accessibilityStatus))"
         inputMonitoringPermissionItem.title = "Input Monitoring: \(statusLabel(inputStatus))"
 
-        let needed = permissionsRequiredForEnabledFeatures().contains { runtime.permissionStatus(for: $0) != .granted }
+        let needed = permissionsRequiredForEnabledFeatures().contains {
+            runtime.permissionStatus(for: $0) != .granted
+        }
         summaryItem.title = needed ? "Status: Permissions Needed" : "Status: Ready"
     }
 
     private func statusLabel(_ status: PermissionStatus) -> String {
         switch status {
-            case .granted:
-                "Granted"
-            case .notDetermined, .denied:
-                "Not Granted"
+        case .granted:
+            "Granted"
+        case .notDetermined, .denied:
+            "Not Granted"
         }
     }
 
@@ -143,9 +149,12 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         let targetEnabled = !isFeatureEnabled(feature)
 
         if targetEnabled {
-            let missingPermissions = permissionsRequired(for: feature).filter { runtime.permissionStatus(for: $0) != .granted }
+            let missingPermissions = permissionsRequired(for: feature).filter {
+                runtime.permissionStatus(for: $0) != .granted
+            }
             if !missingPermissions.isEmpty {
-                let confirmed = presentPrePermissionPrompt(feature: feature, missingPermissions: missingPermissions)
+                let confirmed = presentPrePermissionPrompt(
+                    feature: feature, missingPermissions: missingPermissions)
                 guard confirmed else {
                     refreshMenuState()
                     return
@@ -179,7 +188,8 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
             do {
                 try runtime.applyConfig(config)
             } catch {
-                presentErrorAlert(title: "Unable to Apply Configuration", message: error.localizedDescription)
+                presentErrorAlert(
+                    title: "Unable to Apply Configuration", message: error.localizedDescription)
             }
         }
 
@@ -191,8 +201,20 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
 
         let alert = NSAlert()
         alert.alertStyle = .informational
+        let projectRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let appIconURL = projectRoot.appendingPathComponent("Packaging/AppIcon.svg")
+        alert.icon =
+            NSImage(contentsOf: appIconURL)
+            ?? NSImage(
+                systemSymbolName: "hand.wave.fill",
+                accessibilityDescription: "Welcome to WindNav"
+            )
         alert.messageText = "Welcome to WindNav"
-        alert.informativeText = "WindNav is controlled from the menu bar. Permissions are requested on demand when you enable related features."
+        alert.informativeText =
+            "WindNav is controlled from the menu bar. Permissions are requested on demand when you enable related features."
         alert.addButton(withTitle: "Continue")
         alert.runModal()
 
@@ -200,16 +222,20 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         do {
             try settingsStore.save(config)
         } catch {
-            Logger.error(.config, "Failed to persist onboarding state: \(error.localizedDescription)")
+            Logger.error(
+                .config, "Failed to persist onboarding state: \(error.localizedDescription)")
         }
     }
 
-    private func presentPrePermissionPrompt(feature: FeatureToggle, missingPermissions: [PermissionKind]) -> Bool {
+    private func presentPrePermissionPrompt(
+        feature: FeatureToggle, missingPermissions: [PermissionKind]
+    ) -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = "Enable \(feature.title)?"
         let names = missingPermissions.map(permissionTitle).joined(separator: ", ")
-        alert.informativeText = "WindNav needs \(names) to enable this feature. Continue to show the macOS permission prompt."
+        alert.informativeText =
+            "WindNav needs \(names) to enable this feature. Continue to show the macOS permission prompt."
         alert.addButton(withTitle: "Continue")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn
@@ -219,7 +245,8 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "\(permissionTitle(permission)) Permission Required"
-        alert.informativeText = "WindNav could not enable this feature because \(permissionTitle(permission)) was denied. Open System Settings to grant access."
+        alert.informativeText =
+            "WindNav could not enable this feature because \(permissionTitle(permission)) was denied. Open System Settings to grant access."
         alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Not Now")
         let response = alert.runModal()
@@ -239,40 +266,42 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
 
     private func permissionTitle(_ permission: PermissionKind) -> String {
         switch permission {
-            case .accessibility:
-                "Accessibility"
-            case .inputMonitoring:
-                "Input Monitoring"
+        case .accessibility:
+            "Accessibility"
+        case .inputMonitoring:
+            "Input Monitoring"
         }
     }
 
     private func isFeatureEnabled(_ feature: FeatureToggle) -> Bool {
         switch feature {
-            case .cmdTabOverride:
-                config.activation.overrideSystemCmdTab
-            case .directionalNavigation:
-                config.directional.enabled
+        case .cmdTabOverride:
+            config.activation.overrideSystemCmdTab
+        case .directionalNavigation:
+            config.directional.enabled
         }
     }
 
     private func setFeature(_ feature: FeatureToggle, enabled: Bool) {
         switch feature {
-            case .cmdTabOverride:
-                config.activation.overrideSystemCmdTab = enabled
-            case .directionalNavigation:
-                config.directional.enabled = enabled
+        case .cmdTabOverride:
+            config.activation.overrideSystemCmdTab = enabled
+        case .directionalNavigation:
+            config.directional.enabled = enabled
         }
     }
 
     private func permissionsRequired(for feature: FeatureToggle) -> [PermissionKind] {
         switch feature {
-            case .cmdTabOverride, .directionalNavigation:
-                [.accessibility, .inputMonitoring]
+        case .cmdTabOverride, .directionalNavigation:
+            [.accessibility, .inputMonitoring]
         }
     }
 
     private func permissionsRequiredForEnabledFeatures() -> [PermissionKind] {
-        guard config.activation.overrideSystemCmdTab || config.directional.enabled else { return [] }
+        guard config.activation.overrideSystemCmdTab || config.directional.enabled else {
+            return []
+        }
         return [.accessibility, .inputMonitoring]
     }
 
@@ -281,7 +310,8 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
             try settingsStore.save(config)
             try runtime.applyConfig(config)
         } catch {
-            Logger.error(.runtime, "Failed to apply menu settings update: \(error.localizedDescription)")
+            Logger.error(
+                .runtime, "Failed to apply menu settings update: \(error.localizedDescription)")
             presentErrorAlert(title: "Unable to Save Settings", message: error.localizedDescription)
             refreshFromDiskIfPossible()
         }
@@ -291,7 +321,8 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         do {
             config = try settingsStore.loadOrCreate()
         } catch {
-            Logger.error(.config, "Failed to reload config for menu state: \(error.localizedDescription)")
+            Logger.error(
+                .config, "Failed to reload config for menu state: \(error.localizedDescription)")
         }
     }
 }

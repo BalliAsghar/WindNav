@@ -2,6 +2,12 @@ import Foundation
 
 @MainActor
 final class NavigationCoordinator {
+    private struct CycleSession {
+        let ordered: [WindowSnapshot]
+        var selectedIndex: Int
+        let startedAt: DispatchTime
+    }
+
     private let windowProvider: WindowProvider
     private let focusedWindowProvider: FocusedWindowProvider
     private let focusPerformer: FocusPerformer
@@ -32,26 +38,21 @@ final class NavigationCoordinator {
         self.config = config
     }
 
-    func updateConfig(_ config: TabConfig) {
-        self.config = config
-    }
-
     func hasActiveCycleSession() -> Bool {
         cycleSession != nil
     }
 
     func startOrAdvanceCycle(direction: Direction, hotkeyTimestamp: DispatchTime) async {
-        let normalizedDirection = normalizeCycleDirection(direction)
+        let normalizedDirection = direction == .left ? Direction.left : Direction.right
 
         if var session = cycleSession {
             guard !session.ordered.isEmpty else {
                 cancelCycleSession()
                 return
             }
-            session.selectedIndex = wrappedIndex(
-                session.selectedIndex + (normalizedDirection == .left ? -1 : 1),
-                count: session.ordered.count
-            )
+
+            let step = normalizedDirection == .left ? -1 : 1
+            session.selectedIndex = wrappedIndex(session.selectedIndex + step, count: session.ordered.count)
             cycleSession = session
             showHUD(for: session)
             Logger.info(.ui, "hud-selection-latency-ms=\(msSince(hotkeyTimestamp))")
@@ -120,7 +121,10 @@ final class NavigationCoordinator {
                 updateHistory(resolvedTarget.windowId)
                 Logger.info(.navigation, "commit-focus-latency-ms=\(msSince(commitTimestamp)) target=\(resolvedTarget.windowId)")
             } catch {
-                Logger.error(.navigation, "Failed to focus window \(resolvedTarget.windowId) on commit: \(error.localizedDescription)")
+                Logger.error(
+                    .navigation,
+                    "Failed to focus window \(resolvedTarget.windowId) on commit: \(error.localizedDescription)"
+                )
             }
         } catch {
             Logger.error(.windows, "Failed to fetch snapshot for commit: \(error.localizedDescription)")
@@ -158,35 +162,7 @@ final class NavigationCoordinator {
         }
         Logger.info(.navigation, "cycle-input=quit-selected-app pid=\(selected.pid) action=\(action)")
 
-        do {
-            let snapshots = try await windowProvider.currentSnapshot()
-            let filtered = applyFilters(snapshots)
-            guard !filtered.isEmpty else {
-                cancelCycleSession()
-                return
-            }
-
-            let reconciled = reconcileSessionOrder(previous: session.ordered, filtered: filtered)
-            guard !reconciled.isEmpty else {
-                cancelCycleSession()
-                return
-            }
-
-            let nextIndex = nextSelectionIndexAfterSessionRefresh(
-                previousSession: session,
-                refreshed: reconciled
-            )
-            let refreshedSession = CycleSession(
-                ordered: reconciled,
-                selectedIndex: nextIndex,
-                startedAt: session.startedAt
-            )
-            cycleSession = refreshedSession
-            showHUD(for: refreshedSession)
-            Logger.info(.navigation, "quit-selected-app session-updated remaining=\(reconciled.count) selected-index=\(nextIndex)")
-        } catch {
-            Logger.error(.windows, "Failed to refresh snapshot after quit request: \(error.localizedDescription)")
-        }
+        await refreshSessionAfterMutation(previousSession: session, logTag: "quit-selected-app")
     }
 
     func requestCloseSelectedWindowInCycle() async {
@@ -203,6 +179,10 @@ final class NavigationCoordinator {
             "cycle-input=close-selected-window window=\(selected.windowId) pid=\(selected.pid) dispatched=\(dispatched)"
         )
 
+        await refreshSessionAfterMutation(previousSession: session, logTag: "close-selected-window")
+    }
+
+    private func refreshSessionAfterMutation(previousSession: CycleSession, logTag: String) async {
         do {
             let snapshots = try await windowProvider.currentSnapshot()
             let filtered = applyFilters(snapshots)
@@ -211,29 +191,26 @@ final class NavigationCoordinator {
                 return
             }
 
-            let reconciled = reconcileSessionOrder(previous: session.ordered, filtered: filtered)
+            let reconciled = reconcileSessionOrder(previous: previousSession.ordered, filtered: filtered)
             guard !reconciled.isEmpty else {
                 cancelCycleSession()
                 return
             }
 
             let nextIndex = nextSelectionIndexAfterSessionRefresh(
-                previousSession: session,
+                previousSession: previousSession,
                 refreshed: reconciled
             )
             let refreshedSession = CycleSession(
                 ordered: reconciled,
                 selectedIndex: nextIndex,
-                startedAt: session.startedAt
+                startedAt: previousSession.startedAt
             )
             cycleSession = refreshedSession
             showHUD(for: refreshedSession)
-            Logger.info(
-                .navigation,
-                "close-selected-window session-updated remaining=\(reconciled.count) selected-index=\(nextIndex)"
-            )
+            Logger.info(.navigation, "\(logTag) session-updated remaining=\(reconciled.count) selected-index=\(nextIndex)")
         } catch {
-            Logger.error(.windows, "Failed to refresh snapshot after close request: \(error.localizedDescription)")
+            Logger.error(.windows, "Failed to refresh snapshot after \(logTag) request: \(error.localizedDescription)")
         }
     }
 
@@ -250,8 +227,7 @@ final class NavigationCoordinator {
     private func showHUD(for session: CycleSession) {
         let windowTotalsByPID = Dictionary(grouping: session.ordered, by: \.pid).mapValues(\.count)
         var nextWindowIndexByPID: [pid_t: Int] = [:]
-        let items = session.ordered.enumerated().map { entry in
-            let (index, snapshot) = entry
+        let items = session.ordered.enumerated().map { index, snapshot in
             let totalForPID = windowTotalsByPID[snapshot.pid] ?? 1
             let windowIndex = (nextWindowIndexByPID[snapshot.pid] ?? 0) + 1
             nextWindowIndexByPID[snapshot.pid] = windowIndex
@@ -270,15 +246,11 @@ final class NavigationCoordinator {
         )
     }
 
-    private func nextSelectionIndexAfterSessionRefresh(
-        previousSession: CycleSession,
-        refreshed: [WindowSnapshot]
-    ) -> Int {
+    private func nextSelectionIndexAfterSessionRefresh(previousSession: CycleSession, refreshed: [WindowSnapshot]) -> Int {
         let currentSelectedID = previousSession.ordered[previousSession.selectedIndex].windowId
         if let sameWindow = refreshed.firstIndex(where: { $0.windowId == currentSelectedID }) {
             return sameWindow
         }
-
         if refreshed.isEmpty {
             return 0
         }
@@ -369,7 +341,6 @@ final class NavigationCoordinator {
         let remaining = snapshots
             .filter { !used.contains($0.windowId) }
             .sorted(by: snapshotSortOrder(lhs:rhs:))
-
         ordered.append(contentsOf: remaining)
         return applyWindowlessOrdering(ordered)
     }
@@ -388,22 +359,17 @@ final class NavigationCoordinator {
             ordered.firstIndex { $0.windowId == id }
         }
 
-        switch direction {
-            case .left:
-                if let focusedIndex {
-                    return wrappedIndex(focusedIndex - 1, count: ordered.count)
-                }
-                return ordered.count - 1
-            case .right, .up, .down, .windowUp, .windowDown:
-                if let focusedIndex {
-                    return wrappedIndex(focusedIndex + 1, count: ordered.count)
-                }
-                return 0
+        if direction == .left {
+            if let focusedIndex {
+                return wrappedIndex(focusedIndex - 1, count: ordered.count)
+            }
+            return ordered.count - 1
         }
-    }
 
-    private func normalizeCycleDirection(_ direction: Direction) -> Direction {
-        direction == .left ? .left : .right
+        if let focusedIndex {
+            return wrappedIndex(focusedIndex + 1, count: ordered.count)
+        }
+        return 0
     }
 
     private func wrappedIndex(_ index: Int, count: Int) -> Int {

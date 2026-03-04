@@ -1,14 +1,7 @@
 import Foundation
 
 @MainActor
-public protocol SettingsStateStore: AnyObject {
-    var configURL: URL { get }
-    func loadOrCreate() throws -> TabConfig
-    func save(_ config: TabConfig) throws
-}
-
-@MainActor
-public final class FileSettingsStateStore: SettingsStateStore {
+public final class FileSettingsStateStore {
     public let configURL: URL
     private let loader: ConfigLoader
 
@@ -34,7 +27,7 @@ public final class FileSettingsStateStore: SettingsStateStore {
     private static func defaultConfigURL() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appending(path: ".config", directoryHint: .isDirectory)
-            .appending(path: "tabpp", directoryHint: .isDirectory)
+            .appending(path: "windnav", directoryHint: .isDirectory)
             .appending(path: "config.toml", directoryHint: .notDirectory)
     }
 }

@@ -5,6 +5,4 @@ public enum Direction: String, CaseIterable, Sendable {
     case right
     case up
     case down
-    case windowUp = "window-up"
-    case windowDown = "window-down"
 }

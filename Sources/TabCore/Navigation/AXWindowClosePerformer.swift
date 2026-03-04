@@ -2,6 +2,11 @@ import ApplicationServices
 import Foundation
 
 @MainActor
+protocol WindowClosePerformer: AnyObject {
+    func close(windowId: UInt32, pid: pid_t) -> Bool
+}
+
+@MainActor
 final class AXWindowClosePerformer: WindowClosePerformer {
     func close(windowId: UInt32, pid: pid_t) -> Bool {
         guard !isWindowlessAppId(windowId, pid: pid) else { return false }

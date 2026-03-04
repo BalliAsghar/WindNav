@@ -10,25 +10,25 @@ let package = Package(
         .library(name: "TabCore", targets: ["TabCore"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/LebJe/TOMLKit.git", exact: "0.5.5"),
+        .package(url: "https://github.com/LebJe/TOMLKit.git", exact: "0.5.5")
     ],
     targets: [
         .target(
             name: "TabCore",
             dependencies: [
-                .product(name: "TOMLKit", package: "TOMLKit"),
+                .product(name: "TOMLKit", package: "TOMLKit")
             ]
         ),
         .executableTarget(
             name: "TabApp",
             dependencies: [
-                .target(name: "TabCore"),
+                .target(name: "TabCore")
             ]
         ),
         .testTarget(
             name: "TabCoreTests",
             dependencies: [
-                .target(name: "TabCore"),
+                .target(name: "TabCore")
             ]
         ),
     ]

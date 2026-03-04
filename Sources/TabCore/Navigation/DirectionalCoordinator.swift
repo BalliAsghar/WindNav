@@ -1,20 +1,152 @@
 import Foundation
 
 @MainActor
-enum DirectionalFlowKind: Sendable {
-    case navigation
-    case browse
-}
-
-@MainActor
 final class DirectionalCoordinator {
-    private struct DirectionalSessionState {
-        var flow: DirectionalFlowKind
+    private enum Flow: Sendable {
+        case navigation
+        case browse
+    }
+
+    private struct SessionState {
+        var flow: Flow
         var orderedGroups: [AppRingGroup]
         var selectedIndex: Int?
         var selectedWindowID: UInt32?
         var needsCommitOnRelease: Bool
         var startedAt: DispatchTime
+    }
+
+    private struct AppRingKey: Sendable, Hashable, Equatable {
+        let rawValue: String
+        let bundleId: String?
+
+        init(bundleId: String?, pid: pid_t) {
+            self.bundleId = bundleId
+            if let bundleId, !bundleId.isEmpty {
+                rawValue = "bundle:\(bundleId)"
+            } else {
+                rawValue = "pid:\(pid)"
+            }
+        }
+
+        init(window: WindowSnapshot) {
+            self.init(bundleId: window.bundleId, pid: window.pid)
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(rawValue)
+        }
+
+        static func == (lhs: AppRingKey, rhs: AppRingKey) -> Bool {
+            lhs.rawValue == rhs.rawValue
+        }
+    }
+
+    private struct AppRingGroupSeed: Sendable {
+        let key: AppRingKey
+        let label: String
+        let windows: [WindowSnapshot]
+    }
+
+    private struct AppRingGroup: Sendable {
+        let key: AppRingKey
+        let label: String
+        let windows: [WindowSnapshot]
+    }
+
+    private final class AppRingStateStore {
+        private var unpinnedFirstSeenOrder: [AppRingKey] = []
+
+        func orderedGroups(
+            from seeds: [AppRingGroupSeed],
+            ordering: OrderingConfig,
+            showEmptyApps: VisibilityConfig.ShowEmptyAppsPolicy
+        ) -> [AppRingGroup] {
+            guard !seeds.isEmpty else { return [] }
+
+            let seedByKey = Dictionary(uniqueKeysWithValues: seeds.map { ($0.key, $0) })
+            var usedKeys = Set<AppRingKey>()
+            var ordered: [AppRingGroup] = []
+
+            for bundleID in ordering.pinnedApps {
+                if let seed = seeds.first(where: { $0.key.bundleId == bundleID && !usedKeys.contains($0.key) }) {
+                    ordered.append(AppRingGroup(key: seed.key, label: seed.label, windows: seed.windows))
+                    usedKeys.insert(seed.key)
+                }
+            }
+
+            let unpinnedSeeds = seeds.filter { !usedKeys.contains($0.key) }
+            ordered.append(contentsOf: orderedUnpinnedGroups(from: unpinnedSeeds, seedByKey: seedByKey, policy: ordering.unpinnedApps))
+
+            guard showEmptyApps == .showAtEnd else {
+                return ordered
+            }
+
+            let windowed = ordered.filter { !$0.windows.allSatisfy(\.isWindowlessApp) }
+            let windowless = ordered.filter { $0.windows.allSatisfy(\.isWindowlessApp) }
+            return windowed + windowless
+        }
+
+        private func orderedUnpinnedGroups(
+            from seeds: [AppRingGroupSeed],
+            seedByKey: [AppRingKey: AppRingGroupSeed],
+            policy: UnpinnedAppsPolicy
+        ) -> [AppRingGroup] {
+            switch policy {
+                case .ignore:
+                    unpinnedFirstSeenOrder = []
+                    return []
+
+                case .append:
+                    let presentKeys = Set(seeds.map(\.key))
+                    var order = unpinnedFirstSeenOrder.filter { presentKeys.contains($0) }
+                    let existing = Set(order)
+                    let unseen = seeds
+                        .map(\.key)
+                        .filter { !existing.contains($0) }
+                        .sorted { lhs, rhs in
+                            let lhsSeed = seedByKey[lhs]!
+                            let rhsSeed = seedByKey[rhs]!
+                            let lhsLabel = lhsSeed.label.localizedCaseInsensitiveCompare(rhsSeed.label)
+                            if lhsLabel != .orderedSame {
+                                return lhsLabel == .orderedAscending
+                            }
+                            return lhs.rawValue < rhs.rawValue
+                        }
+                    order.append(contentsOf: unseen)
+                    unpinnedFirstSeenOrder = order
+
+                    return order.compactMap { key in
+                        guard let seed = seedByKey[key] else { return nil }
+                        return AppRingGroup(key: seed.key, label: seed.label, windows: seed.windows)
+                    }
+            }
+        }
+    }
+
+    private final class AppFocusMemoryStore {
+        private var lastFocusedWindowByApp: [AppRingKey: UInt32] = [:]
+
+        func recordFocused(window: WindowSnapshot) {
+            lastFocusedWindowByApp[AppRingKey(window: window)] = window.windowId
+        }
+
+        func preferredWindowID(appKey: AppRingKey, candidateWindows: [WindowSnapshot]) -> UInt32? {
+            guard !candidateWindows.isEmpty else { return nil }
+            let candidateIDs = Set(candidateWindows.map(\.windowId))
+            if let remembered = lastFocusedWindowByApp[appKey], candidateIDs.contains(remembered) {
+                return remembered
+            }
+            return nil
+        }
+
+        func prune(using snapshots: [WindowSnapshot]) {
+            let visibleWindowIDs = Set(snapshots.map(\.windowId))
+            let visibleAppKeys = Set(snapshots.map(AppRingKey.init(window:)))
+            lastFocusedWindowByApp = lastFocusedWindowByApp.filter { appKey, windowID in
+                visibleAppKeys.contains(appKey) && visibleWindowIDs.contains(windowID)
+            }
+        }
     }
 
     private let windowProvider: WindowProvider
@@ -27,7 +159,7 @@ final class DirectionalCoordinator {
     private let appFocusMemoryStore: AppFocusMemoryStore
 
     private var config: TabConfig
-    private var session: DirectionalSessionState?
+    private var session: SessionState?
     private var quitRequestedPIDs = Set<pid_t>()
 
     init(
@@ -37,8 +169,6 @@ final class DirectionalCoordinator {
         appTerminationPerformer: any AppTerminationPerformer = NSRunningAppTerminationPerformer(),
         windowClosePerformer: any WindowClosePerformer = AXWindowClosePerformer(),
         hudController: any HUDControlling,
-        appRingStateStore: AppRingStateStore = AppRingStateStore(),
-        appFocusMemoryStore: AppFocusMemoryStore = AppFocusMemoryStore(),
         config: TabConfig
     ) {
         self.windowProvider = windowProvider
@@ -47,21 +177,13 @@ final class DirectionalCoordinator {
         self.appTerminationPerformer = appTerminationPerformer
         self.windowClosePerformer = windowClosePerformer
         self.hudController = hudController
-        self.appRingStateStore = appRingStateStore
-        self.appFocusMemoryStore = appFocusMemoryStore
-        self.config = config
-    }
-
-    func updateConfig(_ config: TabConfig) {
+        self.appRingStateStore = AppRingStateStore()
+        self.appFocusMemoryStore = AppFocusMemoryStore()
         self.config = config
     }
 
     func hasActiveSession() -> Bool {
         session != nil
-    }
-
-    func currentFlowKind() -> DirectionalFlowKind? {
-        session?.flow
     }
 
     func handleHotkey(direction: Direction, hotkeyTimestamp: DispatchTime) async {
@@ -74,8 +196,6 @@ final class DirectionalCoordinator {
                 }
             case .up, .down:
                 await advanceBrowse(direction: direction, hotkeyTimestamp: hotkeyTimestamp)
-            case .windowUp, .windowDown:
-                break
         }
     }
 
@@ -87,10 +207,7 @@ final class DirectionalCoordinator {
             quitRequestedPIDs.removeAll()
         }
 
-        if current.flow == .navigation {
-            return
-        }
-
+        guard current.flow == .browse else { return }
         guard config.directional.commitOnModifierRelease else { return }
         guard current.needsCommitOnRelease else { return }
         guard let selected = await resolveCommitTarget(from: current) else { return }
@@ -165,19 +282,19 @@ final class DirectionalCoordinator {
             }
 
             let step = direction == .left ? -1 : 1
-            let targetIndex: Int
+            let nextIndex: Int
             if let currentIndex {
-                targetIndex = wrappedIndex(currentIndex + step, count: groups.count)
+                nextIndex = wrappedIndex(currentIndex + step, count: groups.count)
             } else {
-                targetIndex = direction == .left ? groups.count - 1 : 0
+                nextIndex = direction == .left ? groups.count - 1 : 0
             }
 
-            guard let target = selectWindow(in: groups[targetIndex]) else {
+            guard let target = selectWindow(in: groups[nextIndex]) else {
                 cancelSession()
                 return
             }
 
-            showHUD(groups: groups, selectedIndex: targetIndex)
+            showHUD(groups: groups, selectedIndex: nextIndex)
             Logger.info(.ui, "hud-selection-latency-ms=\(msSince(hotkeyTimestamp))")
 
             do {
@@ -187,10 +304,10 @@ final class DirectionalCoordinator {
                 Logger.error(.navigation, "Failed to focus directional target \(target.windowId): \(error.localizedDescription)")
             }
 
-            session = DirectionalSessionState(
+            session = SessionState(
                 flow: .navigation,
                 orderedGroups: groups,
-                selectedIndex: targetIndex,
+                selectedIndex: nextIndex,
                 selectedWindowID: target.windowId,
                 needsCommitOnRelease: false,
                 startedAt: hotkeyTimestamp
@@ -251,7 +368,7 @@ final class DirectionalCoordinator {
                 }
             }
 
-            session = DirectionalSessionState(
+            session = SessionState(
                 flow: .browse,
                 orderedGroups: groups,
                 selectedIndex: nextIndex,
@@ -270,7 +387,6 @@ final class DirectionalCoordinator {
         guard let previous = session else { return }
 
         let includeWindowless = previous.flow == .browse
-
         do {
             let groups = try await appGroups(includeWindowless: includeWindowless)
             guard !groups.isEmpty else {
@@ -279,13 +395,14 @@ final class DirectionalCoordinator {
             }
 
             let previousSelectedKey: AppRingKey? = {
-                guard let index = previous.selectedIndex, previous.orderedGroups.indices.contains(index) else { return nil }
+                guard let index = previous.selectedIndex, previous.orderedGroups.indices.contains(index) else {
+                    return nil
+                }
                 return previous.orderedGroups[index].key
             }()
 
-            var nextIndex: Int
-            if let previousSelectedKey,
-               let idx = groups.firstIndex(where: { $0.key == previousSelectedKey }) {
+            let nextIndex: Int
+            if let previousSelectedKey, let idx = groups.firstIndex(where: { $0.key == previousSelectedKey }) {
                 nextIndex = idx
             } else if let oldIndex = previous.selectedIndex {
                 nextIndex = min(max(oldIndex, 0), groups.count - 1)
@@ -294,7 +411,7 @@ final class DirectionalCoordinator {
             }
 
             let selectedWindow = selectWindow(in: groups[nextIndex])
-            session = DirectionalSessionState(
+            session = SessionState(
                 flow: previous.flow,
                 orderedGroups: groups,
                 selectedIndex: nextIndex,
@@ -313,15 +430,13 @@ final class DirectionalCoordinator {
         if !config.directional.commitOnModifierRelease {
             return true
         }
-
         if direction == .left || direction == .right {
             return config.directional.browseLeftRightMode == .immediate
         }
-
         return false
     }
 
-    private func selectedSnapshot(in state: DirectionalSessionState?) -> WindowSnapshot? {
+    private func selectedSnapshot(in state: SessionState?) -> WindowSnapshot? {
         guard let state,
               let selectedIndex = state.selectedIndex,
               state.orderedGroups.indices.contains(selectedIndex)
@@ -337,7 +452,7 @@ final class DirectionalCoordinator {
         return selectWindow(in: group)
     }
 
-    private func resolveCommitTarget(from state: DirectionalSessionState) async -> WindowSnapshot? {
+    private func resolveCommitTarget(from state: SessionState) async -> WindowSnapshot? {
         let selectedKey: AppRingKey? = {
             guard let selectedIndex = state.selectedIndex, state.orderedGroups.indices.contains(selectedIndex) else {
                 return nil
@@ -404,13 +519,7 @@ final class DirectionalCoordinator {
         appFocusMemoryStore.prune(using: snapshots)
 
         let filtered = applyFilters(snapshots)
-        let candidates: [WindowSnapshot]
-        if includeWindowless {
-            candidates = filtered
-        } else {
-            candidates = filtered.filter { !$0.isWindowlessApp }
-        }
-
+        let candidates = includeWindowless ? filtered : filtered.filter { !$0.isWindowlessApp }
         guard !candidates.isEmpty else { return [] }
 
         let seeds = buildAppRingSeeds(from: candidates)

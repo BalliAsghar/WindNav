@@ -1,16 +1,8 @@
 import Carbon
 import Foundation
 
-protocol HotkeyRegistrar: AnyObject {
-    @MainActor
-    func register(bindings: [HotkeyAction: ParsedHotkey], handler: @escaping (HotkeyAction, UInt32) -> Void) throws
-
-    @MainActor
-    func unregisterAll()
-}
-
 @MainActor
-final class CarbonHotkeyRegistrar: HotkeyRegistrar {
+final class CarbonHotkeyRegistrar {
     private var hotKeyRefs: [HotkeyAction: EventHotKeyRef?] = [:]
     private var idToAction: [UInt32: HotkeyAction] = [:]
     private var actionToModifiers: [HotkeyAction: UInt32] = [:]

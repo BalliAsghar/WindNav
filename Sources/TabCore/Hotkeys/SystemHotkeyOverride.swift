@@ -1,6 +1,14 @@
 import CoreGraphics
 import Foundation
 
+enum CGSSymbolicHotKey: Int, CaseIterable {
+    case commandTab = 1
+    case commandShiftTab = 2
+}
+
+@_silgen_name("CGSSetSymbolicHotKeyEnabled") @discardableResult
+private func CGSSetSymbolicHotKeyEnabled(_ hotKey: CGSSymbolicHotKey.RawValue, _ isEnabled: Bool) -> CGError
+
 public enum SystemHotkeyOverride {
     private static let lock = NSLock()
     private nonisolated(unsafe) static var hasDisabledSystemCmdTab = false

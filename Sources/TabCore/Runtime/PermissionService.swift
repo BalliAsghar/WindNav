@@ -17,13 +17,6 @@ public enum PermissionRequestResult: Sendable, Equatable {
     case denied
 }
 
-@MainActor
-public protocol PermissionServiceProtocol: AnyObject {
-    func status(for permission: PermissionKind) -> PermissionStatus
-    func request(_ permission: PermissionKind) -> PermissionRequestResult
-    func openSystemSettings(for permission: PermissionKind)
-}
-
 struct PermissionStatusEvaluator {
     let isAccessibilityGranted: () -> Bool
     let isInputMonitoringGranted: () -> Bool
@@ -40,7 +33,7 @@ struct PermissionStatusEvaluator {
 }
 
 @MainActor
-public final class PermissionService: PermissionServiceProtocol {
+public final class PermissionService {
     private let evaluator: PermissionStatusEvaluator
     private let defaults: UserDefaults
 

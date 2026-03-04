@@ -11,24 +11,27 @@ final class ConfigLoader {
     static func defaultConfigURL() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appending(path: ".config", directoryHint: .isDirectory)
-            .appending(path: "tabpp", directoryHint: .isDirectory)
+            .appending(path: "windnav", directoryHint: .isDirectory)
             .appending(path: "config.toml", directoryHint: .notDirectory)
     }
 
     func loadOrCreate() throws -> TabConfig {
         try ensureExists()
+
         let text: String
         do {
             text = try String(contentsOf: configURL, encoding: .utf8)
         } catch {
             throw ConfigError.io(error.localizedDescription)
         }
+
         return try Self.parse(text)
     }
 
     func save(_ config: TabConfig) throws {
+        try Self.validate(config)
         try ensureExists()
-        try ConfigValidation.validate(config)
+
         let text = Self.serialize(config)
         do {
             try text.write(to: configURL, atomically: true, encoding: .utf8)
@@ -76,40 +79,61 @@ final class ConfigLoader {
             logUnknownKeys(in: activationTable, section: "activation", known: [
                 "trigger", "reverse-trigger", "override-system-cmd-tab",
             ])
-            if let value = activationTable["trigger"]?.string {
-                activation.trigger = value
-            } else if let raw = activationTable["trigger"] {
-                throw ConfigError.invalidValue(key: "activation.trigger", expected: "string", actual: renderedValue(raw))
-            }
-
-            if let value = activationTable["reverse-trigger"]?.string {
-                activation.reverseTrigger = value
-            } else if let raw = activationTable["reverse-trigger"] {
-                throw ConfigError.invalidValue(key: "activation.reverse-trigger", expected: "string", actual: renderedValue(raw))
-            }
-
-            if let value = activationTable["override-system-cmd-tab"]?.bool {
-                activation.overrideSystemCmdTab = value
-            } else if let raw = activationTable["override-system-cmd-tab"] {
-                throw ConfigError.invalidValue(key: "activation.override-system-cmd-tab", expected: "true|false", actual: renderedValue(raw))
-            }
+            activation.trigger = try parseStringIfPresent(
+                table: activationTable,
+                key: "trigger",
+                section: "activation",
+                defaultValue: activation.trigger
+            )
+            activation.reverseTrigger = try parseStringIfPresent(
+                table: activationTable,
+                key: "reverse-trigger",
+                section: "activation",
+                defaultValue: activation.reverseTrigger
+            )
+            activation.overrideSystemCmdTab = try parseBoolIfPresent(
+                table: activationTable,
+                key: "override-system-cmd-tab",
+                section: "activation",
+                defaultValue: activation.overrideSystemCmdTab
+            )
         }
 
         if let directionalTable = table["directional"]?.table {
             logUnknownKeys(in: directionalTable, section: "directional", known: [
                 "enabled", "left", "right", "up", "down", "browse-left-right-mode", "commit-on-modifier-release",
             ])
+            directional.enabled = try parseBoolIfPresent(
+                table: directionalTable,
+                key: "enabled",
+                section: "directional",
+                defaultValue: directional.enabled
+            )
+            directional.left = try parseStringIfPresent(
+                table: directionalTable,
+                key: "left",
+                section: "directional",
+                defaultValue: directional.left
+            )
+            directional.right = try parseStringIfPresent(
+                table: directionalTable,
+                key: "right",
+                section: "directional",
+                defaultValue: directional.right
+            )
+            directional.up = try parseStringIfPresent(
+                table: directionalTable,
+                key: "up",
+                section: "directional",
+                defaultValue: directional.up
+            )
+            directional.down = try parseStringIfPresent(
+                table: directionalTable,
+                key: "down",
+                section: "directional",
+                defaultValue: directional.down
+            )
 
-            if let value = directionalTable["enabled"]?.bool {
-                directional.enabled = value
-            } else if let raw = directionalTable["enabled"] {
-                throw ConfigError.invalidValue(key: "directional.enabled", expected: "true|false", actual: renderedValue(raw))
-            }
-
-            directional.left = try parseStringIfPresent(table: directionalTable, key: "left", section: "directional", defaultValue: directional.left)
-            directional.right = try parseStringIfPresent(table: directionalTable, key: "right", section: "directional", defaultValue: directional.right)
-            directional.up = try parseStringIfPresent(table: directionalTable, key: "up", section: "directional", defaultValue: directional.up)
-            directional.down = try parseStringIfPresent(table: directionalTable, key: "down", section: "directional", defaultValue: directional.down)
             if let modeRaw = directionalTable["browse-left-right-mode"]?.string {
                 guard let mode = DirectionalConfig.BrowseLeftRightMode(rawValue: modeRaw) else {
                     throw ConfigError.invalidValue(
@@ -127,43 +151,56 @@ final class ConfigLoader {
                 )
             }
 
-            if let value = directionalTable["commit-on-modifier-release"]?.bool {
-                directional.commitOnModifierRelease = value
-            } else if let raw = directionalTable["commit-on-modifier-release"] {
-                throw ConfigError.invalidValue(key: "directional.commit-on-modifier-release", expected: "true|false", actual: renderedValue(raw))
-            }
+            directional.commitOnModifierRelease = try parseBoolIfPresent(
+                table: directionalTable,
+                key: "commit-on-modifier-release",
+                section: "directional",
+                defaultValue: directional.commitOnModifierRelease
+            )
         }
 
         if let onboardingTable = table["onboarding"]?.table {
-            logUnknownKeys(in: onboardingTable, section: "onboarding", known: [
-                "permission-explainer-shown",
-            ])
-            if let value = onboardingTable["permission-explainer-shown"]?.bool {
-                onboarding.permissionExplainerShown = value
-            } else if let raw = onboardingTable["permission-explainer-shown"] {
-                throw ConfigError.invalidValue(key: "onboarding.permission-explainer-shown", expected: "true|false", actual: renderedValue(raw))
-            }
+            logUnknownKeys(in: onboardingTable, section: "onboarding", known: ["permission-explainer-shown"])
+            onboarding.permissionExplainerShown = try parseBoolIfPresent(
+                table: onboardingTable,
+                key: "permission-explainer-shown",
+                section: "onboarding",
+                defaultValue: onboarding.permissionExplainerShown
+            )
         }
 
         if let visibilityTable = table["visibility"]?.table {
             logUnknownKeys(in: visibilityTable, section: "visibility", known: [
                 "show-minimized", "show-hidden", "show-fullscreen", "show-empty-apps",
             ])
+            visibility.showMinimized = try parseBoolIfPresent(
+                table: visibilityTable,
+                key: "show-minimized",
+                section: "visibility",
+                defaultValue: visibility.showMinimized
+            )
+            visibility.showHidden = try parseBoolIfPresent(
+                table: visibilityTable,
+                key: "show-hidden",
+                section: "visibility",
+                defaultValue: visibility.showHidden
+            )
+            visibility.showFullscreen = try parseBoolIfPresent(
+                table: visibilityTable,
+                key: "show-fullscreen",
+                section: "visibility",
+                defaultValue: visibility.showFullscreen
+            )
 
-            visibility.showMinimized = try parseBoolIfPresent(table: visibilityTable, key: "show-minimized", section: "visibility", defaultValue: visibility.showMinimized)
-            visibility.showHidden = try parseBoolIfPresent(table: visibilityTable, key: "show-hidden", section: "visibility", defaultValue: visibility.showHidden)
-            visibility.showFullscreen = try parseBoolIfPresent(table: visibilityTable, key: "show-fullscreen", section: "visibility", defaultValue: visibility.showFullscreen)
-            if let raw = visibilityTable["show-empty-apps"]?.string {
-                guard let policy = VisibilityConfig.ShowEmptyAppsPolicy(rawValue: raw) else {
+            if let showEmptyAppsRaw = visibilityTable["show-empty-apps"]?.string {
+                guard let policy = VisibilityConfig.ShowEmptyAppsPolicy(rawValue: showEmptyAppsRaw) else {
                     throw ConfigError.invalidValue(
                         key: "visibility.show-empty-apps",
                         expected: "hide|show|show-at-end",
-                        actual: raw
+                        actual: showEmptyAppsRaw
                     )
                 }
                 visibility.showEmptyApps = policy
-            } else if let raw = visibilityTable["show-empty-apps"]?.bool {
-                visibility.showEmptyApps = raw ? .show : .hide
             } else if let raw = visibilityTable["show-empty-apps"] {
                 throw ConfigError.invalidValue(
                     key: "visibility.show-empty-apps",
@@ -175,37 +212,56 @@ final class ConfigLoader {
 
         if let orderingTable = table["ordering"]?.table {
             logUnknownKeys(in: orderingTable, section: "ordering", known: [
-                "mode", "fixed-apps", "pinned-apps", "unpinned-apps",
+                "pinned-apps", "unpinned-apps",
             ])
 
-            if let modeRaw = orderingTable["mode"]?.string {
-                guard let mode = OrderingMode(rawValue: modeRaw) else {
-                    throw ConfigError.invalidValue(key: "ordering.mode", expected: "fixed|most-recent|pinned", actual: modeRaw)
-                }
-                ordering.mode = mode
-            } else if let raw = orderingTable["mode"] {
-                throw ConfigError.invalidValue(key: "ordering.mode", expected: "fixed|most-recent|pinned", actual: renderedValue(raw))
-            }
+            ordering.pinnedApps = dedupe(
+                try parseStringArrayIfPresent(
+                    table: orderingTable,
+                    key: "pinned-apps",
+                    section: "ordering",
+                    defaultValue: ordering.pinnedApps
+                )
+            )
 
-            if let policyRaw = orderingTable["unpinned-apps"]?.string {
-                guard let policy = UnpinnedAppsPolicy(rawValue: policyRaw) else {
-                    throw ConfigError.invalidValue(key: "ordering.unpinned-apps", expected: "append|ignore", actual: policyRaw)
+            if let unpinnedRaw = orderingTable["unpinned-apps"]?.string {
+                guard let policy = UnpinnedAppsPolicy(rawValue: unpinnedRaw) else {
+                    throw ConfigError.invalidValue(
+                        key: "ordering.unpinned-apps",
+                        expected: "append|ignore",
+                        actual: unpinnedRaw
+                    )
                 }
                 ordering.unpinnedApps = policy
             } else if let raw = orderingTable["unpinned-apps"] {
-                throw ConfigError.invalidValue(key: "ordering.unpinned-apps", expected: "append|ignore", actual: renderedValue(raw))
+                throw ConfigError.invalidValue(
+                    key: "ordering.unpinned-apps",
+                    expected: "append|ignore",
+                    actual: renderedValue(raw)
+                )
             }
-
-            ordering.fixedApps = dedupe(try parseStringArrayIfPresent(table: orderingTable, key: "fixed-apps", section: "ordering", defaultValue: ordering.fixedApps))
-            ordering.pinnedApps = dedupe(try parseStringArrayIfPresent(table: orderingTable, key: "pinned-apps", section: "ordering", defaultValue: ordering.pinnedApps))
         }
 
         if let filtersTable = table["filters"]?.table {
             logUnknownKeys(in: filtersTable, section: "filters", known: [
                 "exclude-apps", "exclude-bundle-ids",
             ])
-            filters.excludeApps = dedupe(try parseStringArrayIfPresent(table: filtersTable, key: "exclude-apps", section: "filters", defaultValue: filters.excludeApps))
-            filters.excludeBundleIds = dedupe(try parseStringArrayIfPresent(table: filtersTable, key: "exclude-bundle-ids", section: "filters", defaultValue: filters.excludeBundleIds))
+            filters.excludeApps = dedupe(
+                try parseStringArrayIfPresent(
+                    table: filtersTable,
+                    key: "exclude-apps",
+                    section: "filters",
+                    defaultValue: filters.excludeApps
+                )
+            )
+            filters.excludeBundleIds = dedupe(
+                try parseStringArrayIfPresent(
+                    table: filtersTable,
+                    key: "exclude-bundle-ids",
+                    section: "filters",
+                    defaultValue: filters.excludeBundleIds
+                )
+            )
         }
 
         if let appearanceTable = table["appearance"]?.table {
@@ -215,49 +271,84 @@ final class ConfigLoader {
 
             if let themeRaw = appearanceTable["theme"]?.string {
                 guard let theme = ThemeMode(rawValue: themeRaw) else {
-                    throw ConfigError.invalidValue(key: "appearance.theme", expected: "light|dark|system", actual: themeRaw)
+                    throw ConfigError.invalidValue(
+                        key: "appearance.theme",
+                        expected: "light|dark|system",
+                        actual: themeRaw
+                    )
                 }
                 appearance.theme = theme
             } else if let raw = appearanceTable["theme"] {
-                throw ConfigError.invalidValue(key: "appearance.theme", expected: "light|dark|system", actual: renderedValue(raw))
+                throw ConfigError.invalidValue(
+                    key: "appearance.theme",
+                    expected: "light|dark|system",
+                    actual: renderedValue(raw)
+                )
             }
 
-            appearance.iconSize = try parseIntIfPresent(table: appearanceTable, key: "icon-size", section: "appearance", defaultValue: appearance.iconSize)
-            appearance.itemPadding = try parseIntIfPresent(table: appearanceTable, key: "item-padding", section: "appearance", defaultValue: appearance.itemPadding)
-            appearance.itemSpacing = try parseIntIfPresent(table: appearanceTable, key: "item-spacing", section: "appearance", defaultValue: appearance.itemSpacing)
-            appearance.showWindowCount = try parseBoolIfPresent(table: appearanceTable, key: "show-window-count", section: "appearance", defaultValue: appearance.showWindowCount)
+            appearance.iconSize = try parseIntIfPresent(
+                table: appearanceTable,
+                key: "icon-size",
+                section: "appearance",
+                defaultValue: appearance.iconSize
+            )
+            appearance.itemPadding = try parseIntIfPresent(
+                table: appearanceTable,
+                key: "item-padding",
+                section: "appearance",
+                defaultValue: appearance.itemPadding
+            )
+            appearance.itemSpacing = try parseIntIfPresent(
+                table: appearanceTable,
+                key: "item-spacing",
+                section: "appearance",
+                defaultValue: appearance.itemSpacing
+            )
+            appearance.showWindowCount = try parseBoolIfPresent(
+                table: appearanceTable,
+                key: "show-window-count",
+                section: "appearance",
+                defaultValue: appearance.showWindowCount
+            )
         }
 
         if let performanceTable = table["performance"]?.table {
             logUnknownKeys(in: performanceTable, section: "performance", known: [
-                "idle-cache-refresh", "log-level", "log-color",
+                "log-level", "log-color",
             ])
-
-            if let modeRaw = performanceTable["idle-cache-refresh"]?.string {
-                guard let mode = IdleCacheRefreshMode(rawValue: modeRaw) else {
-                    throw ConfigError.invalidValue(key: "performance.idle-cache-refresh", expected: "event-driven|interval", actual: modeRaw)
-                }
-                performance.idleCacheRefresh = mode
-            } else if let raw = performanceTable["idle-cache-refresh"] {
-                throw ConfigError.invalidValue(key: "performance.idle-cache-refresh", expected: "event-driven|interval", actual: renderedValue(raw))
-            }
 
             if let logRaw = performanceTable["log-level"]?.string {
                 guard let level = LogLevel(rawValue: logRaw) else {
-                    throw ConfigError.invalidValue(key: "performance.log-level", expected: "debug|info|error", actual: logRaw)
+                    throw ConfigError.invalidValue(
+                        key: "performance.log-level",
+                        expected: "debug|info|error",
+                        actual: logRaw
+                    )
                 }
                 performance.logLevel = level
             } else if let raw = performanceTable["log-level"] {
-                throw ConfigError.invalidValue(key: "performance.log-level", expected: "debug|info|error", actual: renderedValue(raw))
+                throw ConfigError.invalidValue(
+                    key: "performance.log-level",
+                    expected: "debug|info|error",
+                    actual: renderedValue(raw)
+                )
             }
 
             if let colorRaw = performanceTable["log-color"]?.string {
                 guard let color = LogColorMode(rawValue: colorRaw) else {
-                    throw ConfigError.invalidValue(key: "performance.log-color", expected: "auto|always|never", actual: colorRaw)
+                    throw ConfigError.invalidValue(
+                        key: "performance.log-color",
+                        expected: "auto|always|never",
+                        actual: colorRaw
+                    )
                 }
                 performance.logColor = color
             } else if let raw = performanceTable["log-color"] {
-                throw ConfigError.invalidValue(key: "performance.log-color", expected: "auto|always|never", actual: renderedValue(raw))
+                throw ConfigError.invalidValue(
+                    key: "performance.log-color",
+                    expected: "auto|always|never",
+                    actual: renderedValue(raw)
+                )
             }
         }
 
@@ -271,13 +362,11 @@ final class ConfigLoader {
             appearance: appearance,
             performance: performance
         )
-
-        try ConfigValidation.validate(config)
+        try validate(config)
         return config
     }
 
     static func serialize(_ config: TabConfig) -> String {
-        let fixedApps = serializeStringArray(config.ordering.fixedApps)
         let pinnedApps = serializeStringArray(config.ordering.pinnedApps)
         let excludeApps = serializeStringArray(config.filters.excludeApps)
         let excludeBundleIDs = serializeStringArray(config.filters.excludeBundleIds)
@@ -307,8 +396,6 @@ final class ConfigLoader {
         show-empty-apps = "\(config.visibility.showEmptyApps.rawValue)"
 
         [ordering]
-        mode = "\(config.ordering.mode.rawValue)"
-        fixed-apps = \(fixedApps)
         pinned-apps = \(pinnedApps)
         unpinned-apps = "\(config.ordering.unpinnedApps.rawValue)"
 
@@ -324,10 +411,35 @@ final class ConfigLoader {
         show-window-count = \(config.appearance.showWindowCount)
 
         [performance]
-        idle-cache-refresh = "\(config.performance.idleCacheRefresh.rawValue)"
         log-level = "\(config.performance.logLevel.rawValue)"
         log-color = "\(config.performance.logColor.rawValue)"
         """
+    }
+
+    private static func validate(_ config: TabConfig) throws {
+        if !(14...64).contains(config.appearance.iconSize) {
+            throw ConfigError.invalidValue(
+                key: "appearance.icon-size",
+                expected: "integer in range 14...64",
+                actual: "\(config.appearance.iconSize)"
+            )
+        }
+
+        if !(0...24).contains(config.appearance.itemPadding) {
+            throw ConfigError.invalidValue(
+                key: "appearance.item-padding",
+                expected: "integer in range 0...24",
+                actual: "\(config.appearance.itemPadding)"
+            )
+        }
+
+        if !(0...24).contains(config.appearance.itemSpacing) {
+            throw ConfigError.invalidValue(
+                key: "appearance.item-spacing",
+                expected: "integer in range 0...24",
+                actual: "\(config.appearance.itemSpacing)"
+            )
+        }
     }
 
     private static func parseStringIfPresent(
@@ -391,7 +503,11 @@ final class ConfigLoader {
         var parsed: [String] = []
         for element in rawArray {
             guard let value = element.string else {
-                throw ConfigError.invalidValue(key: "\(section).\(key)", expected: "array of strings", actual: renderedValue(element))
+                throw ConfigError.invalidValue(
+                    key: "\(section).\(key)",
+                    expected: "array of strings",
+                    actual: renderedValue(element)
+                )
             }
             parsed.append(value)
         }

@@ -145,33 +145,21 @@ public struct VisibilityConfig: Equatable, Sendable {
     )
 }
 
-public enum OrderingMode: String, Sendable {
-    case fixed
-    case mostRecent = "most-recent"
-    case pinned
-}
-
 public enum UnpinnedAppsPolicy: String, Sendable {
     case append
     case ignore
 }
 
 public struct OrderingConfig: Equatable, Sendable {
-    public var mode: OrderingMode
-    public var fixedApps: [String]
     public var pinnedApps: [String]
     public var unpinnedApps: UnpinnedAppsPolicy
 
-    public init(mode: OrderingMode, fixedApps: [String], pinnedApps: [String], unpinnedApps: UnpinnedAppsPolicy) {
-        self.mode = mode
-        self.fixedApps = fixedApps
+    public init(pinnedApps: [String], unpinnedApps: UnpinnedAppsPolicy) {
         self.pinnedApps = pinnedApps
         self.unpinnedApps = unpinnedApps
     }
 
     public static let `default` = OrderingConfig(
-        mode: .mostRecent,
-        fixedApps: [],
         pinnedApps: [],
         unpinnedApps: .append
     )
@@ -222,23 +210,16 @@ public struct AppearanceConfig: Equatable, Sendable {
     )
 }
 
-public enum IdleCacheRefreshMode: String, Sendable {
-    case eventDriven = "event-driven"
-    case interval
-}
-
 public struct PerformanceConfig: Equatable, Sendable {
-    public var idleCacheRefresh: IdleCacheRefreshMode
     public var logLevel: LogLevel
     public var logColor: LogColorMode
 
-    public init(idleCacheRefresh: IdleCacheRefreshMode, logLevel: LogLevel, logColor: LogColorMode) {
-        self.idleCacheRefresh = idleCacheRefresh
+    public init(logLevel: LogLevel, logColor: LogColorMode) {
         self.logLevel = logLevel
         self.logColor = logColor
     }
 
-    public static let `default` = PerformanceConfig(idleCacheRefresh: .eventDriven, logLevel: .info, logColor: .auto)
+    public static let `default` = PerformanceConfig(logLevel: .info, logColor: .auto)
 }
 
 enum ConfigError: LocalizedError, Equatable {
