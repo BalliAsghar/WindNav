@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Menu bar icon">
+  <!-- Transparent background (no outer colors) -->
+  <g fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Window frame -->
+    <rect x="2.5" y="3.5" width="19" height="17" rx="3.2" />
+    <!-- Title bar separator -->
+    <path d="M2.5 7.5H21.5" />
+    <!-- Split panes -->
+    <path d="M12 7.5V20.5" />
+    <path d="M2.5 13.5H21.5" />
+  </g>
+
+  <!-- Window controls -->
+  <g fill="#fff">
+    <circle cx="6.0" cy="5.5" r="0.75" />
+    <circle cx="8.6" cy="5.5" r="0.75" />
+    <circle cx="11.2" cy="5.5" r="0.75" />
+  </g>
+</svg>

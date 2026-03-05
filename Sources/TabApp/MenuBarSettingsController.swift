@@ -65,10 +65,12 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
     private func configureStatusButton() {
         if let button = statusItem.button {
             button.title = ""
-            button.image = NSImage(
-                systemSymbolName: "rectangle.stack.fill",
-                accessibilityDescription: "WindNav"
-            )
+            button.image = loadMenuBarIcon()
+                ?? NSImage(
+                    systemSymbolName: "rectangle.stack.fill",
+                    accessibilityDescription: "WindNav"
+                )
+            button.imageScaling = .scaleProportionallyDown
         }
     }
 
@@ -227,11 +229,7 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
 
         let alert = NSAlert()
         alert.alertStyle = .informational
-        let projectRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let appIconURL = projectRoot.appendingPathComponent("Packaging/AppIcon.svg")
+        let appIconURL = projectRootURL().appendingPathComponent("Packaging/AppIcon.svg")
         alert.icon =
             NSImage(contentsOf: appIconURL)
             ?? NSImage(
@@ -362,5 +360,20 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
             Logger.error(
                 .config, "Failed to reload config for menu state: \(error.localizedDescription)")
         }
+    }
+
+    private func projectRootURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    private func loadMenuBarIcon() -> NSImage? {
+        let iconURL = projectRootURL().appendingPathComponent("Packaging/WindNav-MenuBar.svg")
+        guard let icon = NSImage(contentsOf: iconURL) else { return nil }
+        icon.isTemplate = true
+        icon.size = NSSize(width: 19, height: 19)
+        return icon
     }
 }
