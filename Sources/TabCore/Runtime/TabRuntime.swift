@@ -156,10 +156,8 @@ public final class TabRuntime {
     private func parseBindings(_ config: TabConfig) throws -> [HotkeyAction: ParsedHotkey] {
         var bindings: [HotkeyAction: ParsedHotkey] = [:]
 
-        if config.activation.overrideSystemCmdTab {
-            bindings[.activationForward] = try HotkeyParser.parse(config.activation.trigger)
-            bindings[.activationBackward] = try HotkeyParser.parse(config.activation.reverseTrigger)
-        }
+        bindings[.activationForward] = try HotkeyParser.parse(config.activation.trigger)
+        bindings[.activationBackward] = try HotkeyParser.parse(config.activation.reverseTrigger)
 
         if config.directional.enabled {
             bindings[.directionalLeft] = try HotkeyParser.parse(config.directional.left)
@@ -183,13 +181,13 @@ public final class TabRuntime {
             Logger.info(.runtime, "Input Monitoring permission missing; running in limited mode")
         }
 
-        if config.activation.overrideSystemCmdTab && shouldEnableAdvancedInput {
+        if shouldEnableAdvancedInput {
             SystemHotkeyOverride.disableSystemCmdTab()
         } else {
             SystemHotkeyOverride.restoreSystemCmdTab()
         }
 
-        let needsEventTaps = shouldEnableAdvancedInput && (config.activation.overrideSystemCmdTab || config.directional.enabled)
+        let needsEventTaps = shouldEnableAdvancedInput
         if needsEventTaps {
             if !installModifierMonitorIfNeeded() {
                 Logger.error(.hotkey, "Failed to install modifier monitor; continuing without event taps")

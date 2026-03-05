@@ -33,7 +33,6 @@ final class ConfigCoreTests: XCTestCase {
         let loader = ConfigLoader(configURL: url)
 
         var input = TabConfig.default
-        input.activation.overrideSystemCmdTab = false
         input.directional.enabled = false
         input.ordering.pinnedApps = ["com.apple.Safari"]
         input.filters.excludeApps = ["Finder"]
@@ -48,6 +47,11 @@ final class ConfigCoreTests: XCTestCase {
         XCTAssertEqual(reparsed, input)
     }
 
+    func testSerializeOmitsDeprecatedOverrideSystemCmdTabKey() {
+        let text = ConfigLoader.serialize(.default)
+        XCTAssertFalse(text.contains("override-system-cmd-tab"))
+    }
+
     func testMissingLaunchAtLoginKeyDefaultsToFalse() throws {
         let text = """
         [onboarding]
@@ -56,6 +60,17 @@ final class ConfigCoreTests: XCTestCase {
 
         let parsed = try ConfigLoader.parse(text)
         XCTAssertFalse(parsed.onboarding.launchAtLoginEnabled)
+    }
+
+    func testDeprecatedOverrideSystemCmdTabKeyIsAcceptedAndIgnored() throws {
+        let text = """
+        [activation]
+        override-system-cmd-tab = false
+        """
+
+        let parsed = try ConfigLoader.parse(text)
+        XCTAssertEqual(parsed.activation.trigger, TabConfig.default.activation.trigger)
+        XCTAssertEqual(parsed.activation.reverseTrigger, TabConfig.default.activation.reverseTrigger)
     }
 
     func testParseOutOfRangeIconSizeThrows() {

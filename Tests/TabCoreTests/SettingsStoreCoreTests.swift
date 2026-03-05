@@ -10,12 +10,12 @@ final class SettingsStoreCoreTests: XCTestCase {
         let store = FileSettingsStateStore(configURL: url)
 
         var config = try store.loadOrCreate()
-        config.activation.overrideSystemCmdTab = false
         config.directional.enabled = false
+        config.onboarding.launchAtLoginEnabled = true
         try store.save(config)
 
         let reloaded = try store.loadOrCreate()
-        XCTAssertFalse(reloaded.activation.overrideSystemCmdTab)
         XCTAssertFalse(reloaded.directional.enabled)
+        XCTAssertTrue(reloaded.onboarding.launchAtLoginEnabled)
     }
 }

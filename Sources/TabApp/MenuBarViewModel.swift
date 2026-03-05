@@ -112,14 +112,11 @@ func menuBarPermissionTitle(_ permission: PermissionKind) -> String {
 @MainActor
 final class MenuBarViewModel: ObservableObject {
     enum FeatureToggle: CaseIterable {
-        case cmdTabOverride
         case directionalNavigation
         case thumbnails
 
         var rowTitle: String {
             switch self {
-            case .cmdTabOverride:
-                "Cmd+Tab Override"
             case .directionalNavigation:
                 "Directional Navigation"
             case .thumbnails:
@@ -129,8 +126,6 @@ final class MenuBarViewModel: ObservableObject {
 
         var promptTitle: String {
             switch self {
-            case .cmdTabOverride:
-                "Cmd+Tab override"
             case .directionalNavigation:
                 "directional navigation"
             case .thumbnails:
@@ -202,8 +197,6 @@ final class MenuBarViewModel: ObservableObject {
 
     func isFeatureEnabled(_ feature: FeatureToggle) -> Bool {
         switch feature {
-        case .cmdTabOverride:
-            config.activation.overrideSystemCmdTab
         case .directionalNavigation:
             config.directional.enabled
         case .thumbnails:
@@ -258,17 +251,13 @@ final class MenuBarViewModel: ObservableObject {
             return
         }
 
-        if config.activation.overrideSystemCmdTab || config.directional.enabled
-            || config.appearance.showThumbnails
-        {
-            do {
-                try runtime.applyConfig(config)
-            } catch {
-                alertPresenter.presentErrorAlert(
-                    title: "Unable to Apply Configuration",
-                    message: error.localizedDescription
-                )
-            }
+        do {
+            try runtime.applyConfig(config)
+        } catch {
+            alertPresenter.presentErrorAlert(
+                title: "Unable to Apply Configuration",
+                message: error.localizedDescription
+            )
         }
 
         refreshPermissionStatuses()
@@ -345,8 +334,6 @@ final class MenuBarViewModel: ObservableObject {
 
     private func updateFeature(_ feature: FeatureToggle, enabled: Bool) {
         switch feature {
-        case .cmdTabOverride:
-            config.activation.overrideSystemCmdTab = enabled
         case .directionalNavigation:
             config.directional.enabled = enabled
         case .thumbnails:
@@ -356,7 +343,7 @@ final class MenuBarViewModel: ObservableObject {
 
     private func permissionsRequired(for feature: FeatureToggle) -> [PermissionKind] {
         switch feature {
-        case .cmdTabOverride, .directionalNavigation:
+        case .directionalNavigation:
             [.accessibility, .inputMonitoring]
         case .thumbnails:
             [.screenRecording]
@@ -364,10 +351,7 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     private func permissionsRequiredForEnabledFeatures() -> [PermissionKind] {
-        var required: [PermissionKind] = []
-        if config.activation.overrideSystemCmdTab || config.directional.enabled {
-            required.append(contentsOf: [.accessibility, .inputMonitoring])
-        }
+        var required: [PermissionKind] = [.accessibility, .inputMonitoring]
         if config.appearance.showThumbnails {
             required.append(.screenRecording)
         }

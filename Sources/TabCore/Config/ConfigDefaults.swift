@@ -76,12 +76,6 @@ enum TabDefaultsCatalog {
                     allowedValues: "hotkey expression",
                     description: "Reverse activation trigger."
                 ),
-                ConfigSettingSpec(
-                    key: "override-system-cmd-tab",
-                    defaultValue: .bool(activation.overrideSystemCmdTab),
-                    allowedValues: "true|false",
-                    description: "Disable system Cmd+Tab while WindNav is active."
-                ),
             ]
         ),
         ConfigSectionSpec(

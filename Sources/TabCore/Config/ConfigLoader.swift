@@ -91,11 +91,12 @@ final class ConfigLoader {
                 section: "activation",
                 defaultValue: activation.reverseTrigger
             )
-            activation.overrideSystemCmdTab = try parseBoolIfPresent(
+            // Deprecated key: accepted for backward compatibility, ignored by runtime.
+            _ = try parseBoolIfPresent(
                 table: activationTable,
                 key: "override-system-cmd-tab",
                 section: "activation",
-                defaultValue: activation.overrideSystemCmdTab
+                defaultValue: true
             )
         }
 
@@ -397,7 +398,6 @@ final class ConfigLoader {
         [activation]
         trigger = "\(escape(config.activation.trigger))"
         reverse-trigger = "\(escape(config.activation.reverseTrigger))"
-        override-system-cmd-tab = \(config.activation.overrideSystemCmdTab)
 
         [directional]
         enabled = \(config.directional.enabled)

@@ -7,7 +7,6 @@ import TabCore
 final class MenuBarViewModelTests: XCTestCase {
     func testInitialStateReflectsPersistedConfigAndPermissionStatuses() throws {
         var config = TabConfig.default
-        config.activation.overrideSystemCmdTab = true
         config.directional.enabled = false
         config.appearance.showThumbnails = false
 
@@ -27,7 +26,6 @@ final class MenuBarViewModelTests: XCTestCase {
             alertPresenter: alerts
         )
 
-        XCTAssertTrue(viewModel.isFeatureEnabled(.cmdTabOverride))
         XCTAssertFalse(viewModel.isFeatureEnabled(.directionalNavigation))
         XCTAssertFalse(viewModel.isFeatureEnabled(.thumbnails))
         XCTAssertEqual(viewModel.statusLabel(for: .accessibility), "Granted")
@@ -37,7 +35,6 @@ final class MenuBarViewModelTests: XCTestCase {
 
     func testEnableFeatureCancelledAtPrePermissionPromptDoesNotPersist() throws {
         var config = TabConfig.default
-        config.activation.overrideSystemCmdTab = false
         config.directional.enabled = false
         config.appearance.showThumbnails = false
 
@@ -58,9 +55,9 @@ final class MenuBarViewModelTests: XCTestCase {
             alertPresenter: alerts
         )
 
-        viewModel.setFeature(.cmdTabOverride, enabled: true)
+        viewModel.setFeature(.directionalNavigation, enabled: true)
 
-        XCTAssertFalse(viewModel.isFeatureEnabled(.cmdTabOverride))
+        XCTAssertFalse(viewModel.isFeatureEnabled(.directionalNavigation))
         XCTAssertEqual(alerts.prePermissionPrompts.count, 1)
         XCTAssertTrue(runtime.requestedPermissions.isEmpty)
         XCTAssertTrue(settingsStore.savedConfigs.isEmpty)
@@ -68,7 +65,6 @@ final class MenuBarViewModelTests: XCTestCase {
 
     func testEnableFeatureDeniedPermissionShowsAlertAndCanOpenSettings() throws {
         var config = TabConfig.default
-        config.activation.overrideSystemCmdTab = false
         config.directional.enabled = false
         config.appearance.showThumbnails = false
 
@@ -92,9 +88,9 @@ final class MenuBarViewModelTests: XCTestCase {
             alertPresenter: alerts
         )
 
-        viewModel.setFeature(.cmdTabOverride, enabled: true)
+        viewModel.setFeature(.directionalNavigation, enabled: true)
 
-        XCTAssertFalse(viewModel.isFeatureEnabled(.cmdTabOverride))
+        XCTAssertFalse(viewModel.isFeatureEnabled(.directionalNavigation))
         XCTAssertEqual(alerts.permissionDeniedCalls, [.accessibility])
         XCTAssertEqual(runtime.openedSettingsPermissions, [.accessibility])
         XCTAssertTrue(settingsStore.savedConfigs.isEmpty)
@@ -102,7 +98,6 @@ final class MenuBarViewModelTests: XCTestCase {
 
     func testPermissionRowDenialOpensSystemSettings() throws {
         var config = TabConfig.default
-        config.activation.overrideSystemCmdTab = false
         config.directional.enabled = false
         config.appearance.showThumbnails = false
 
@@ -128,7 +123,6 @@ final class MenuBarViewModelTests: XCTestCase {
 
     func testSuccessfulTogglePersistsAndAppliesConfig() throws {
         var config = TabConfig.default
-        config.activation.overrideSystemCmdTab = false
         config.directional.enabled = false
         config.appearance.showThumbnails = false
 
@@ -157,7 +151,6 @@ final class MenuBarViewModelTests: XCTestCase {
 
     func testSaveFailureShowsErrorAndReloadsConfig() throws {
         var config = TabConfig.default
-        config.activation.overrideSystemCmdTab = false
         config.directional.enabled = false
         config.appearance.showThumbnails = false
 
@@ -187,7 +180,6 @@ final class MenuBarViewModelTests: XCTestCase {
 
     func testApplyFailureShowsErrorAndReloadsPersistedConfig() throws {
         var config = TabConfig.default
-        config.activation.overrideSystemCmdTab = false
         config.directional.enabled = false
         config.appearance.showThumbnails = false
 
@@ -219,7 +211,6 @@ final class MenuBarViewModelTests: XCTestCase {
 
     func testSummaryStatusTracksPermissionRequirementsForEnabledFeatures() throws {
         var config = TabConfig.default
-        config.activation.overrideSystemCmdTab = false
         config.directional.enabled = false
         config.appearance.showThumbnails = false
 
@@ -237,16 +228,15 @@ final class MenuBarViewModelTests: XCTestCase {
             alertPresenter: AlertPresenterStub()
         )
 
-        XCTAssertEqual(viewModel.summaryText, "Status: Ready")
+        XCTAssertEqual(viewModel.summaryText, "Status: Permissions Needed")
 
-        config.activation.overrideSystemCmdTab = true
-        settingsStore.storedConfig = config
         runtime.statuses[.accessibility] = .granted
-        runtime.statuses[.inputMonitoring] = .denied
+        runtime.statuses[.inputMonitoring] = .granted
+        settingsStore.storedConfig = config
 
         viewModel.refreshFromDiskIfPossible()
 
-        XCTAssertEqual(viewModel.summaryText, "Status: Permissions Needed")
+        XCTAssertEqual(viewModel.summaryText, "Status: Ready")
     }
 
     func testOnboardingShownOnceAndPersistsFlag() throws {

@@ -60,18 +60,15 @@ public struct OnboardingConfig: Equatable, Sendable {
 public struct ActivationConfig: Equatable, Sendable {
     public var trigger: String
     public var reverseTrigger: String
-    public var overrideSystemCmdTab: Bool
 
-    public init(trigger: String, reverseTrigger: String, overrideSystemCmdTab: Bool) {
+    public init(trigger: String, reverseTrigger: String) {
         self.trigger = trigger
         self.reverseTrigger = reverseTrigger
-        self.overrideSystemCmdTab = overrideSystemCmdTab
     }
 
     public static let `default` = ActivationConfig(
         trigger: "cmd-tab",
-        reverseTrigger: "cmd-shift-tab",
-        overrideSystemCmdTab: true
+        reverseTrigger: "cmd-shift-tab"
     )
 }
 

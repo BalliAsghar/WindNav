@@ -21,16 +21,6 @@ struct MenuBarPanelView: View {
 
             sectionLabel("Features")
             featureToggleRow(
-                id: "feature.cmdtab",
-                title: MenuBarViewModel.FeatureToggle.cmdTabOverride.rowTitle,
-                systemImage: "command.square",
-                isOn: Binding(
-                    get: { viewModel.isFeatureEnabled(.cmdTabOverride) },
-                    set: { viewModel.setFeature(.cmdTabOverride, enabled: $0) }
-                )
-            )
-            featureDivider
-            featureToggleRow(
                 id: "feature.directional",
                 title: MenuBarViewModel.FeatureToggle.directionalNavigation.rowTitle,
                 systemImage: "arrow.left.and.right.circle",
