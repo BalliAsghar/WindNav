@@ -177,7 +177,7 @@ public struct FiltersConfig: Equatable, Sendable {
     }
 
     public static let `default` = FiltersConfig(
-        excludeApps: ["Finder", "Spotify"],
+        excludeApps: [],
         excludeBundleIds: []
     )
 }
