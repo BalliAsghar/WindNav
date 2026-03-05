@@ -7,6 +7,10 @@ final class ConfigCoreTests: XCTestCase {
         XCTAssertEqual(TabConfig.default.appearance.thumbnailWidth, 220)
     }
 
+    func testDefaultLaunchAtLoginDisabled() {
+        XCTAssertFalse(TabConfig.default.onboarding.launchAtLoginEnabled)
+    }
+
     func testDefaultConfigPathUsesWindNavDirectory() {
         let path = ConfigLoader.defaultConfigURL().path
         XCTAssertTrue(path.hasSuffix("/.config/windnav/config.toml"))
@@ -36,11 +40,22 @@ final class ConfigCoreTests: XCTestCase {
         input.appearance.showThumbnails = false
         input.appearance.thumbnailWidth = 220
         input.performance.logColor = .never
+        input.onboarding.launchAtLoginEnabled = true
 
         try loader.save(input)
         let reparsed = try loader.loadOrCreate()
 
         XCTAssertEqual(reparsed, input)
+    }
+
+    func testMissingLaunchAtLoginKeyDefaultsToFalse() throws {
+        let text = """
+        [onboarding]
+        permission-explainer-shown = true
+        """
+
+        let parsed = try ConfigLoader.parse(text)
+        XCTAssertFalse(parsed.onboarding.launchAtLoginEnabled)
     }
 
     func testParseOutOfRangeIconSizeThrows() {

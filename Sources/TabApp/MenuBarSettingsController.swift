@@ -22,6 +22,7 @@ final class MenuBarSettingsController: NSObject, NSPopoverDelegate {
         )
         super.init()
 
+        viewModel.reconcileLaunchAtLoginStateOnStartup()
         configureStatusButton()
         configurePopover()
         viewModel.presentOnboardingIfNeeded(appIcon: loadAppIcon())

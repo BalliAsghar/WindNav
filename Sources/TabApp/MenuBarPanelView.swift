@@ -75,6 +75,20 @@ struct MenuBarPanelView: View {
             Divider()
                 .padding(.top, 4)
 
+            sectionLabel("Preferences")
+            featureToggleRow(
+                id: "preference.launch-at-login",
+                title: "Launch at Login",
+                systemImage: "arrow.right.circle",
+                isOn: Binding(
+                    get: { viewModel.isLaunchAtLoginEnabled() },
+                    set: { viewModel.setLaunchAtLoginEnabled($0) }
+                )
+            )
+
+            Divider()
+                .padding(.top, 4)
+
             quitRow
         }
         .frame(width: panelWidth)

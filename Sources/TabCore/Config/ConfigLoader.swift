@@ -160,12 +160,21 @@ final class ConfigLoader {
         }
 
         if let onboardingTable = table["onboarding"]?.table {
-            logUnknownKeys(in: onboardingTable, section: "onboarding", known: ["permission-explainer-shown"])
+            logUnknownKeys(in: onboardingTable, section: "onboarding", known: [
+                "permission-explainer-shown",
+                "launch-at-login-enabled",
+            ])
             onboarding.permissionExplainerShown = try parseBoolIfPresent(
                 table: onboardingTable,
                 key: "permission-explainer-shown",
                 section: "onboarding",
                 defaultValue: onboarding.permissionExplainerShown
+            )
+            onboarding.launchAtLoginEnabled = try parseBoolIfPresent(
+                table: onboardingTable,
+                key: "launch-at-login-enabled",
+                section: "onboarding",
+                defaultValue: onboarding.launchAtLoginEnabled
             )
         }
 
@@ -401,6 +410,7 @@ final class ConfigLoader {
 
         [onboarding]
         permission-explainer-shown = \(config.onboarding.permissionExplainerShown)
+        launch-at-login-enabled = \(config.onboarding.launchAtLoginEnabled)
 
         [visibility]
         show-minimized = \(config.visibility.showMinimized)

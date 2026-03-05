@@ -44,12 +44,17 @@ public struct TabConfig: Equatable, Sendable {
 
 public struct OnboardingConfig: Equatable, Sendable {
     public var permissionExplainerShown: Bool
+    public var launchAtLoginEnabled: Bool
 
-    public init(permissionExplainerShown: Bool) {
+    public init(permissionExplainerShown: Bool, launchAtLoginEnabled: Bool) {
         self.permissionExplainerShown = permissionExplainerShown
+        self.launchAtLoginEnabled = launchAtLoginEnabled
     }
 
-    public static let `default` = OnboardingConfig(permissionExplainerShown: false)
+    public static let `default` = OnboardingConfig(
+        permissionExplainerShown: false,
+        launchAtLoginEnabled: false
+    )
 }
 
 public struct ActivationConfig: Equatable, Sendable {

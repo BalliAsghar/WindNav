@@ -20,12 +20,21 @@ protocol MenuBarSettingsStoreProviding: AnyObject {
 
 extension FileSettingsStateStore: MenuBarSettingsStoreProviding {}
 
+protocol LaunchAtLoginManaging {
+    var isEnabled: Bool { get }
+    var statusDescription: String { get }
+    func setEnabled(_ enabled: Bool) throws
+}
+
+extension LaunchAtLoginManager: LaunchAtLoginManaging {}
+
 @MainActor
 protocol MenuBarAlertPresenting: AnyObject {
     func presentOnboarding(appIcon: NSImage?)
     func presentPrePermissionPrompt(featureTitle: String, missingPermissions: [PermissionKind]) -> Bool
     func presentPermissionDeniedAlert(_ permission: PermissionKind) -> Bool
     func presentErrorAlert(title: String, message: String)
+    func presentLaunchAtLoginError(message: String)
 }
 
 @MainActor
@@ -73,6 +82,15 @@ final class AppKitMenuBarAlertPresenter: MenuBarAlertPresenting {
         let alert = NSAlert()
         alert.alertStyle = .critical
         alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    func presentLaunchAtLoginError(message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Unable to Update Launch at Login"
         alert.informativeText = message
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -127,15 +145,18 @@ final class MenuBarViewModel: ObservableObject {
 
     private let runtime: MenuBarRuntimeProviding
     private let settingsStore: MenuBarSettingsStoreProviding
+    private let launchAtLoginManager: any LaunchAtLoginManaging
     private let alertPresenter: MenuBarAlertPresenting
 
     init(
         runtime: MenuBarRuntimeProviding,
         settingsStore: MenuBarSettingsStoreProviding,
-        alertPresenter: MenuBarAlertPresenting
+        alertPresenter: MenuBarAlertPresenting,
+        launchAtLoginManager: any LaunchAtLoginManaging = LaunchAtLoginManager()
     ) throws {
         self.runtime = runtime
         self.settingsStore = settingsStore
+        self.launchAtLoginManager = launchAtLoginManager
         self.alertPresenter = alertPresenter
         self.config = try settingsStore.loadOrCreate()
         refreshPermissionStatuses()
@@ -254,6 +275,74 @@ final class MenuBarViewModel: ObservableObject {
         refreshSummaryText()
     }
 
+    func isLaunchAtLoginEnabled() -> Bool {
+        config.onboarding.launchAtLoginEnabled
+    }
+
+    func setLaunchAtLoginEnabled(_ enabled: Bool) {
+        guard config.onboarding.launchAtLoginEnabled != enabled else { return }
+
+        let previous = config.onboarding.launchAtLoginEnabled
+        config.onboarding.launchAtLoginEnabled = enabled
+
+        do {
+            try launchAtLoginManager.setEnabled(enabled)
+            let actual = launchAtLoginManager.isEnabled
+            config.onboarding.launchAtLoginEnabled = actual
+            if !persistConfigOnly() {
+                config.onboarding.launchAtLoginEnabled = previous
+                return
+            }
+            if actual != enabled {
+                alertPresenter.presentLaunchAtLoginError(
+                    message:
+                        "macOS reported launch-at-login as \(actual ? "enabled" : "disabled") after requesting \(enabled ? "enabled" : "disabled"). Status: \(launchAtLoginManager.statusDescription)."
+                )
+            }
+        } catch {
+            let actual = launchAtLoginManager.isEnabled
+            config.onboarding.launchAtLoginEnabled = actual
+            _ = persistConfigOnly()
+            alertPresenter.presentLaunchAtLoginError(
+                message:
+                    "\(error.localizedDescription)\nCurrent status: \(launchAtLoginManager.statusDescription)."
+            )
+        }
+    }
+
+    func reconcileLaunchAtLoginStateOnStartup() {
+        let saved = config.onboarding.launchAtLoginEnabled
+        let actual = launchAtLoginManager.isEnabled
+
+        guard saved != actual else { return }
+
+        if saved && !actual {
+            do {
+                try launchAtLoginManager.setEnabled(true)
+            } catch {
+                Logger.error(
+                    .runtime,
+                    "launch-at-login reconcile enable failed: \(error.localizedDescription)"
+                )
+            }
+        } else if !saved && actual {
+            do {
+                try launchAtLoginManager.setEnabled(false)
+            } catch {
+                Logger.error(
+                    .runtime,
+                    "launch-at-login reconcile disable failed: \(error.localizedDescription)"
+                )
+            }
+        }
+
+        let postReconcileActual = launchAtLoginManager.isEnabled
+        if config.onboarding.launchAtLoginEnabled != postReconcileActual {
+            config.onboarding.launchAtLoginEnabled = postReconcileActual
+            _ = persistConfigOnly()
+        }
+    }
+
     private func updateFeature(_ feature: FeatureToggle, enabled: Bool) {
         switch feature {
         case .cmdTabOverride:
@@ -312,6 +401,21 @@ final class MenuBarViewModel: ObservableObject {
                 message: error.localizedDescription
             )
             refreshFromDiskIfPossible()
+        }
+    }
+
+    private func persistConfigOnly() -> Bool {
+        do {
+            try settingsStore.save(config)
+            return true
+        } catch {
+            Logger.error(.config, "Failed to save config: \(error.localizedDescription)")
+            alertPresenter.presentErrorAlert(
+                title: "Unable to Save Settings",
+                message: error.localizedDescription
+            )
+            refreshFromDiskIfPossible()
+            return false
         }
     }
 }

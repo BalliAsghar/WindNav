@@ -140,6 +140,12 @@ enum TabDefaultsCatalog {
                     allowedValues: "true|false",
                     description: "Tracks first-run onboarding alert."
                 ),
+                ConfigSettingSpec(
+                    key: "launch-at-login-enabled",
+                    defaultValue: .bool(onboarding.launchAtLoginEnabled),
+                    allowedValues: "true|false",
+                    description: "Whether WindNav should launch automatically at login."
+                ),
             ]
         ),
         ConfigSectionSpec(

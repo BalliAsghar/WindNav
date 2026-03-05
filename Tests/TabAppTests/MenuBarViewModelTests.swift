@@ -268,6 +268,152 @@ final class MenuBarViewModelTests: XCTestCase {
         XCTAssertEqual(settingsStore.savedConfigs.count, 1)
         XCTAssertTrue(settingsStore.savedConfigs[0].onboarding.permissionExplainerShown)
     }
+
+    func testLaunchAtLoginToggleOnSuccessPersistsTrue() throws {
+        var config = TabConfig.default
+        config.onboarding.launchAtLoginEnabled = false
+
+        let launchAtLoginManager = LaunchAtLoginManagerStub(isEnabled: false)
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let alerts = AlertPresenterStub()
+        let viewModel = try MenuBarViewModel(
+            runtime: RuntimeStub(statuses: [:]),
+            settingsStore: settingsStore,
+            alertPresenter: alerts,
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        viewModel.setLaunchAtLoginEnabled(true)
+
+        XCTAssertEqual(launchAtLoginManager.requests, [true])
+        XCTAssertTrue(viewModel.isLaunchAtLoginEnabled())
+        XCTAssertEqual(settingsStore.savedConfigs.last?.onboarding.launchAtLoginEnabled, true)
+        XCTAssertTrue(alerts.launchAtLoginErrors.isEmpty)
+    }
+
+    func testLaunchAtLoginToggleOffSuccessPersistsFalse() throws {
+        var config = TabConfig.default
+        config.onboarding.launchAtLoginEnabled = true
+
+        let launchAtLoginManager = LaunchAtLoginManagerStub(isEnabled: true)
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let alerts = AlertPresenterStub()
+        let viewModel = try MenuBarViewModel(
+            runtime: RuntimeStub(statuses: [:]),
+            settingsStore: settingsStore,
+            alertPresenter: alerts,
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        viewModel.setLaunchAtLoginEnabled(false)
+
+        XCTAssertEqual(launchAtLoginManager.requests, [false])
+        XCTAssertFalse(viewModel.isLaunchAtLoginEnabled())
+        XCTAssertEqual(settingsStore.savedConfigs.last?.onboarding.launchAtLoginEnabled, false)
+        XCTAssertTrue(alerts.launchAtLoginErrors.isEmpty)
+    }
+
+    func testLaunchAtLoginToggleOnFailureRevertsAndShowsError() throws {
+        var config = TabConfig.default
+        config.onboarding.launchAtLoginEnabled = false
+
+        let launchAtLoginManager = LaunchAtLoginManagerStub(isEnabled: false)
+        launchAtLoginManager.errorForSet = StubError.launchAtLoginFailed
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let alerts = AlertPresenterStub()
+        let viewModel = try MenuBarViewModel(
+            runtime: RuntimeStub(statuses: [:]),
+            settingsStore: settingsStore,
+            alertPresenter: alerts,
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        viewModel.setLaunchAtLoginEnabled(true)
+
+        XCTAssertFalse(viewModel.isLaunchAtLoginEnabled())
+        XCTAssertEqual(settingsStore.savedConfigs.last?.onboarding.launchAtLoginEnabled, false)
+        XCTAssertEqual(alerts.launchAtLoginErrors.count, 1)
+    }
+
+    func testLaunchAtLoginToggleOffFailureRevertsAndShowsError() throws {
+        var config = TabConfig.default
+        config.onboarding.launchAtLoginEnabled = true
+
+        let launchAtLoginManager = LaunchAtLoginManagerStub(isEnabled: true)
+        launchAtLoginManager.errorForSet = StubError.launchAtLoginFailed
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let alerts = AlertPresenterStub()
+        let viewModel = try MenuBarViewModel(
+            runtime: RuntimeStub(statuses: [:]),
+            settingsStore: settingsStore,
+            alertPresenter: alerts,
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        viewModel.setLaunchAtLoginEnabled(false)
+
+        XCTAssertTrue(viewModel.isLaunchAtLoginEnabled())
+        XCTAssertEqual(settingsStore.savedConfigs.last?.onboarding.launchAtLoginEnabled, true)
+        XCTAssertEqual(alerts.launchAtLoginErrors.count, 1)
+    }
+
+    func testLaunchAtLoginReconcileSavedTrueActualFalseAttemptsEnable() throws {
+        var config = TabConfig.default
+        config.onboarding.launchAtLoginEnabled = true
+
+        let launchAtLoginManager = LaunchAtLoginManagerStub(isEnabled: false)
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let viewModel = try MenuBarViewModel(
+            runtime: RuntimeStub(statuses: [:]),
+            settingsStore: settingsStore,
+            alertPresenter: AlertPresenterStub(),
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        viewModel.reconcileLaunchAtLoginStateOnStartup()
+
+        XCTAssertEqual(launchAtLoginManager.requests, [true])
+        XCTAssertTrue(viewModel.isLaunchAtLoginEnabled())
+    }
+
+    func testLaunchAtLoginReconcileSavedFalseActualTrueAttemptsDisable() throws {
+        var config = TabConfig.default
+        config.onboarding.launchAtLoginEnabled = false
+
+        let launchAtLoginManager = LaunchAtLoginManagerStub(isEnabled: true)
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let viewModel = try MenuBarViewModel(
+            runtime: RuntimeStub(statuses: [:]),
+            settingsStore: settingsStore,
+            alertPresenter: AlertPresenterStub(),
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        viewModel.reconcileLaunchAtLoginStateOnStartup()
+
+        XCTAssertEqual(launchAtLoginManager.requests, [false])
+        XCTAssertFalse(viewModel.isLaunchAtLoginEnabled())
+    }
+
+    func testLaunchAtLoginReconcileFailurePersistsActualAndDoesNotCrash() throws {
+        var config = TabConfig.default
+        config.onboarding.launchAtLoginEnabled = true
+
+        let launchAtLoginManager = LaunchAtLoginManagerStub(isEnabled: false)
+        launchAtLoginManager.errorForSet = StubError.launchAtLoginFailed
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let viewModel = try MenuBarViewModel(
+            runtime: RuntimeStub(statuses: [:]),
+            settingsStore: settingsStore,
+            alertPresenter: AlertPresenterStub(),
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        viewModel.reconcileLaunchAtLoginStateOnStartup()
+
+        XCTAssertEqual(launchAtLoginManager.requests, [true])
+        XCTAssertEqual(settingsStore.savedConfigs.last?.onboarding.launchAtLoginEnabled, false)
+    }
 }
 
 @MainActor
@@ -343,6 +489,7 @@ private final class AlertPresenterStub: MenuBarAlertPresenting {
     var permissionDeniedAlertResponse = false
     var permissionDeniedCalls: [PermissionKind] = []
     var errorAlerts: [(title: String, message: String)] = []
+    var launchAtLoginErrors: [String] = []
 
     func presentOnboarding(appIcon: NSImage?) {
         onboardingCallCount += 1
@@ -364,9 +511,35 @@ private final class AlertPresenterStub: MenuBarAlertPresenting {
     func presentErrorAlert(title: String, message: String) {
         errorAlerts.append((title: title, message: message))
     }
+
+    func presentLaunchAtLoginError(message: String) {
+        launchAtLoginErrors.append(message)
+    }
+}
+
+private final class LaunchAtLoginManagerStub: LaunchAtLoginManaging {
+    var isEnabled: Bool
+    var statusDescription: String = "enabled"
+    var requests: [Bool] = []
+    var errorForSet: Error?
+
+    init(isEnabled: Bool) {
+        self.isEnabled = isEnabled
+        self.statusDescription = isEnabled ? "enabled" : "notRegistered"
+    }
+
+    func setEnabled(_ enabled: Bool) throws {
+        requests.append(enabled)
+        if let errorForSet {
+            throw errorForSet
+        }
+        isEnabled = enabled
+        statusDescription = enabled ? "enabled" : "notRegistered"
+    }
 }
 
 private enum StubError: Error {
     case saveFailed
     case applyFailed
+    case launchAtLoginFailed
 }
