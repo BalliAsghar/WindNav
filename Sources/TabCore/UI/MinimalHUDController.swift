@@ -364,19 +364,16 @@ private struct MinimalHUDView: View {
         .overlay(alignment: .topTrailing) {
             badge(for: item)
         }
-        .overlay(alignment: .bottomTrailing) {
-            windowlessDot(for: item)
-        }
         .padding(CGFloat(appearance.itemPadding))
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(item.isSelected ? Color.accentColor : Color(NSColor.windowBackgroundColor).opacity(0.8))
+                .fill(tileBackgroundColor(for: item))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color(NSColor.separatorColor).opacity(item.isSelected ? 0.0 : 0.45), lineWidth: 0.5)
         )
-        .foregroundStyle(item.isSelected ? Color.white : Color.primary)
+        .foregroundStyle(tileForegroundColor(for: item))
     }
 
     @ViewBuilder
@@ -396,19 +393,16 @@ private struct MinimalHUDView: View {
         .overlay(alignment: .topTrailing) {
             badge(for: item)
         }
-        .overlay(alignment: .bottomTrailing) {
-            windowlessDot(for: item)
-        }
         .padding(CGFloat(appearance.itemPadding))
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(item.isSelected ? Color.accentColor : Color(NSColor.windowBackgroundColor).opacity(0.8))
+                .fill(tileBackgroundColor(for: item))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color(NSColor.separatorColor).opacity(item.isSelected ? 0.0 : 0.45), lineWidth: 0.5)
         )
-        .foregroundStyle(item.isSelected ? Color.white : Color.primary)
+        .foregroundStyle(tileForegroundColor(for: item))
     }
 
     @ViewBuilder
@@ -427,14 +421,18 @@ private struct MinimalHUDView: View {
         }
     }
 
-    @ViewBuilder
-    private func windowlessDot(for item: HUDRenderItem) -> some View {
-        if item.isWindowlessApp {
-            Circle()
-                .fill(Color.orange.opacity(0.9))
-                .frame(width: 7, height: 7)
-                .offset(x: 3, y: 3)
+    private func tileBackgroundColor(for item: HUDRenderItem) -> Color {
+        if item.isSelected {
+            return Color.accentColor
         }
+        return item.isWindowlessApp ? Color.yellow.opacity(0.95) : Color(NSColor.windowBackgroundColor).opacity(0.8)
+    }
+
+    private func tileForegroundColor(for item: HUDRenderItem) -> Color {
+        if item.isSelected {
+            return .white
+        }
+        return item.isWindowlessApp ? .black : .primary
     }
 
     private var preferredColorScheme: ColorScheme? {
