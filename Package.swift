@@ -31,5 +31,12 @@ let package = Package(
                 .target(name: "TabCore")
             ]
         ),
+        .testTarget(
+            name: "TabAppTests",
+            dependencies: [
+                .target(name: "TabApp"),
+                .target(name: "TabCore"),
+            ]
+        ),
     ]
 )
