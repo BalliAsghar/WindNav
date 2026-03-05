@@ -215,10 +215,10 @@ struct MenuBarPanelView: View {
     private func iconChip(systemImage: String) -> some View {
         ZStack {
             Circle()
-                .fill(Color.accentColor.opacity(0.16))
+                .fill(Color.accentColor)
             Image(systemName: systemImage)
                 .font(.system(size: chipSymbolSize, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.white)
         }
         .frame(width: chipSize, height: chipSize)
     }
