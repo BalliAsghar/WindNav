@@ -4,6 +4,7 @@ import Foundation
 public enum PermissionKind: String, CaseIterable, Sendable {
     case accessibility
     case inputMonitoring
+    case screenRecording
 }
 
 public enum PermissionStatus: Sendable, Equatable {
@@ -20,15 +21,19 @@ public enum PermissionRequestResult: Sendable, Equatable {
 struct PermissionStatusEvaluator {
     let isAccessibilityGranted: () -> Bool
     let isInputMonitoringGranted: () -> Bool
+    let isScreenRecordingGranted: () -> Bool
     let requestAccessibility: () -> Bool
     let requestInputMonitoring: () -> Bool
+    let requestScreenRecording: () -> Bool
 
     @MainActor
     static let live = PermissionStatusEvaluator(
         isAccessibilityGranted: { AXPermission.ensureTrusted(prompt: false) },
         isInputMonitoringGranted: { KeyboardListenPermission.ensureAccess(prompt: false) },
+        isScreenRecordingGranted: { ScreenRecordingPermission.isGranted() },
         requestAccessibility: { AXPermission.ensureTrusted(prompt: true) },
-        requestInputMonitoring: { KeyboardListenPermission.ensureAccess(prompt: true) }
+        requestInputMonitoring: { KeyboardListenPermission.ensureAccess(prompt: true) },
+        requestScreenRecording: { ScreenRecordingPermission.requestAccess() }
     )
 }
 
@@ -68,6 +73,8 @@ public final class PermissionService {
                 granted = evaluator.requestAccessibility()
             case .inputMonitoring:
                 granted = evaluator.requestInputMonitoring()
+            case .screenRecording:
+                granted = evaluator.requestScreenRecording()
         }
         return granted ? .granted : .denied
     }
@@ -83,6 +90,8 @@ public final class PermissionService {
                 evaluator.isAccessibilityGranted()
             case .inputMonitoring:
                 evaluator.isInputMonitoringGranted()
+            case .screenRecording:
+                evaluator.isScreenRecordingGranted()
         }
     }
 
@@ -104,6 +113,8 @@ public final class PermissionService {
                 "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
             case .inputMonitoring:
                 "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+            case .screenRecording:
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
         }
     }
 }

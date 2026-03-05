@@ -27,6 +27,7 @@ public final class TabRuntime {
     private let focusPerformer: FocusPerformer
     private let hudController: any HUDControlling
     private let permissionService: PermissionService
+    private let thumbnailService: any WindowThumbnailProviding
 
     private var navigationCoordinator: NavigationCoordinator?
     private var directionalCoordinator: DirectionalCoordinator?
@@ -43,7 +44,8 @@ public final class TabRuntime {
             windowProvider: AXWindowProvider(),
             focusPerformer: AXFocusPerformer(),
             hudController: MinimalHUDController(),
-            permissionService: PermissionService()
+            permissionService: PermissionService(),
+            thumbnailService: WindowThumbnailService()
         )
     }
 
@@ -53,7 +55,8 @@ public final class TabRuntime {
         windowProvider: AXWindowProvider,
         focusPerformer: FocusPerformer,
         hudController: any HUDControlling,
-        permissionService: PermissionService = PermissionService()
+        permissionService: PermissionService = PermissionService(),
+        thumbnailService: any WindowThumbnailProviding = WindowThumbnailService()
     ) {
         self.configLoader = configLoader
         self.hotkeys = hotkeys
@@ -61,6 +64,7 @@ public final class TabRuntime {
         self.focusPerformer = focusPerformer
         self.hudController = hudController
         self.permissionService = permissionService
+        self.thumbnailService = thumbnailService
     }
 
     public func start() {
@@ -103,6 +107,7 @@ public final class TabRuntime {
     public func stop() {
         navigationCoordinator?.cancelCycleSession()
         directionalCoordinator?.cancelSession()
+        thumbnailService.clear()
         captureState.set(activation: false, directional: false)
         inputSession = nil
         removeModifierMonitor()
@@ -129,6 +134,7 @@ public final class TabRuntime {
             focusedWindowProvider: windowProvider,
             focusPerformer: focusPerformer,
             hudController: hudController,
+            thumbnailService: thumbnailService,
             config: loaded
         )
         directionalCoordinator = DirectionalCoordinator(
@@ -136,6 +142,7 @@ public final class TabRuntime {
             focusedWindowProvider: windowProvider,
             focusPerformer: focusPerformer,
             hudController: hudController,
+            thumbnailService: thumbnailService,
             config: loaded
         )
 

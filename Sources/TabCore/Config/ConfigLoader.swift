@@ -267,6 +267,7 @@ final class ConfigLoader {
         if let appearanceTable = table["appearance"]?.table {
             logUnknownKeys(in: appearanceTable, section: "appearance", known: [
                 "theme", "icon-size", "item-padding", "item-spacing", "show-window-count",
+                "show-thumbnails", "thumbnail-width",
             ])
 
             if let themeRaw = appearanceTable["theme"]?.string {
@@ -309,6 +310,18 @@ final class ConfigLoader {
                 key: "show-window-count",
                 section: "appearance",
                 defaultValue: appearance.showWindowCount
+            )
+            appearance.showThumbnails = try parseBoolIfPresent(
+                table: appearanceTable,
+                key: "show-thumbnails",
+                section: "appearance",
+                defaultValue: appearance.showThumbnails
+            )
+            appearance.thumbnailWidth = try parseIntIfPresent(
+                table: appearanceTable,
+                key: "thumbnail-width",
+                section: "appearance",
+                defaultValue: appearance.thumbnailWidth
             )
         }
 
@@ -409,6 +422,8 @@ final class ConfigLoader {
         item-padding = \(config.appearance.itemPadding)
         item-spacing = \(config.appearance.itemSpacing)
         show-window-count = \(config.appearance.showWindowCount)
+        show-thumbnails = \(config.appearance.showThumbnails)
+        thumbnail-width = \(config.appearance.thumbnailWidth)
 
         [performance]
         log-level = "\(config.performance.logLevel.rawValue)"
@@ -438,6 +453,14 @@ final class ConfigLoader {
                 key: "appearance.item-spacing",
                 expected: "integer in range 0...24",
                 actual: "\(config.appearance.itemSpacing)"
+            )
+        }
+
+        if !(120...320).contains(config.appearance.thumbnailWidth) {
+            throw ConfigError.invalidValue(
+                key: "appearance.thumbnail-width",
+                expected: "integer in range 120...320",
+                actual: "\(config.appearance.thumbnailWidth)"
             )
         }
     }

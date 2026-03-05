@@ -192,13 +192,25 @@ public struct AppearanceConfig: Equatable, Sendable {
     public var itemPadding: Int
     public var itemSpacing: Int
     public var showWindowCount: Bool
+    public var showThumbnails: Bool
+    public var thumbnailWidth: Int
 
-    public init(theme: ThemeMode, iconSize: Int, itemPadding: Int, itemSpacing: Int, showWindowCount: Bool) {
+    public init(
+        theme: ThemeMode,
+        iconSize: Int,
+        itemPadding: Int,
+        itemSpacing: Int,
+        showWindowCount: Bool,
+        showThumbnails: Bool,
+        thumbnailWidth: Int
+    ) {
         self.theme = theme
         self.iconSize = iconSize
         self.itemPadding = itemPadding
         self.itemSpacing = itemSpacing
         self.showWindowCount = showWindowCount
+        self.showThumbnails = showThumbnails
+        self.thumbnailWidth = thumbnailWidth
     }
 
     public static let `default` = AppearanceConfig(
@@ -206,7 +218,9 @@ public struct AppearanceConfig: Equatable, Sendable {
         iconSize: 22,
         itemPadding: 8,
         itemSpacing: 8,
-        showWindowCount: true
+        showWindowCount: true,
+        showThumbnails: true,
+        thumbnailWidth: 200
     )
 }
 

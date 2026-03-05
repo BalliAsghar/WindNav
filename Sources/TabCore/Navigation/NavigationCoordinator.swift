@@ -14,11 +14,13 @@ final class NavigationCoordinator {
     private let appTerminationPerformer: any AppTerminationPerformer
     private let windowClosePerformer: any WindowClosePerformer
     private let hudController: any HUDControlling
+    private let thumbnailService: any WindowThumbnailProviding
 
     private var config: TabConfig
     private var focusHistory: [UInt32] = []
     private var cycleSession: CycleSession?
     private var quitRequestedPIDs = Set<pid_t>()
+    private var scheduledThumbnailRefresh: DispatchWorkItem?
 
     init(
         windowProvider: WindowProvider,
@@ -27,6 +29,7 @@ final class NavigationCoordinator {
         appTerminationPerformer: any AppTerminationPerformer = NSRunningAppTerminationPerformer(),
         windowClosePerformer: any WindowClosePerformer = AXWindowClosePerformer(),
         hudController: any HUDControlling,
+        thumbnailService: any WindowThumbnailProviding = WindowThumbnailService(),
         config: TabConfig
     ) {
         self.windowProvider = windowProvider
@@ -35,6 +38,7 @@ final class NavigationCoordinator {
         self.appTerminationPerformer = appTerminationPerformer
         self.windowClosePerformer = windowClosePerformer
         self.hudController = hudController
+        self.thumbnailService = thumbnailService
         self.config = config
     }
 
@@ -101,6 +105,7 @@ final class NavigationCoordinator {
             hudController.hide()
             cycleSession = nil
             quitRequestedPIDs.removeAll()
+            cancelScheduledThumbnailRefresh()
         }
 
         guard session.ordered.indices.contains(session.selectedIndex) else { return }
@@ -134,6 +139,7 @@ final class NavigationCoordinator {
     func cancelCycleSession() {
         cycleSession = nil
         quitRequestedPIDs.removeAll()
+        cancelScheduledThumbnailRefresh()
         hudController.hide()
     }
 
@@ -225,6 +231,7 @@ final class NavigationCoordinator {
     }
 
     private func showHUD(for session: CycleSession) {
+        let thumbnails = thumbnailService.cachedThumbnails(for: session.ordered.map(\.windowId))
         let windowTotalsByPID = Dictionary(grouping: session.ordered, by: \.pid).mapValues(\.count)
         var nextWindowIndexByPID: [pid_t: Int] = [:]
         let items = session.ordered.enumerated().map { index, snapshot in
@@ -237,13 +244,41 @@ final class NavigationCoordinator {
                 pid: snapshot.pid,
                 isSelected: index == session.selectedIndex,
                 isWindowlessApp: snapshot.isWindowlessApp,
-                windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil
+                windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil,
+                thumbnail: thumbnails[snapshot.windowId]
             )
         }
         hudController.show(
             model: HUDModel(items: items, selectedIndex: session.selectedIndex),
             appearance: config.appearance
         )
+
+        guard config.appearance.showThumbnails else { return }
+        thumbnailService.requestThumbnails(
+            for: session.ordered,
+            thumbnailWidth: config.appearance.thumbnailWidth
+        ) { [weak self] windowID, _ in
+            guard let self, let activeSession = self.cycleSession else { return }
+            guard activeSession.ordered.contains(where: { $0.windowId == windowID }) else { return }
+            self.scheduleThumbnailRefresh()
+        }
+    }
+
+    private func scheduleThumbnailRefresh() {
+        guard scheduledThumbnailRefresh == nil else { return }
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.scheduledThumbnailRefresh = nil
+            guard let activeSession = self.cycleSession else { return }
+            self.showHUD(for: activeSession)
+        }
+        scheduledThumbnailRefresh = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + (1.0 / 60.0), execute: workItem)
+    }
+
+    private func cancelScheduledThumbnailRefresh() {
+        scheduledThumbnailRefresh?.cancel()
+        scheduledThumbnailRefresh = nil
     }
 
     private func nextSelectionIndexAfterSessionRefresh(previousSession: CycleSession, refreshed: [WindowSnapshot]) -> Int {

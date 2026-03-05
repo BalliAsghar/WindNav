@@ -7,6 +7,7 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
     private enum FeatureToggle {
         case cmdTabOverride
         case directionalNavigation
+        case thumbnails
 
         var title: String {
             switch self {
@@ -14,6 +15,8 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
                 "Cmd+Tab override"
             case .directionalNavigation:
                 "directional navigation"
+            case .thumbnails:
+                "window thumbnails"
             }
         }
     }
@@ -31,10 +34,14 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         title: "Enable Cmd+Tab override", action: nil, keyEquivalent: "")
     private let directionalToggleItem = NSMenuItem(
         title: "Enable directional navigation", action: nil, keyEquivalent: "")
+    private let thumbnailToggleItem = NSMenuItem(
+        title: "Show window thumbnails", action: nil, keyEquivalent: "")
     private let accessibilityPermissionItem = NSMenuItem(
         title: "Accessibility: Not Granted", action: nil, keyEquivalent: "")
     private let inputMonitoringPermissionItem = NSMenuItem(
         title: "Input Monitoring: Not Granted", action: nil, keyEquivalent: "")
+    private let screenRecordingPermissionItem = NSMenuItem(
+        title: "Screen Recording: Not Granted", action: nil, keyEquivalent: "")
     private let quitItem = NSMenuItem(title: "Quit WindNav", action: nil, keyEquivalent: "q")
 
     init(runtime: TabRuntime, settingsStore: FileSettingsStateStore) throws {
@@ -77,11 +84,17 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         directionalToggleItem.target = self
         directionalToggleItem.action = #selector(toggleDirectionalNavigation)
 
+        thumbnailToggleItem.target = self
+        thumbnailToggleItem.action = #selector(toggleThumbnails)
+
         accessibilityPermissionItem.target = self
         accessibilityPermissionItem.action = #selector(handleAccessibilityPermissionRow)
 
         inputMonitoringPermissionItem.target = self
         inputMonitoringPermissionItem.action = #selector(handleInputMonitoringPermissionRow)
+
+        screenRecordingPermissionItem.target = self
+        screenRecordingPermissionItem.action = #selector(handleScreenRecordingPermissionRow)
 
         quitItem.target = self
         quitItem.action = #selector(quitApp)
@@ -91,9 +104,11 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(cmdTabToggleItem)
         menu.addItem(directionalToggleItem)
+        menu.addItem(thumbnailToggleItem)
         menu.addItem(.separator())
         menu.addItem(accessibilityPermissionItem)
         menu.addItem(inputMonitoringPermissionItem)
+        menu.addItem(screenRecordingPermissionItem)
         menu.addItem(.separator())
         menu.addItem(quitItem)
 
@@ -108,12 +123,20 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         handleToggle(.directionalNavigation)
     }
 
+    @objc private func toggleThumbnails() {
+        handleToggle(.thumbnails)
+    }
+
     @objc private func handleAccessibilityPermissionRow() {
         handlePermissionRowClick(.accessibility)
     }
 
     @objc private func handleInputMonitoringPermissionRow() {
         handlePermissionRowClick(.inputMonitoring)
+    }
+
+    @objc private func handleScreenRecordingPermissionRow() {
+        handlePermissionRowClick(.screenRecording)
     }
 
     @objc private func quitApp() {
@@ -123,12 +146,15 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
     private func refreshMenuState() {
         cmdTabToggleItem.state = config.activation.overrideSystemCmdTab ? .on : .off
         directionalToggleItem.state = config.directional.enabled ? .on : .off
+        thumbnailToggleItem.state = config.appearance.showThumbnails ? .on : .off
 
         let accessibilityStatus = runtime.permissionStatus(for: .accessibility)
         let inputStatus = runtime.permissionStatus(for: .inputMonitoring)
+        let screenStatus = runtime.permissionStatus(for: .screenRecording)
 
         accessibilityPermissionItem.title = "Accessibility: \(statusLabel(accessibilityStatus))"
         inputMonitoringPermissionItem.title = "Input Monitoring: \(statusLabel(inputStatus))"
+        screenRecordingPermissionItem.title = "Screen Recording: \(statusLabel(screenStatus))"
 
         let needed = permissionsRequiredForEnabledFeatures().contains {
             runtime.permissionStatus(for: $0) != .granted
@@ -184,7 +210,7 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
             return
         }
 
-        if config.activation.overrideSystemCmdTab || config.directional.enabled {
+        if config.activation.overrideSystemCmdTab || config.directional.enabled || config.appearance.showThumbnails {
             do {
                 try runtime.applyConfig(config)
             } catch {
@@ -270,6 +296,8 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
             "Accessibility"
         case .inputMonitoring:
             "Input Monitoring"
+        case .screenRecording:
+            "Screen Recording"
         }
     }
 
@@ -279,6 +307,8 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
             config.activation.overrideSystemCmdTab
         case .directionalNavigation:
             config.directional.enabled
+        case .thumbnails:
+            config.appearance.showThumbnails
         }
     }
 
@@ -288,6 +318,8 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
             config.activation.overrideSystemCmdTab = enabled
         case .directionalNavigation:
             config.directional.enabled = enabled
+        case .thumbnails:
+            config.appearance.showThumbnails = enabled
         }
     }
 
@@ -295,14 +327,20 @@ final class MenuBarSettingsController: NSObject, NSMenuDelegate {
         switch feature {
         case .cmdTabOverride, .directionalNavigation:
             [.accessibility, .inputMonitoring]
+        case .thumbnails:
+            [.screenRecording]
         }
     }
 
     private func permissionsRequiredForEnabledFeatures() -> [PermissionKind] {
-        guard config.activation.overrideSystemCmdTab || config.directional.enabled else {
-            return []
+        var required: [PermissionKind] = []
+        if config.activation.overrideSystemCmdTab || config.directional.enabled {
+            required.append(contentsOf: [.accessibility, .inputMonitoring])
         }
-        return [.accessibility, .inputMonitoring]
+        if config.appearance.showThumbnails {
+            required.append(.screenRecording)
+        }
+        return required
     }
 
     private func persistAndApplyCurrentConfig() {

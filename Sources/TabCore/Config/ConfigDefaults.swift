@@ -238,6 +238,18 @@ enum TabDefaultsCatalog {
                     allowedValues: "true|false",
                     description: "Show in-app window index badges."
                 ),
+                ConfigSettingSpec(
+                    key: "show-thumbnails",
+                    defaultValue: .bool(appearance.showThumbnails),
+                    allowedValues: "true|false",
+                    description: "Show live window thumbnails in the HUD."
+                ),
+                ConfigSettingSpec(
+                    key: "thumbnail-width",
+                    defaultValue: .int(appearance.thumbnailWidth),
+                    allowedValues: "integer 120...320",
+                    description: "Target thumbnail width in points."
+                ),
             ]
         ),
         ConfigSectionSpec(

@@ -29,6 +29,8 @@ final class ConfigCoreTests: XCTestCase {
         input.directional.enabled = false
         input.ordering.pinnedApps = ["com.apple.Safari"]
         input.filters.excludeApps = ["Finder"]
+        input.appearance.showThumbnails = false
+        input.appearance.thumbnailWidth = 220
         input.performance.logColor = .never
 
         try loader.save(input)
@@ -48,6 +50,20 @@ final class ConfigCoreTests: XCTestCase {
                 return XCTFail("Expected invalidValue, got \(error)")
             }
             XCTAssertEqual(key, "appearance.icon-size")
+        }
+    }
+
+    func testParseOutOfRangeThumbnailWidthThrows() {
+        let text = """
+        [appearance]
+        thumbnail-width = 8
+        """
+
+        XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
+            guard case ConfigError.invalidValue(let key, _, _) = error else {
+                return XCTFail("Expected invalidValue, got \(error)")
+            }
+            XCTAssertEqual(key, "appearance.thumbnail-width")
         }
     }
 }
