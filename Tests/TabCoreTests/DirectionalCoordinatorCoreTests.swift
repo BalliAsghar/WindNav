@@ -87,16 +87,53 @@ final class DirectionalCoordinatorCoreTests: XCTestCase {
         XCTAssertNotNil(harness.hud.lastModel?.items.first(where: { $0.id == "10" })?.thumbnail)
     }
 
+    func testHudItemIncludesThumbnailAspectRatio() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha", size: CGSize(width: 110, height: 200)),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta", size: CGSize(width: 200, height: 110)),
+            ],
+            focusedWindowID: 10,
+            config: .default
+        )
+
+        await harness.coordinator.handleHotkey(direction: .up, hotkeyTimestamp: .now())
+
+        let portraitRatio = harness.hud.lastModel?.items.first(where: { $0.id == "10" })?.thumbnailAspectRatio
+        let landscapeRatio = harness.hud.lastModel?.items.first(where: { $0.id == "20" })?.thumbnailAspectRatio
+        XCTAssertEqual(portraitRatio ?? 0, 0.55, accuracy: 0.001)
+        XCTAssertEqual(landscapeRatio ?? 0, 1.818, accuracy: 0.001)
+    }
+
+    func testThumbnailModeDisabledWhenCaptureUnavailable() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta"),
+            ],
+            focusedWindowID: 10,
+            config: .default,
+            thumbnailCaptureEnabled: false
+        )
+
+        await harness.coordinator.handleHotkey(direction: .up, hotkeyTimestamp: .now())
+
+        XCTAssertEqual(harness.thumbnails.requestCalls, 0)
+        let item = harness.hud.lastModel?.items.first(where: { $0.id == "10" })
+        XCTAssertNil(item?.thumbnailAspectRatio)
+    }
+
     private func makeHarness(
         snapshots: [WindowSnapshot],
         focusedWindowID: UInt32?,
-        config: TabConfig
+        config: TabConfig,
+        thumbnailCaptureEnabled: Bool = true
     ) -> DirectionalHarness {
         let provider = DirectionalFakeWindowProvider(snapshots: snapshots)
         let focused = DirectionalFakeFocusedWindowProvider(focusedWindowID: focusedWindowID)
         let focus = DirectionalFakeFocusPerformer()
         let hud = DirectionalFakeHUDController()
-        let thumbnails = DirectionalFakeThumbnailService()
+        let thumbnails = DirectionalFakeThumbnailService(captureEnabled: thumbnailCaptureEnabled)
         let terminator = DirectionalFakeAppTerminationPerformer()
         let closer = DirectionalFakeWindowClosePerformer()
         let coordinator = DirectionalCoordinator(
@@ -119,13 +156,18 @@ final class DirectionalCoordinatorCoreTests: XCTestCase {
         )
     }
 
-    private func snapshot(windowId: UInt32, pid: pid_t, appName: String) -> WindowSnapshot {
+    private func snapshot(
+        windowId: UInt32,
+        pid: pid_t,
+        appName: String,
+        size: CGSize = CGSize(width: 100, height: 80)
+    ) -> WindowSnapshot {
         WindowSnapshot(
             windowId: windowId,
             pid: pid,
             bundleId: "bundle.\(appName.lowercased())",
             appName: appName,
-            frame: CGRect(x: 10, y: 10, width: 100, height: 80),
+            frame: CGRect(x: 10, y: 10, width: size.width, height: size.height),
             isMinimized: false,
             appIsHidden: false,
             isFullscreen: false,
@@ -212,8 +254,18 @@ private final class DirectionalFakeWindowClosePerformer: WindowClosePerformer {
 }
 
 private final class DirectionalFakeThumbnailService: WindowThumbnailProviding {
+    private let captureEnabled: Bool
     var cache: [UInt32: CGImage] = [:]
+    var requestCalls = 0
     private var update: (@MainActor (_ windowID: UInt32, _ image: CGImage) -> Void)?
+
+    init(captureEnabled: Bool = true) {
+        self.captureEnabled = captureEnabled
+    }
+
+    func canCaptureThumbnails() -> Bool {
+        captureEnabled
+    }
 
     func cachedThumbnails(for windowIDs: [UInt32]) -> [UInt32: CGImage] {
         var output: [UInt32: CGImage] = [:]
@@ -230,6 +282,7 @@ private final class DirectionalFakeThumbnailService: WindowThumbnailProviding {
         thumbnailWidth: Int,
         onUpdate: @escaping @MainActor (_ windowID: UInt32, _ image: CGImage) -> Void
     ) {
+        requestCalls += 1
         update = onUpdate
     }
 

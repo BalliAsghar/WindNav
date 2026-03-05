@@ -429,7 +429,8 @@ final class DirectionalCoordinator {
     }
 
     private func showHUD(windows: [WindowSnapshot], selectedIndex: Int) {
-        let thumbnails = thumbnailService.cachedThumbnails(for: windows.map(\.windowId))
+        let thumbnailsEnabled = config.appearance.showThumbnails && thumbnailService.canCaptureThumbnails()
+        let thumbnails = thumbnailsEnabled ? thumbnailService.cachedThumbnails(for: windows.map(\.windowId)) : [:]
         let windowTotalsByPID = Dictionary(grouping: windows, by: \.pid).mapValues(\.count)
         var nextWindowIndexByPID: [pid_t: Int] = [:]
 
@@ -445,7 +446,8 @@ final class DirectionalCoordinator {
                 isSelected: index == selectedIndex,
                 isWindowlessApp: window.isWindowlessApp,
                 windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil,
-                thumbnail: thumbnails[window.windowId]
+                thumbnail: thumbnails[window.windowId],
+                thumbnailAspectRatio: thumbnailsEnabled ? snapshotAspectRatio(window) : nil
             )
         }
 
@@ -454,7 +456,7 @@ final class DirectionalCoordinator {
             appearance: config.appearance
         )
 
-        guard config.appearance.showThumbnails else { return }
+        guard thumbnailsEnabled else { return }
         thumbnailService.requestThumbnails(
             for: windows,
             thumbnailWidth: config.appearance.thumbnailWidth
@@ -463,6 +465,13 @@ final class DirectionalCoordinator {
             guard active.orderedWindows.contains(where: { $0.windowId == windowID }) else { return }
             self.scheduleThumbnailRefresh()
         }
+    }
+
+    private func snapshotAspectRatio(_ snapshot: WindowSnapshot) -> CGFloat? {
+        let width = snapshot.frame.width
+        let height = snapshot.frame.height
+        guard width > 1, height > 1 else { return nil }
+        return width / height
     }
 
     private func scheduleThumbnailRefresh() {

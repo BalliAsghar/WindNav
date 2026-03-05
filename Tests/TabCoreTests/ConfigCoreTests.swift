@@ -3,6 +3,10 @@ import Foundation
 import XCTest
 
 final class ConfigCoreTests: XCTestCase {
+    func testDefaultThumbnailWidthIs220() {
+        XCTAssertEqual(TabConfig.default.appearance.thumbnailWidth, 220)
+    }
+
     func testDefaultConfigPathUsesWindNavDirectory() {
         let path = ConfigLoader.defaultConfigURL().path
         XCTAssertTrue(path.hasSuffix("/.config/windnav/config.toml"))

@@ -3,6 +3,171 @@ import CoreGraphics
 import Foundation
 import SwiftUI
 
+struct ThumbnailLayoutEngine {
+    struct ItemInput {
+        let thumbnailPixelSize: CGSize?
+        let aspectRatioHint: CGFloat?
+    }
+
+    struct ItemMetrics: Equatable {
+        let thumbnailWidth: CGFloat
+        let aspectRatio: CGFloat
+    }
+
+    struct Layout {
+        let baseThumbnailWidth: CGFloat
+        let thumbnailHeight: CGFloat
+        let itemMetrics: [ItemMetrics]
+        let contentSize: CGSize
+
+        func itemMetric(at index: Int) -> ItemMetrics {
+            guard !itemMetrics.isEmpty else {
+                return ItemMetrics(thumbnailWidth: baseThumbnailWidth, aspectRatio: ThumbnailLayoutEngine.fallbackAspectRatio)
+            }
+            guard itemMetrics.indices.contains(index) else {
+                return itemMetrics[itemMetrics.count - 1]
+            }
+            return itemMetrics[index]
+        }
+    }
+
+    static let fallbackAspectRatio: CGFloat = 1.6
+    static let minAspectRatio: CGFloat = 0.4
+    static let maxAspectRatio: CGFloat = 2.4
+    static let minimumThumbnailWidth: CGFloat = 96
+    static let minimumThumbnailHeight: CGFloat = 40
+    static let thumbnailHeightRatio: CGFloat = 0.625
+    static let panelInsets: CGFloat = 16
+    static let thumbnailToTitleSpacing: CGFloat = 3
+    static let titleRowSpacing: CGFloat = 3
+    static let titleFontSize: CGFloat = 10
+
+    static func makeLayout(
+        items: [ItemInput],
+        requestedThumbnailWidth: CGFloat,
+        itemSpacing: CGFloat,
+        itemPadding: CGFloat,
+        iconSize: CGFloat,
+        maxPanelWidth: CGFloat
+    ) -> Layout {
+        let requestedBaseWidth = max(minimumThumbnailWidth, floor(requestedThumbnailWidth))
+        let ratios = items.map(resolvedAspectRatio)
+        let baseWidth = fittedBaseWidth(
+            requestedBaseWidth: requestedBaseWidth,
+            ratios: ratios,
+            itemSpacing: itemSpacing,
+            itemPadding: itemPadding,
+            maxPanelWidth: maxPanelWidth
+        )
+        return makeLayout(
+            baseWidth: baseWidth,
+            ratios: ratios,
+            itemSpacing: itemSpacing,
+            itemPadding: itemPadding,
+            iconSize: iconSize
+        )
+    }
+
+    private static func makeLayout(
+        baseWidth: CGFloat,
+        ratios: [CGFloat],
+        itemSpacing: CGFloat,
+        itemPadding: CGFloat,
+        iconSize: CGFloat
+    ) -> Layout {
+        let thumbnailHeight = max(minimumThumbnailHeight, round(baseWidth * thumbnailHeightRatio))
+        let itemMetrics = ratios.map { ratio in
+            ItemMetrics(
+                thumbnailWidth: thumbnailWidth(for: ratio, baseWidth: baseWidth, thumbnailHeight: thumbnailHeight),
+                aspectRatio: ratio
+            )
+        }
+        let contentWidth = contentWidth(for: itemMetrics, itemSpacing: itemSpacing, itemPadding: itemPadding)
+        let titleRowHeight = max(iconSize, titleFontSize + 2)
+        let tileHeight = thumbnailHeight + thumbnailToTitleSpacing + titleRowHeight + (itemPadding * 2)
+        let contentHeight = tileHeight + panelInsets
+        return Layout(
+            baseThumbnailWidth: baseWidth,
+            thumbnailHeight: thumbnailHeight,
+            itemMetrics: itemMetrics,
+            contentSize: CGSize(width: contentWidth, height: contentHeight)
+        )
+    }
+
+    private static func fittedBaseWidth(
+        requestedBaseWidth: CGFloat,
+        ratios: [CGFloat],
+        itemSpacing: CGFloat,
+        itemPadding: CGFloat,
+        maxPanelWidth: CGFloat
+    ) -> CGFloat {
+        guard !ratios.isEmpty, maxPanelWidth > 0 else {
+            return requestedBaseWidth
+        }
+
+        let minWidthInt = Int(minimumThumbnailWidth.rounded(.up))
+        var low = minWidthInt
+        var high = max(minWidthInt, Int(requestedBaseWidth.rounded(.down)))
+        var best = minWidthInt
+
+        while low <= high {
+            let mid = (low + high) / 2
+            let baseWidth = CGFloat(mid)
+            let thumbnailHeight = max(minimumThumbnailHeight, round(baseWidth * thumbnailHeightRatio))
+            let metrics = ratios.map { ratio in
+                ItemMetrics(
+                    thumbnailWidth: thumbnailWidth(for: ratio, baseWidth: baseWidth, thumbnailHeight: thumbnailHeight),
+                    aspectRatio: ratio
+                )
+            }
+            let width = contentWidth(for: metrics, itemSpacing: itemSpacing, itemPadding: itemPadding)
+            if width <= maxPanelWidth {
+                best = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+
+        return CGFloat(best)
+    }
+
+    private static func contentWidth(for metrics: [ItemMetrics], itemSpacing: CGFloat, itemPadding: CGFloat) -> CGFloat {
+        let rowWidth = metrics.reduce(CGFloat(0)) { partial, metric in
+            partial + metric.thumbnailWidth + (itemPadding * 2)
+        }
+        let spacing = CGFloat(max(metrics.count - 1, 0)) * itemSpacing
+        return panelInsets + rowWidth + spacing
+    }
+
+    private static func thumbnailWidth(
+        for aspectRatio: CGFloat,
+        baseWidth: CGFloat,
+        thumbnailHeight: CGFloat
+    ) -> CGFloat {
+        if aspectRatio >= 1 {
+            return baseWidth
+        }
+
+        let portraitWidth = round(thumbnailHeight * aspectRatio)
+        return max(minimumThumbnailWidth, min(baseWidth, portraitWidth))
+    }
+
+    private static func resolvedAspectRatio(_ input: ItemInput) -> CGFloat {
+        if let size = input.thumbnailPixelSize, size.width > 1, size.height > 1 {
+            return clampRatio(size.width / size.height)
+        }
+        if let hint = input.aspectRatioHint, hint > 0 {
+            return clampRatio(hint)
+        }
+        return fallbackAspectRatio
+    }
+
+    private static func clampRatio(_ value: CGFloat) -> CGFloat {
+        max(minAspectRatio, min(maxAspectRatio, value))
+    }
+}
+
 @MainActor
 final class MinimalHUDController: HUDControlling {
     private var panel: NSPanel?
@@ -15,26 +180,38 @@ final class MinimalHUDController: HUDControlling {
                 label: $0.label,
                 icon: NSRunningApplication(processIdentifier: $0.pid)?.icon,
                 thumbnail: $0.thumbnail,
+                thumbnailAspectRatio: $0.thumbnailAspectRatio,
                 isSelected: $0.isSelected,
                 isWindowlessApp: $0.isWindowlessApp,
                 windowIndexInApp: $0.windowIndexInApp
             )
         }
 
-        let hasThumbnails = appearance.showThumbnails && renderItems.contains { $0.thumbnail != nil }
+        let hasThumbnails = appearance.showThumbnails && renderItems.contains {
+            $0.thumbnail != nil || $0.thumbnailAspectRatio != nil
+        }
         let maxPanelWidth = (NSScreen.main?.frame.width ?? 1200) * 0.9
-        let effectiveThumbnailWidth = effectiveThumbnailWidth(
-            itemCount: renderItems.count,
-            appearance: appearance,
-            hasThumbnails: hasThumbnails,
+        let thumbnailLayout = hasThumbnails ? ThumbnailLayoutEngine.makeLayout(
+            items: renderItems.map {
+                ThumbnailLayoutEngine.ItemInput(
+                    thumbnailPixelSize: $0.thumbnail.map {
+                        CGSize(width: CGFloat($0.width), height: CGFloat($0.height))
+                    },
+                    aspectRatioHint: $0.thumbnailAspectRatio
+                )
+            },
+            requestedThumbnailWidth: CGFloat(appearance.thumbnailWidth),
+            itemSpacing: CGFloat(appearance.itemSpacing),
+            itemPadding: CGFloat(appearance.itemPadding),
+            iconSize: CGFloat(appearance.iconSize),
             maxPanelWidth: maxPanelWidth
-        )
+        ) : nil
 
         let view = MinimalHUDView(
             items: renderItems,
             appearance: appearance,
             showThumbnails: hasThumbnails,
-            thumbnailWidth: effectiveThumbnailWidth
+            thumbnailLayout: thumbnailLayout
         )
 
         if let hostingView {
@@ -51,7 +228,7 @@ final class MinimalHUDController: HUDControlling {
             itemCount: renderItems.count,
             appearance: appearance,
             hasThumbnails: hasThumbnails,
-            thumbnailWidth: effectiveThumbnailWidth
+            thumbnailLayout: thumbnailLayout
         )
 
         let clampedWidth = min(contentSize.width, maxPanelWidth)
@@ -87,44 +264,19 @@ final class MinimalHUDController: HUDControlling {
         return panel
     }
 
-    private func effectiveThumbnailWidth(
-        itemCount: Int,
-        appearance: AppearanceConfig,
-        hasThumbnails: Bool,
-        maxPanelWidth: CGFloat
-    ) -> CGFloat {
-        guard hasThumbnails else { return CGFloat(appearance.thumbnailWidth) }
-        guard itemCount > 0 else { return CGFloat(appearance.thumbnailWidth) }
-
-        let spacing = CGFloat(appearance.itemSpacing)
-        let padding = CGFloat(appearance.itemPadding)
-        let panelInsets: CGFloat = 16
-        let totalSpacing = CGFloat(max(itemCount - 1, 0)) * spacing
-        let fixedHorizontal = panelInsets + totalSpacing + (CGFloat(itemCount) * padding * 2)
-        let availablePerItem = max(120, (maxPanelWidth - fixedHorizontal) / CGFloat(itemCount))
-
-        return min(CGFloat(appearance.thumbnailWidth), max(120, floor(availablePerItem)))
-    }
-
     private func estimateSize(
         itemCount: Int,
         appearance: AppearanceConfig,
         hasThumbnails: Bool,
-        thumbnailWidth: CGFloat
+        thumbnailLayout: ThumbnailLayoutEngine.Layout?
     ) -> CGSize {
+        if hasThumbnails, let thumbnailLayout {
+            return thumbnailLayout.contentSize
+        }
+
         let icon = CGFloat(appearance.iconSize)
         let spacing = CGFloat(appearance.itemSpacing)
         let padding = CGFloat(appearance.itemPadding)
-
-        if hasThumbnails {
-            let thumbnailHeight = max(40, round(thumbnailWidth * 0.625))
-            let tileWidth = thumbnailWidth + (padding * 2)
-            let tileHeight = thumbnailHeight + icon + 4 + (padding * 2)
-            let width = max(220, (CGFloat(itemCount) * tileWidth) + (CGFloat(max(itemCount - 1, 0)) * spacing) + 16)
-            let height = tileHeight + 16
-            return CGSize(width: width, height: height)
-        }
-
         let width = max(160, (CGFloat(itemCount) * icon) + (CGFloat(max(itemCount - 1, 0)) * spacing) + (padding * 6))
         let height = max(56, icon + (padding * 3))
         return CGSize(width: width, height: height)
@@ -136,6 +288,7 @@ private struct HUDRenderItem: Identifiable {
     let label: String
     let icon: NSImage?
     let thumbnail: CGImage?
+    let thumbnailAspectRatio: CGFloat?
     let isSelected: Bool
     let isWindowlessApp: Bool
     let windowIndexInApp: Int?
@@ -145,13 +298,17 @@ private struct MinimalHUDView: View {
     let items: [HUDRenderItem]
     let appearance: AppearanceConfig
     let showThumbnails: Bool
-    let thumbnailWidth: CGFloat
+    let thumbnailLayout: ThumbnailLayoutEngine.Layout?
 
     var body: some View {
         HStack(spacing: CGFloat(appearance.itemSpacing)) {
-            ForEach(items) { item in
-                if showThumbnails {
-                    thumbnailTile(item: item)
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                if showThumbnails, let thumbnailLayout {
+                    thumbnailTile(
+                        item: item,
+                        thumbnailMetric: thumbnailLayout.itemMetric(at: index),
+                        thumbnailHeight: thumbnailLayout.thumbnailHeight
+                    )
                 } else {
                     iconTile(item: item)
                 }
@@ -165,26 +322,31 @@ private struct MinimalHUDView: View {
     }
 
     @ViewBuilder
-    private func thumbnailTile(item: HUDRenderItem) -> some View {
-        let thumbHeight = max(40, round(thumbnailWidth * 0.625))
+    private func thumbnailTile(
+        item: HUDRenderItem,
+        thumbnailMetric: ThumbnailLayoutEngine.ItemMetrics,
+        thumbnailHeight: CGFloat
+    ) -> some View {
+        let thumbnailWidth = thumbnailMetric.thumbnailWidth
+        let titleWidth = max(24, thumbnailWidth - CGFloat(appearance.iconSize) - ThumbnailLayoutEngine.titleRowSpacing)
 
-        VStack(spacing: 4) {
+        VStack(spacing: ThumbnailLayoutEngine.thumbnailToTitleSpacing) {
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(Color(NSColor.controlBackgroundColor).opacity(0.55))
-                    .frame(width: thumbnailWidth, height: thumbHeight)
+                    .frame(width: thumbnailWidth, height: thumbnailHeight)
 
                 if let thumbnail = item.thumbnail {
                     Image(decorative: thumbnail, scale: NSScreen.main?.backingScaleFactor ?? 2.0)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: thumbnailWidth, maxHeight: thumbHeight)
+                        .frame(maxWidth: thumbnailWidth, maxHeight: thumbnailHeight)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
             }
-            .frame(width: thumbnailWidth, height: thumbHeight)
+            .frame(width: thumbnailWidth, height: thumbnailHeight)
 
-            HStack(spacing: 4) {
+            HStack(spacing: ThumbnailLayoutEngine.titleRowSpacing) {
                 if let icon = item.icon {
                     Image(nsImage: icon)
                         .resizable()
@@ -193,10 +355,10 @@ private struct MinimalHUDView: View {
                 }
 
                 Text(item.label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: ThumbnailLayoutEngine.titleFontSize, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(maxWidth: thumbnailWidth - CGFloat(appearance.iconSize) - 4, alignment: .leading)
+                    .frame(maxWidth: titleWidth, alignment: .leading)
             }
         }
         .overlay(alignment: .topTrailing) {

@@ -220,7 +220,7 @@ public struct AppearanceConfig: Equatable, Sendable {
         itemSpacing: 8,
         showWindowCount: true,
         showThumbnails: true,
-        thumbnailWidth: 200
+        thumbnailWidth: 220
     )
 }
 

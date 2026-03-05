@@ -4,6 +4,7 @@ import Foundation
 @preconcurrency import ScreenCaptureKit
 
 protocol WindowThumbnailProviding: AnyObject {
+    func canCaptureThumbnails() -> Bool
     func cachedThumbnails(for windowIDs: [UInt32]) -> [UInt32: CGImage]
     func requestThumbnails(
         for snapshots: [WindowSnapshot],
@@ -108,6 +109,10 @@ final class WindowThumbnailService: WindowThumbnailProviding, @unchecked Sendabl
         self.captureQueue = queue
     }
 
+    func canCaptureThumbnails() -> Bool {
+        dependencies.isScreenRecordingGranted()
+    }
+
     func cachedThumbnails(for windowIDs: [UInt32]) -> [UInt32: CGImage] {
         let now = dependencies.now()
         return lock.withLock {
@@ -127,7 +132,7 @@ final class WindowThumbnailService: WindowThumbnailProviding, @unchecked Sendabl
         thumbnailWidth: Int,
         onUpdate: @escaping @MainActor (_ windowID: UInt32, _ image: CGImage) -> Void
     ) {
-        guard dependencies.isScreenRecordingGranted() else { return }
+        guard canCaptureThumbnails() else { return }
 
         let sanitizedWidth = max(120, thumbnailWidth)
         let eligible = snapshots.filter(Self.isCaptureEligible)

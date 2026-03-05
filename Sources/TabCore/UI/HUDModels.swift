@@ -9,6 +9,7 @@ struct HUDItem: Equatable, Identifiable {
     let isWindowlessApp: Bool
     let windowIndexInApp: Int?
     let thumbnail: CGImage?
+    let thumbnailAspectRatio: CGFloat?
 
     init(
         id: String,
@@ -17,7 +18,8 @@ struct HUDItem: Equatable, Identifiable {
         isSelected: Bool,
         isWindowlessApp: Bool = false,
         windowIndexInApp: Int? = nil,
-        thumbnail: CGImage? = nil
+        thumbnail: CGImage? = nil,
+        thumbnailAspectRatio: CGFloat? = nil
     ) {
         self.id = id
         self.label = label
@@ -26,6 +28,7 @@ struct HUDItem: Equatable, Identifiable {
         self.isWindowlessApp = isWindowlessApp
         self.windowIndexInApp = windowIndexInApp
         self.thumbnail = thumbnail
+        self.thumbnailAspectRatio = thumbnailAspectRatio
     }
 }
 

@@ -231,7 +231,8 @@ final class NavigationCoordinator {
     }
 
     private func showHUD(for session: CycleSession) {
-        let thumbnails = thumbnailService.cachedThumbnails(for: session.ordered.map(\.windowId))
+        let thumbnailsEnabled = config.appearance.showThumbnails && thumbnailService.canCaptureThumbnails()
+        let thumbnails = thumbnailsEnabled ? thumbnailService.cachedThumbnails(for: session.ordered.map(\.windowId)) : [:]
         let windowTotalsByPID = Dictionary(grouping: session.ordered, by: \.pid).mapValues(\.count)
         var nextWindowIndexByPID: [pid_t: Int] = [:]
         let items = session.ordered.enumerated().map { index, snapshot in
@@ -245,7 +246,8 @@ final class NavigationCoordinator {
                 isSelected: index == session.selectedIndex,
                 isWindowlessApp: snapshot.isWindowlessApp,
                 windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil,
-                thumbnail: thumbnails[snapshot.windowId]
+                thumbnail: thumbnails[snapshot.windowId],
+                thumbnailAspectRatio: thumbnailsEnabled ? snapshotAspectRatio(snapshot) : nil
             )
         }
         hudController.show(
@@ -253,7 +255,7 @@ final class NavigationCoordinator {
             appearance: config.appearance
         )
 
-        guard config.appearance.showThumbnails else { return }
+        guard thumbnailsEnabled else { return }
         thumbnailService.requestThumbnails(
             for: session.ordered,
             thumbnailWidth: config.appearance.thumbnailWidth
@@ -262,6 +264,13 @@ final class NavigationCoordinator {
             guard activeSession.ordered.contains(where: { $0.windowId == windowID }) else { return }
             self.scheduleThumbnailRefresh()
         }
+    }
+
+    private func snapshotAspectRatio(_ snapshot: WindowSnapshot) -> CGFloat? {
+        let width = snapshot.frame.width
+        let height = snapshot.frame.height
+        guard width > 1, height > 1 else { return nil }
+        return width / height
     }
 
     private func scheduleThumbnailRefresh() {
