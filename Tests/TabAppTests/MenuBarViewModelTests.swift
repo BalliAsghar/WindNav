@@ -13,7 +13,6 @@ final class MenuBarViewModelTests: XCTestCase {
         let runtime = RuntimeStub(
             statuses: [
                 .accessibility: .granted,
-                .inputMonitoring: .denied,
                 .screenRecording: .granted,
             ]
         )
@@ -29,8 +28,7 @@ final class MenuBarViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isFeatureEnabled(.directionalNavigation))
         XCTAssertFalse(viewModel.isFeatureEnabled(.thumbnails))
         XCTAssertEqual(viewModel.statusLabel(for: .accessibility), "Granted")
-        XCTAssertEqual(viewModel.statusLabel(for: .inputMonitoring), "Not Granted")
-        XCTAssertEqual(viewModel.summaryText, "Status: Permissions Needed")
+        XCTAssertEqual(viewModel.summaryText, "Status: Ready")
     }
 
     func testEnableFeatureCancelledAtPrePermissionPromptDoesNotPersist() throws {
@@ -41,7 +39,6 @@ final class MenuBarViewModelTests: XCTestCase {
         let runtime = RuntimeStub(
             statuses: [
                 .accessibility: .notDetermined,
-                .inputMonitoring: .notDetermined,
                 .screenRecording: .granted,
             ]
         )
@@ -71,7 +68,6 @@ final class MenuBarViewModelTests: XCTestCase {
         let runtime = RuntimeStub(
             statuses: [
                 .accessibility: .notDetermined,
-                .inputMonitoring: .notDetermined,
                 .screenRecording: .granted,
             ]
         )
@@ -104,7 +100,6 @@ final class MenuBarViewModelTests: XCTestCase {
         let runtime = RuntimeStub(
             statuses: [
                 .accessibility: .granted,
-                .inputMonitoring: .granted,
                 .screenRecording: .denied,
             ]
         )
@@ -129,7 +124,6 @@ final class MenuBarViewModelTests: XCTestCase {
         let runtime = RuntimeStub(
             statuses: [
                 .accessibility: .granted,
-                .inputMonitoring: .granted,
                 .screenRecording: .granted,
             ]
         )
@@ -157,7 +151,6 @@ final class MenuBarViewModelTests: XCTestCase {
         let runtime = RuntimeStub(
             statuses: [
                 .accessibility: .granted,
-                .inputMonitoring: .granted,
                 .screenRecording: .granted,
             ]
         )
@@ -186,7 +179,6 @@ final class MenuBarViewModelTests: XCTestCase {
         let runtime = RuntimeStub(
             statuses: [
                 .accessibility: .granted,
-                .inputMonitoring: .granted,
                 .screenRecording: .granted,
             ]
         )
@@ -217,7 +209,6 @@ final class MenuBarViewModelTests: XCTestCase {
         let runtime = RuntimeStub(
             statuses: [
                 .accessibility: .denied,
-                .inputMonitoring: .denied,
                 .screenRecording: .denied,
             ]
         )
@@ -231,7 +222,6 @@ final class MenuBarViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.summaryText, "Status: Permissions Needed")
 
         runtime.statuses[.accessibility] = .granted
-        runtime.statuses[.inputMonitoring] = .granted
         settingsStore.storedConfig = config
 
         viewModel.refreshFromDiskIfPossible()

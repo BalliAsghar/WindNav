@@ -102,8 +102,6 @@ func menuBarPermissionTitle(_ permission: PermissionKind) -> String {
     switch permission {
     case .accessibility:
         "Accessibility"
-    case .inputMonitoring:
-        "Input Monitoring"
     case .screenRecording:
         "Screen Recording"
     }
@@ -344,14 +342,14 @@ final class MenuBarViewModel: ObservableObject {
     private func permissionsRequired(for feature: FeatureToggle) -> [PermissionKind] {
         switch feature {
         case .directionalNavigation:
-            [.accessibility, .inputMonitoring]
+            [.accessibility]
         case .thumbnails:
             [.screenRecording]
         }
     }
 
     private func permissionsRequiredForEnabledFeatures() -> [PermissionKind] {
-        var required: [PermissionKind] = [.accessibility, .inputMonitoring]
+        var required: [PermissionKind] = [.accessibility]
         if config.appearance.showThumbnails {
             required.append(.screenRecording)
         }

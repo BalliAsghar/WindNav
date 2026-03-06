@@ -45,4 +45,9 @@ final class RuntimeCoreTests: XCTestCase {
         let runtime = TabRuntime(configURL: nil)
         runtime.stop()
     }
+
+    func testAdvancedInputRequiresAccessibilityOnly() {
+        XCTAssertTrue(TabRuntime.shouldEnableAdvancedInput(accessibilityGranted: true))
+        XCTAssertFalse(TabRuntime.shouldEnableAdvancedInput(accessibilityGranted: false))
+    }
 }

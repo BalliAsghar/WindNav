@@ -3,7 +3,6 @@ import Foundation
 
 public enum PermissionKind: String, CaseIterable, Sendable {
     case accessibility
-    case inputMonitoring
     case screenRecording
 }
 
@@ -20,19 +19,15 @@ public enum PermissionRequestResult: Sendable, Equatable {
 
 struct PermissionStatusEvaluator {
     let isAccessibilityGranted: () -> Bool
-    let isInputMonitoringGranted: () -> Bool
     let isScreenRecordingGranted: () -> Bool
     let requestAccessibility: () -> Bool
-    let requestInputMonitoring: () -> Bool
     let requestScreenRecording: () -> Bool
 
     @MainActor
     static let live = PermissionStatusEvaluator(
         isAccessibilityGranted: { AXPermission.ensureTrusted(prompt: false) },
-        isInputMonitoringGranted: { KeyboardListenPermission.ensureAccess(prompt: false) },
         isScreenRecordingGranted: { ScreenRecordingPermission.isGranted() },
         requestAccessibility: { AXPermission.ensureTrusted(prompt: true) },
-        requestInputMonitoring: { KeyboardListenPermission.ensureAccess(prompt: true) },
         requestScreenRecording: { ScreenRecordingPermission.requestAccess() }
     )
 }
@@ -71,8 +66,6 @@ public final class PermissionService {
         switch permission {
             case .accessibility:
                 granted = evaluator.requestAccessibility()
-            case .inputMonitoring:
-                granted = evaluator.requestInputMonitoring()
             case .screenRecording:
                 granted = evaluator.requestScreenRecording()
         }
@@ -88,8 +81,6 @@ public final class PermissionService {
         switch permission {
             case .accessibility:
                 evaluator.isAccessibilityGranted()
-            case .inputMonitoring:
-                evaluator.isInputMonitoringGranted()
             case .screenRecording:
                 evaluator.isScreenRecordingGranted()
         }
@@ -111,8 +102,6 @@ public final class PermissionService {
         switch permission {
             case .accessibility:
                 "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-            case .inputMonitoring:
-                "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
             case .screenRecording:
                 "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
         }

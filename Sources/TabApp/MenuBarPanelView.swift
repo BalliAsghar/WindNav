@@ -14,6 +14,12 @@ struct MenuBarPanelView: View {
     private let chipSize: CGFloat = 24
     private let chipSymbolSize: CGFloat = 12
 
+    private var allRequiredPermissionsGranted: Bool {
+        [.accessibility, .screenRecording].allSatisfy {
+            viewModel.permissionStatus(for: $0) == .granted
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -40,27 +46,29 @@ struct MenuBarPanelView: View {
                 )
             )
 
-            Divider()
-                .padding(.top, 4)
+            if !allRequiredPermissionsGranted {
+                Divider()
+                    .padding(.top, 4)
 
-            sectionLabel("Permissions")
-            permissionRow(
-                id: "permission.accessibility",
-                permission: .accessibility,
-                systemImage: "figure.roll"
-            )
-            featureDivider
-            permissionRow(
-                id: "permission.input",
-                permission: .inputMonitoring,
-                systemImage: "keyboard"
-            )
-            featureDivider
-            permissionRow(
-                id: "permission.screen",
-                permission: .screenRecording,
-                systemImage: "record.circle"
-            )
+                sectionLabel("Permissions")
+                if viewModel.permissionStatus(for: .accessibility) != .granted {
+                    permissionRow(
+                        id: "permission.accessibility",
+                        permission: .accessibility,
+                        systemImage: "figure.roll"
+                    )
+                }
+                if viewModel.permissionStatus(for: .screenRecording) != .granted {
+                    if viewModel.permissionStatus(for: .accessibility) != .granted {
+                        featureDivider
+                    }
+                    permissionRow(
+                        id: "permission.screen",
+                        permission: .screenRecording,
+                        systemImage: "record.circle"
+                    )
+                }
+            }
 
             Divider()
                 .padding(.top, 4)

@@ -171,14 +171,12 @@ public final class TabRuntime {
 
     private func refreshPermissionDependentCapabilities(config: TabConfig) {
         let accessibilityGranted = permissionService.status(for: .accessibility) == .granted
-        let inputMonitoringGranted = permissionService.status(for: .inputMonitoring) == .granted
-        let shouldEnableAdvancedInput = accessibilityGranted && inputMonitoringGranted
+        let shouldEnableAdvancedInput = Self.shouldEnableAdvancedInput(
+            accessibilityGranted: accessibilityGranted
+        )
 
         if !accessibilityGranted {
             Logger.info(.runtime, "Accessibility permission missing; running in limited mode")
-        }
-        if !inputMonitoringGranted {
-            Logger.info(.runtime, "Input Monitoring permission missing; running in limited mode")
         }
 
         if shouldEnableAdvancedInput {
@@ -201,6 +199,10 @@ public final class TabRuntime {
             removeModifierMonitor()
             removeArrowKeyMonitor()
         }
+    }
+
+    static func shouldEnableAdvancedInput(accessibilityGranted: Bool) -> Bool {
+        accessibilityGranted
     }
 
     private func handleHotkeyAction(_ action: HotkeyAction, carbonModifiers: UInt32) {

@@ -44,7 +44,7 @@ The default macOS app switcher is limited. WindNav gives you:
 
 - macOS 14.0 (Sonoma) or later
 - Screen recording permissions (for window thumbnails)
-- Accessibility permissions (for window switching)
+- Accessibility permissions (for app switching and keyboard navigation)
 
 ## Configuration
 
