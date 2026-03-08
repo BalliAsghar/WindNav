@@ -22,6 +22,23 @@ final class NavigationCoordinatorCoreTests: XCTestCase {
         XCTAssertEqual(harness.hud.hideCalls, 1)
     }
 
+    func testCancelCycleSessionHidesHudWithoutFocusingSelectedWindow() async {
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta"),
+            ],
+            focusedWindowID: 10
+        )
+
+        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
+        harness.coordinator.cancelCycleSession()
+
+        XCTAssertTrue(harness.focus.calls.isEmpty)
+        XCTAssertEqual(harness.hud.hideCalls, 1)
+        XCTAssertFalse(harness.coordinator.hasActiveCycleSession())
+    }
+
     func testCloseSelectedWindowRefreshesSession() async {
         let harness = makeHarness(
             snapshots: [

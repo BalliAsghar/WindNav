@@ -14,6 +14,7 @@ public final class TabRuntime {
         case move(Direction)
         case quitSelectedApp
         case closeSelectedWindow
+        case cancel
     }
 
     private struct InputSession {
@@ -257,6 +258,14 @@ public final class TabRuntime {
     }
 
     private func handleCycleInputCommand(_ command: CycleInputCommand) {
+        if command == .cancel {
+            inputSession = nil
+            captureState.set(activation: false, directional: false)
+            navigationCoordinator?.cancelCycleSession()
+            syncCaptureStateFromCoordinators()
+            return
+        }
+
         captureState.set(activation: true, directional: false)
 
         Task { @MainActor in
@@ -268,6 +277,8 @@ public final class TabRuntime {
                     await navigationCoordinator?.requestQuitSelectedAppInCycle()
                 case .closeSelectedWindow:
                     await navigationCoordinator?.requestCloseSelectedWindowInCycle()
+                case .cancel:
+                    return
             }
             syncCaptureStateFromCoordinators()
         }
@@ -283,6 +294,8 @@ public final class TabRuntime {
                 case .closeSelectedWindow:
                     await directionalCoordinator?.requestCloseSelectedWindowInSession()
                 case .move:
+                    return
+                case .cancel:
                     return
             }
             syncCaptureStateFromCoordinators()
@@ -431,15 +444,20 @@ public final class TabRuntime {
     }
 
     static func cycleCommand(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> CycleInputCommand? {
-        guard flags.contains(.command) else { return nil }
         switch keyCode {
+            case UInt16(kVK_Escape):
+                return .cancel
             case UInt16(kVK_LeftArrow):
+                guard flags.contains(.command) else { return nil }
                 return .move(.left)
             case UInt16(kVK_RightArrow):
+                guard flags.contains(.command) else { return nil }
                 return .move(.right)
             case UInt16(kVK_ANSI_Q):
+                guard flags.contains(.command) else { return nil }
                 return .quitSelectedApp
             case UInt16(kVK_ANSI_W):
+                guard flags.contains(.command) else { return nil }
                 return .closeSelectedWindow
             default:
                 return nil
