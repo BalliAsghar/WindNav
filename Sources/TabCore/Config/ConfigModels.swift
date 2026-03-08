@@ -83,6 +83,7 @@ public struct DirectionalConfig: Equatable, Sendable {
     public var right: String
     public var up: String
     public var down: String
+    public var showThumbnails: Bool
     public var browseLeftRightMode: BrowseLeftRightMode
     public var commitOnModifierRelease: Bool
 
@@ -92,6 +93,7 @@ public struct DirectionalConfig: Equatable, Sendable {
         right: String,
         up: String,
         down: String,
+        showThumbnails: Bool,
         browseLeftRightMode: BrowseLeftRightMode,
         commitOnModifierRelease: Bool
     ) {
@@ -100,6 +102,7 @@ public struct DirectionalConfig: Equatable, Sendable {
         self.right = right
         self.up = up
         self.down = down
+        self.showThumbnails = showThumbnails
         self.browseLeftRightMode = browseLeftRightMode
         self.commitOnModifierRelease = commitOnModifierRelease
     }
@@ -110,6 +113,7 @@ public struct DirectionalConfig: Equatable, Sendable {
         right: "opt-cmd-right",
         up: "opt-cmd-up",
         down: "opt-cmd-down",
+        showThumbnails: false,
         browseLeftRightMode: .immediate,
         commitOnModifierRelease: true
     )

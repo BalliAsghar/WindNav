@@ -112,6 +112,12 @@ enum TabDefaultsCatalog {
                     description: "Browse down."
                 ),
                 ConfigSettingSpec(
+                    key: "show-thumbnails",
+                    defaultValue: .bool(directional.showThumbnails),
+                    allowedValues: "true|false",
+                    description: "Show thumbnails during directional navigation."
+                ),
+                ConfigSettingSpec(
                     key: "browse-left-right-mode",
                     defaultValue: .string(directional.browseLeftRightMode.rawValue),
                     allowedValues: "immediate|selection",

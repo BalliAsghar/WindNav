@@ -429,7 +429,9 @@ final class DirectionalCoordinator {
     }
 
     private func showHUD(windows: [WindowSnapshot], selectedIndex: Int) {
-        let thumbnailsEnabled = config.appearance.showThumbnails && thumbnailService.canCaptureThumbnails()
+        let thumbnailsEnabled = config.appearance.showThumbnails
+            && config.directional.showThumbnails
+            && thumbnailService.canCaptureThumbnails()
         let thumbnails = thumbnailsEnabled ? thumbnailService.cachedThumbnails(for: windows.map(\.windowId)) : [:]
         let windowTotalsByPID = Dictionary(grouping: windows, by: \.pid).mapValues(\.count)
         var nextWindowIndexByPID: [pid_t: Int] = [:]

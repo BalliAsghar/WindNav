@@ -7,6 +7,10 @@ final class ConfigCoreTests: XCTestCase {
         XCTAssertEqual(TabConfig.default.appearance.thumbnailWidth, 220)
     }
 
+    func testDefaultDirectionalThumbnailsDisabled() {
+        XCTAssertFalse(TabConfig.default.directional.showThumbnails)
+    }
+
     func testDefaultLaunchAtLoginDisabled() {
         XCTAssertFalse(TabConfig.default.onboarding.launchAtLoginEnabled)
     }
@@ -34,6 +38,7 @@ final class ConfigCoreTests: XCTestCase {
 
         var input = TabConfig.default
         input.directional.enabled = false
+        input.directional.showThumbnails = false
         input.ordering.pinnedApps = ["com.apple.Safari"]
         input.filters.excludeApps = ["Finder"]
         input.appearance.showThumbnails = false
@@ -50,6 +55,12 @@ final class ConfigCoreTests: XCTestCase {
     func testSerializeOmitsDeprecatedOverrideSystemCmdTabKey() {
         let text = ConfigLoader.serialize(.default)
         XCTAssertFalse(text.contains("override-system-cmd-tab"))
+    }
+
+    func testSerializeIncludesDirectionalThumbnailKey() {
+        let text = ConfigLoader.serialize(.default)
+        XCTAssertTrue(text.contains("show-thumbnails = false"))
+        XCTAssertTrue(text.contains("[directional]"))
     }
 
     func testMissingLaunchAtLoginKeyDefaultsToFalse() throws {
@@ -99,5 +110,15 @@ final class ConfigCoreTests: XCTestCase {
             }
             XCTAssertEqual(key, "appearance.thumbnail-width")
         }
+    }
+
+    func testDirectionalThumbnailFlagDefaultsToFalseWhenMissing() throws {
+        let text = """
+        [directional]
+        enabled = true
+        """
+
+        let parsed = try ConfigLoader.parse(text)
+        XCTAssertFalse(parsed.directional.showThumbnails)
     }
 }

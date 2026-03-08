@@ -102,7 +102,7 @@ final class ConfigLoader {
 
         if let directionalTable = table["directional"]?.table {
             logUnknownKeys(in: directionalTable, section: "directional", known: [
-                "enabled", "left", "right", "up", "down", "browse-left-right-mode", "commit-on-modifier-release",
+                "enabled", "left", "right", "up", "down", "show-thumbnails", "browse-left-right-mode", "commit-on-modifier-release",
             ])
             directional.enabled = try parseBoolIfPresent(
                 table: directionalTable,
@@ -133,6 +133,12 @@ final class ConfigLoader {
                 key: "down",
                 section: "directional",
                 defaultValue: directional.down
+            )
+            directional.showThumbnails = try parseBoolIfPresent(
+                table: directionalTable,
+                key: "show-thumbnails",
+                section: "directional",
+                defaultValue: directional.showThumbnails
             )
 
             if let modeRaw = directionalTable["browse-left-right-mode"]?.string {
@@ -405,6 +411,7 @@ final class ConfigLoader {
         right = "\(escape(config.directional.right))"
         up = "\(escape(config.directional.up))"
         down = "\(escape(config.directional.down))"
+        show-thumbnails = \(config.directional.showThumbnails)
         browse-left-right-mode = "\(config.directional.browseLeftRightMode.rawValue)"
         commit-on-modifier-release = \(config.directional.commitOnModifierRelease)
 
