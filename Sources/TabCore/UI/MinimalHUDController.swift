@@ -172,13 +172,18 @@ struct ThumbnailLayoutEngine {
 final class MinimalHUDController: HUDControlling {
     private var panel: NSPanel?
     private var hostingView: NSHostingView<MinimalHUDView>?
+    private var iconCache: [pid_t: NSImage] = [:]
+    private var missingIconPIDs = Set<pid_t>()
+    private var lastPanelSize: CGSize?
+    private var lastPanelOrigin: CGPoint?
+    private var lastRenderedState: RenderState?
 
     func show(model: HUDModel, appearance: AppearanceConfig) {
         let renderItems = model.items.map {
             HUDRenderItem(
                 id: $0.id,
                 label: $0.label,
-                icon: NSRunningApplication(processIdentifier: $0.pid)?.icon,
+                icon: icon(for: $0.pid),
                 thumbnail: $0.thumbnail,
                 thumbnailAspectRatio: $0.thumbnailAspectRatio,
                 isSelected: $0.isSelected,
@@ -207,40 +212,50 @@ final class MinimalHUDController: HUDControlling {
             maxPanelWidth: maxPanelWidth
         ) : nil
 
-        let view = MinimalHUDView(
-            items: renderItems,
-            appearance: appearance,
-            showThumbnails: hasThumbnails,
-            thumbnailLayout: thumbnailLayout
-        )
-
-        if let hostingView {
-            hostingView.rootView = view
-        } else {
-            let host = NSHostingView(rootView: view)
-            hostingView = host
-            let panel = makePanel(contentView: host)
-            self.panel = panel
-        }
-
-        guard let panel else { return }
         let contentSize = estimateSize(
             itemCount: renderItems.count,
             appearance: appearance,
             hasThumbnails: hasThumbnails,
             thumbnailLayout: thumbnailLayout
         )
-
         let clampedWidth = min(contentSize.width, maxPanelWidth)
-        panel.setContentSize(CGSize(width: clampedWidth, height: contentSize.height))
+        let panelSize = CGSize(width: clampedWidth, height: contentSize.height)
+        let panelOrigin = centeredPanelOrigin(size: panelSize)
+        let renderState = RenderState(
+            model: model,
+            appearance: appearance,
+            renderItems: renderItems,
+            showThumbnails: hasThumbnails,
+            thumbnailLayout: thumbnailLayout,
+            panelSize: panelSize,
+            panelOrigin: panelOrigin
+        )
 
-        if let screen = NSScreen.main {
-            let x = screen.frame.midX - (clampedWidth / 2)
-            let y = screen.frame.midY - (contentSize.height / 2)
-            panel.setFrameOrigin(CGPoint(x: x, y: y))
+        if hostingView == nil {
+            let view = MinimalHUDView(
+                items: renderItems,
+                appearance: appearance,
+                showThumbnails: hasThumbnails,
+                thumbnailLayout: thumbnailLayout
+            )
+            let host = NSHostingView(rootView: view)
+            hostingView = host
+            let panel = makePanel(contentView: host)
+            self.panel = panel
+        } else if lastRenderedState != renderState, let hostingView {
+            hostingView.rootView = MinimalHUDView(
+                items: renderItems,
+                appearance: appearance,
+                showThumbnails: hasThumbnails,
+                thumbnailLayout: thumbnailLayout
+            )
         }
 
+        guard let panel else { return }
+        updatePanelGeometryIfNeeded(panel: panel, size: panelSize, origin: panelOrigin)
+
         panel.orderFrontRegardless()
+        lastRenderedState = renderState
     }
 
     func hide() {
@@ -264,6 +279,42 @@ final class MinimalHUDController: HUDControlling {
         return panel
     }
 
+    private func icon(for pid: pid_t) -> NSImage? {
+        if let cached = iconCache[pid] {
+            return cached
+        }
+        if missingIconPIDs.contains(pid) {
+            return nil
+        }
+        if let icon = NSRunningApplication(processIdentifier: pid)?.icon {
+            iconCache[pid] = icon
+            return icon
+        }
+        missingIconPIDs.insert(pid)
+        return nil
+    }
+
+    private func updatePanelGeometryIfNeeded(panel: NSPanel, size: CGSize, origin: CGPoint) {
+        if lastPanelSize != size {
+            panel.setContentSize(size)
+            lastPanelSize = size
+        }
+        if lastPanelOrigin != origin {
+            panel.setFrameOrigin(origin)
+            lastPanelOrigin = origin
+        }
+    }
+
+    private func centeredPanelOrigin(size: CGSize) -> CGPoint {
+        guard let screen = NSScreen.main else {
+            return .zero
+        }
+        return CGPoint(
+            x: screen.frame.midX - (size.width / 2),
+            y: screen.frame.midY - (size.height / 2)
+        )
+    }
+
     private func estimateSize(
         itemCount: Int,
         appearance: AppearanceConfig,
@@ -283,7 +334,30 @@ final class MinimalHUDController: HUDControlling {
     }
 }
 
-private struct HUDRenderItem: Identifiable {
+private struct RenderState: Equatable {
+    let model: HUDModel
+    let appearance: AppearanceConfig
+    let renderItems: [HUDRenderItem]
+    let showThumbnails: Bool
+    let thumbnailLayout: ThumbnailLayoutEngine.Layout?
+    let panelSize: CGSize
+    let panelOrigin: CGPoint
+
+    static func == (lhs: RenderState, rhs: RenderState) -> Bool {
+        lhs.model == rhs.model
+            && lhs.appearance == rhs.appearance
+            && lhs.renderItems == rhs.renderItems
+            && lhs.showThumbnails == rhs.showThumbnails
+            && lhs.panelSize == rhs.panelSize
+            && lhs.panelOrigin == rhs.panelOrigin
+            && lhs.thumbnailLayout?.baseThumbnailWidth == rhs.thumbnailLayout?.baseThumbnailWidth
+            && lhs.thumbnailLayout?.thumbnailHeight == rhs.thumbnailLayout?.thumbnailHeight
+            && lhs.thumbnailLayout?.itemMetrics == rhs.thumbnailLayout?.itemMetrics
+            && lhs.thumbnailLayout?.contentSize == rhs.thumbnailLayout?.contentSize
+    }
+}
+
+private struct HUDRenderItem: Identifiable, Equatable {
     let id: String
     let label: String
     let icon: NSImage?
@@ -292,6 +366,17 @@ private struct HUDRenderItem: Identifiable {
     let isSelected: Bool
     let isWindowlessApp: Bool
     let windowIndexInApp: Int?
+
+    static func == (lhs: HUDRenderItem, rhs: HUDRenderItem) -> Bool {
+        lhs.id == rhs.id
+            && lhs.label == rhs.label
+            && lhs.icon?.tiffRepresentation == rhs.icon?.tiffRepresentation
+            && lhs.thumbnail === rhs.thumbnail
+            && lhs.thumbnailAspectRatio == rhs.thumbnailAspectRatio
+            && lhs.isSelected == rhs.isSelected
+            && lhs.isWindowlessApp == rhs.isWindowlessApp
+            && lhs.windowIndexInApp == rhs.windowIndexInApp
+    }
 }
 
 private struct MinimalHUDView: View {
@@ -314,10 +399,15 @@ private struct MinimalHUDView: View {
                 }
             }
         }
-        .padding(8)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.22), radius: 12, x: 0, y: 4)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(panelBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.white.opacity(preferredColorScheme == .dark ? 0.08 : 0.3), lineWidth: 0.8)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: .black.opacity(0.18), radius: 16, x: 0, y: 10)
         .preferredColorScheme(preferredColorScheme)
     }
 
@@ -328,12 +418,12 @@ private struct MinimalHUDView: View {
         thumbnailHeight: CGFloat
     ) -> some View {
         let thumbnailWidth = thumbnailMetric.thumbnailWidth
-        let titleWidth = max(24, thumbnailWidth - CGFloat(appearance.iconSize) - ThumbnailLayoutEngine.titleRowSpacing)
+        let titleWidth = max(24, thumbnailWidth - CGFloat(appearance.iconSize) - 8)
 
-        VStack(spacing: ThumbnailLayoutEngine.thumbnailToTitleSpacing) {
+        VStack(spacing: 8) {
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.55))
+                    .fill(thumbnailBackdrop(for: item))
                     .frame(width: thumbnailWidth, height: thumbnailHeight)
 
                 if let thumbnail = item.thumbnail {
@@ -341,12 +431,16 @@ private struct MinimalHUDView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: thumbnailWidth, maxHeight: thumbnailHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
             }
             .frame(width: thumbnailWidth, height: thumbnailHeight)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.white.opacity(item.isSelected ? 0.38 : 0.12), lineWidth: item.isSelected ? 1.2 : 0.8)
+            )
 
-            HStack(spacing: ThumbnailLayoutEngine.titleRowSpacing) {
+            HStack(spacing: 6) {
                 if let icon = item.icon {
                     Image(nsImage: icon)
                         .resizable()
@@ -355,53 +449,61 @@ private struct MinimalHUDView: View {
                 }
 
                 Text(item.label)
-                    .font(.system(size: ThumbnailLayoutEngine.titleFontSize, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: titleWidth, alignment: .leading)
             }
+            .frame(width: thumbnailWidth, alignment: .leading)
         }
         .overlay(alignment: .topTrailing) {
             badge(for: item)
         }
-        .padding(CGFloat(appearance.itemPadding))
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(tileBackgroundColor(for: item))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(NSColor.separatorColor).opacity(item.isSelected ? 0.0 : 0.45), lineWidth: 0.5)
-        )
+        .padding(.horizontal, CGFloat(appearance.itemPadding) + 2)
+        .padding(.vertical, CGFloat(appearance.itemPadding) + 1)
+        .background(tileBackground(for: item))
         .foregroundStyle(tileForegroundColor(for: item))
     }
 
     @ViewBuilder
     private func iconTile(item: HUDRenderItem) -> some View {
-        ZStack {
-            if let icon = item.icon {
-                Image(nsImage: icon)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: CGFloat(appearance.iconSize), height: CGFloat(appearance.iconSize))
-            } else {
-                Text(String(item.label.prefix(1)).uppercased())
-                    .font(.system(size: max(12, CGFloat(appearance.iconSize) * 0.45), weight: .semibold))
-                    .frame(width: CGFloat(appearance.iconSize), height: CGFloat(appearance.iconSize))
+        VStack(spacing: 7) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(thumbnailBackdrop(for: item))
+                    .frame(
+                        width: CGFloat(appearance.iconSize) + 24,
+                        height: CGFloat(appearance.iconSize) + 20
+                    )
+
+                if let icon = item.icon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: CGFloat(appearance.iconSize), height: CGFloat(appearance.iconSize))
+                } else {
+                    Text(String(item.label.prefix(1)).uppercased())
+                        .font(.system(size: max(12, CGFloat(appearance.iconSize) * 0.45), weight: .semibold))
+                        .frame(width: CGFloat(appearance.iconSize), height: CGFloat(appearance.iconSize))
+                }
             }
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(item.isSelected ? 0.38 : 0.12), lineWidth: item.isSelected ? 1.2 : 0.8)
+            )
+
+            Text(item.label)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(width: max(56, CGFloat(appearance.iconSize) + 28))
         }
         .overlay(alignment: .topTrailing) {
             badge(for: item)
         }
-        .padding(CGFloat(appearance.itemPadding))
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(tileBackgroundColor(for: item))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(NSColor.separatorColor).opacity(item.isSelected ? 0.0 : 0.45), lineWidth: 0.5)
-        )
+        .padding(.horizontal, CGFloat(appearance.itemPadding) + 2)
+        .padding(.vertical, CGFloat(appearance.itemPadding) + 1)
+        .background(tileBackground(for: item))
         .foregroundStyle(tileForegroundColor(for: item))
     }
 
@@ -414,25 +516,69 @@ private struct MinimalHUDView: View {
                 .frame(minHeight: 14)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(item.isSelected ? Color.white.opacity(0.95) : Color.black.opacity(0.72))
+                        .fill(item.isSelected ? Color.white.opacity(0.98) : Color.black.opacity(0.76))
                 )
                 .foregroundStyle(item.isSelected ? Color.black : Color.white)
                 .offset(x: 6, y: -6)
         }
     }
 
+    private var panelBackground: some View {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(.regularMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(preferredColorScheme == .dark ? 0.04 : 0.22),
+                                Color.black.opacity(preferredColorScheme == .dark ? 0.08 : 0.03),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            )
+    }
+
+    private func tileBackground(for item: HUDRenderItem) -> some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(tileBackgroundColor(for: item))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(tileBorderColor(for: item), lineWidth: item.isSelected ? 1.4 : 0.8)
+            )
+    }
+
+    private func thumbnailBackdrop(for item: HUDRenderItem) -> Color {
+        if item.isSelected {
+            return Color.white.opacity(preferredColorScheme == .dark ? 0.12 : 0.28)
+        }
+        return Color(NSColor.controlBackgroundColor).opacity(preferredColorScheme == .dark ? 0.34 : 0.72)
+    }
+
     private func tileBackgroundColor(for item: HUDRenderItem) -> Color {
         if item.isSelected {
-            return Color.accentColor
+            return Color.accentColor.opacity(preferredColorScheme == .dark ? 0.92 : 0.88)
         }
-        return item.isWindowlessApp ? Color.yellow.opacity(0.95) : Color(NSColor.windowBackgroundColor).opacity(0.8)
+        if item.isWindowlessApp {
+            return Color.yellow.opacity(preferredColorScheme == .dark ? 0.84 : 0.92)
+        }
+        return Color(NSColor.windowBackgroundColor).opacity(preferredColorScheme == .dark ? 0.58 : 0.84)
+    }
+
+    private func tileBorderColor(for item: HUDRenderItem) -> Color {
+        if item.isSelected {
+            return Color.white.opacity(preferredColorScheme == .dark ? 0.42 : 0.7)
+        }
+        return Color.white.opacity(preferredColorScheme == .dark ? 0.07 : 0.3)
     }
 
     private func tileForegroundColor(for item: HUDRenderItem) -> Color {
         if item.isSelected {
             return .white
         }
-        return item.isWindowlessApp ? .black : .primary
+        return item.isWindowlessApp ? Color.black.opacity(0.82) : .primary
     }
 
     private var preferredColorScheme: ColorScheme? {
