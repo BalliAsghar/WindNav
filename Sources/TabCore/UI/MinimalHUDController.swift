@@ -104,29 +104,33 @@ final class MinimalHUDController: HUDControlling {
 final class HUDPanelContentView: NSVisualEffectView {
     private let scrollView = NSScrollView(frame: .zero)
     private let documentView = NSView(frame: .zero)
+    private let tintLayer = CALayer()
     private var tileViews: [HUDThumbnailTileView] = []
     private var currentModel: HUDModel?
     private var currentAppearance: AppearanceConfig = .default
     private var currentLayout = HUDGridLayoutResult.empty
+    private var currentVisualStyle = HUDVisualStyle.resolve(appearance: .default)
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         material = .hudWindow
-        blendingMode = .withinWindow
+        blendingMode = .behindWindow
         state = .active
         wantsLayer = true
-        layer?.cornerRadius = 18
-        layer?.masksToBounds = true
+        layer?.masksToBounds = false
+        layer?.addSublayer(tintLayer)
 
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         scrollView.hasHorizontalScroller = false
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
         scrollView.contentView.postsBoundsChangedNotifications = true
         scrollView.documentView = documentView
 
         addSubview(scrollView)
+        applyPanelStyle(currentVisualStyle.panel)
     }
 
     required init?(coder: NSCoder) {
@@ -135,6 +139,7 @@ final class HUDPanelContentView: NSVisualEffectView {
 
     override func layout() {
         super.layout()
+        tintLayer.frame = bounds
         scrollView.frame = bounds
     }
 
@@ -142,12 +147,14 @@ final class HUDPanelContentView: NSVisualEffectView {
     func apply(model: HUDModel, appearance: AppearanceConfig, maximumSize: CGSize) -> CGSize {
         currentModel = model
         currentAppearance = appearance
+        currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
         let metrics = HUDGridMetrics(appearance: appearance)
         currentLayout = HUDGridLayout.layout(
             itemCount: model.items.count,
             metrics: metrics,
             maximumSize: maximumSize
         )
+        applyPanelStyle(currentVisualStyle.panel)
 
         ensureTileCount(model.items.count)
         withoutAnimations {
@@ -205,6 +212,37 @@ final class HUDPanelContentView: NSVisualEffectView {
     var debugScrollOrigin: CGPoint {
         scrollView.contentView.bounds.origin
     }
+
+    private func applyPanelStyle(_ style: HUDPanelChromeStyle) {
+        material = style.material
+        blendingMode = style.blendingMode
+        tintLayer.backgroundColor = style.tintColor.cgColor
+        tintLayer.cornerRadius = style.cornerRadius
+        tintLayer.cornerCurve = .continuous
+        tintLayer.masksToBounds = true
+        layer?.shadowColor = style.shadowColor.cgColor
+        layer?.shadowOpacity = style.shadowOpacity
+        layer?.shadowRadius = style.shadowRadius
+        layer?.shadowOffset = style.shadowOffset
+        applyRoundedMask(radius: style.cornerRadius)
+    }
+
+    private func applyRoundedMask(radius: CGFloat) {
+        guard radius > 0 else {
+            maskImage = nil
+            return
+        }
+
+        let edgeLength = 2.0 * radius + 1.0
+        let mask = NSImage(size: NSSize(width: edgeLength, height: edgeLength), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        mask.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        mask.resizingMode = .stretch
+        maskImage = mask
+    }
 }
 
 private struct ThumbnailTileIdentity: Equatable {
@@ -214,6 +252,7 @@ private struct ThumbnailTileIdentity: Equatable {
 
 final class HUDThumbnailTileView: NSView {
     private let backgroundLayer = CALayer()
+    private let previewShadowLayer = CALayer()
     private let previewBackdropLayer = CALayer()
     private let previewLayer = CALayer()
     private let overlayLayer = CALayer()
@@ -228,6 +267,7 @@ final class HUDThumbnailTileView: NSView {
     private var iconSurface: CGImage?
     private var representedThumbnailIdentity: ThumbnailTileIdentity?
     private var currentThumbnailState: ThumbnailState = .placeholder
+    private var currentVisualStyle = HUDVisualStyle.resolve(appearance: .default)
     private var showsSubtitle = true
 
     override init(frame frameRect: NSRect) {
@@ -235,6 +275,7 @@ final class HUDThumbnailTileView: NSView {
         wantsLayer = true
         layer?.masksToBounds = false
         layer?.addSublayer(backgroundLayer)
+        layer?.addSublayer(previewShadowLayer)
         layer?.addSublayer(previewBackdropLayer)
         layer?.addSublayer(previewLayer)
         layer?.addSublayer(overlayLayer)
@@ -244,24 +285,35 @@ final class HUDThumbnailTileView: NSView {
         layer?.addSublayer(titleLayer)
         layer?.addSublayer(subtitleLayer)
 
-        backgroundLayer.cornerRadius = 12
-        backgroundLayer.borderWidth = 1
-        backgroundLayer.masksToBounds = true
+        backgroundLayer.cornerRadius = 14
+        backgroundLayer.cornerCurve = .continuous
+        backgroundLayer.borderWidth = 0
+        backgroundLayer.masksToBounds = false
 
-        previewBackdropLayer.cornerRadius = 9
+        previewShadowLayer.backgroundColor = NSColor.clear.cgColor
+        previewShadowLayer.cornerRadius = 11
+        previewShadowLayer.cornerCurve = .continuous
+
+        previewBackdropLayer.cornerRadius = 10
+        previewBackdropLayer.cornerCurve = .continuous
         previewBackdropLayer.masksToBounds = true
-        previewBackdropLayer.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.82).cgColor
+        previewBackdropLayer.backgroundColor = NSColor.clear.cgColor
 
-        previewLayer.cornerRadius = 7
+        previewLayer.cornerRadius = 10
+        previewLayer.cornerCurve = .continuous
         previewLayer.masksToBounds = true
         previewLayer.contentsGravity = .resizeAspect
 
-        overlayLayer.cornerRadius = 9
+        overlayLayer.cornerRadius = 10
+        overlayLayer.cornerCurve = .continuous
         overlayLayer.backgroundColor = NSColor.black.withAlphaComponent(0.06).cgColor
 
         iconLayer.cornerRadius = 7
+        iconLayer.cornerCurve = .continuous
         iconLayer.masksToBounds = true
         iconLayer.contentsGravity = .resizeAspectFill
+        iconLayer.borderWidth = 0.5
+        iconLayer.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
 
         liveIndicatorLayer.cornerRadius = 3
         liveIndicatorLayer.isHidden = true
@@ -300,13 +352,14 @@ final class HUDThumbnailTileView: NSView {
             width: bounds.width - metrics.innerPadding * 2,
             height: metrics.thumbnailHeight
         )
+        previewShadowLayer.frame = previewBounds
         previewBackdropLayer.frame = previewBounds
         previewLayer.frame = fittedPreviewFrame(in: previewBounds)
         overlayLayer.frame = previewBounds
         let footerY = metrics.innerPadding
         iconLayer.frame = CGRect(
             x: metrics.innerPadding,
-            y: footerY + 1,
+            y: footerY + 3,
             width: metrics.iconSize,
             height: metrics.iconSize
         )
@@ -315,20 +368,20 @@ final class HUDThumbnailTileView: NSView {
         if showsSubtitle {
             titleLayer.frame = CGRect(
                 x: textX,
-                y: footerY + 10,
+                y: footerY + 14,
                 width: textWidth,
                 height: 16
             )
             subtitleLayer.frame = CGRect(
                 x: textX,
-                y: footerY - 1,
+                y: footerY + 1,
                 width: textWidth,
                 height: 14
             )
         } else {
             titleLayer.frame = CGRect(
                 x: textX,
-                y: footerY + 3,
+                y: footerY + 6,
                 width: textWidth,
                 height: metrics.iconSize
             )
@@ -357,6 +410,7 @@ final class HUDThumbnailTileView: NSView {
 
         self.item = item
         self.appearanceConfig = appearance
+        currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
         representedThumbnailIdentity = newIdentity
         let subtitleText = item.label == item.title ? "" : item.label
         showsSubtitle = !subtitleText.isEmpty
@@ -366,36 +420,17 @@ final class HUDThumbnailTileView: NSView {
 
         withoutAnimations {
             titleLayer.string = item.title
-            titleLayer.foregroundColor = (item.isSelected ? NSColor.white : NSColor.labelColor).cgColor
             subtitleLayer.string = subtitleText
             subtitleLayer.isHidden = !showsSubtitle
-            subtitleLayer.foregroundColor = (item.isSelected ? NSColor.white.withAlphaComponent(0.9) : NSColor.secondaryLabelColor).cgColor
 
             iconLayer.contents = iconSurface
-            backgroundLayer.backgroundColor = (
-                item.isSelected
-                    ? NSColor.controlAccentColor.withAlphaComponent(0.92)
-                    : NSColor.windowBackgroundColor.withAlphaComponent(0.82)
-            ).cgColor
-            backgroundLayer.borderColor = (
-                item.isSelected
-                    ? NSColor.white.withAlphaComponent(0.0)
-                    : NSColor.separatorColor.withAlphaComponent(0.55)
-            ).cgColor
 
             badgeLayer.isHidden = item.windowIndexInApp == nil
             badgeLayer.string = item.windowIndexInApp.map(String.init)
-            badgeLayer.backgroundColor = (
-                item.isSelected
-                    ? NSColor.white.withAlphaComponent(0.95)
-                    : NSColor.black.withAlphaComponent(0.72)
-            ).cgColor
-            badgeLayer.foregroundColor = (
-                item.isSelected ? NSColor.black : NSColor.white
-            ).cgColor
         }
 
         needsLayout = true
+        applyChrome()
         if identityChanged {
             clearThumbnailContents()
             applyThumbnail(item.thumbnailState, surface: nil)
@@ -408,7 +443,6 @@ final class HUDThumbnailTileView: NSView {
         withoutAnimations {
             switch state {
                 case .placeholder:
-                    previewBackdropLayer.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.82).cgColor
                     if let surface {
                         surface.apply(to: previewLayer)
                     }
@@ -416,35 +450,21 @@ final class HUDThumbnailTileView: NSView {
                     if !hasContents {
                         previewLayer.contents = nil
                     }
-                    overlayLayer.backgroundColor = NSColor.black.withAlphaComponent(hasContents ? 0.12 : 0.04).cgColor
-                    liveIndicatorLayer.isHidden = true
                     currentThumbnailState = hasContents ? .stale : .placeholder
                 case .stale:
                     surface?.apply(to: previewLayer)
-                    previewBackdropLayer.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.82).cgColor
-                    overlayLayer.backgroundColor = NSColor.black.withAlphaComponent(0.12).cgColor
-                    liveIndicatorLayer.isHidden = true
                     currentThumbnailState = .stale
                 case .freshStill:
                     surface?.apply(to: previewLayer)
-                    previewBackdropLayer.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.72).cgColor
-                    overlayLayer.backgroundColor = NSColor.clear.cgColor
-                    liveIndicatorLayer.isHidden = true
                     currentThumbnailState = .freshStill
                 case .liveSurface:
                     surface?.apply(to: previewLayer)
-                    previewBackdropLayer.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.72).cgColor
-                    overlayLayer.backgroundColor = NSColor.clear.cgColor
-                    liveIndicatorLayer.backgroundColor = NSColor.systemGreen.cgColor
-                    liveIndicatorLayer.isHidden = false
                     currentThumbnailState = .liveSurface
                 case .unavailable:
                     previewLayer.contents = nil
-                    previewBackdropLayer.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.78).cgColor
-                    overlayLayer.backgroundColor = NSColor.black.withAlphaComponent(0.18).cgColor
-                    liveIndicatorLayer.isHidden = true
                     currentThumbnailState = .unavailable
             }
+            applyChrome()
         }
     }
 
@@ -452,10 +472,45 @@ final class HUDThumbnailTileView: NSView {
         previewLayer.contents != nil
     }
 
+    var debugShowsSubtitle: Bool {
+        !subtitleLayer.isHidden
+    }
+
     private func clearThumbnailContents() {
         previewLayer.contents = nil
         liveIndicatorLayer.isHidden = true
         currentThumbnailState = .placeholder
+    }
+
+    private func applyChrome() {
+        guard let item else { return }
+        let chrome = currentVisualStyle.tileChrome(
+            isSelected: item.isSelected,
+            thumbnailState: currentThumbnailState,
+            showsSubtitle: showsSubtitle
+        )
+        backgroundLayer.backgroundColor = chrome.backgroundColor.cgColor
+        backgroundLayer.borderColor = chrome.borderColor.cgColor
+        backgroundLayer.borderWidth = chrome.borderWidth
+        backgroundLayer.shadowColor = chrome.shadowColor.cgColor
+        backgroundLayer.shadowOpacity = chrome.shadowOpacity
+        backgroundLayer.shadowRadius = chrome.shadowRadius
+        backgroundLayer.shadowOffset = chrome.shadowOffset
+
+        previewShadowLayer.shadowColor = chrome.previewShadowColor.cgColor
+        previewShadowLayer.shadowOpacity = chrome.previewShadowOpacity
+        previewShadowLayer.shadowRadius = chrome.previewShadowRadius
+        previewShadowLayer.shadowOffset = chrome.previewShadowOffset
+
+        previewBackdropLayer.backgroundColor = chrome.previewBackdropColor.cgColor
+        overlayLayer.backgroundColor = chrome.overlayColor.cgColor
+
+        titleLayer.foregroundColor = chrome.titleColor.cgColor
+        subtitleLayer.foregroundColor = chrome.subtitleColor.cgColor
+        badgeLayer.backgroundColor = chrome.badgeFillColor.cgColor
+        badgeLayer.foregroundColor = chrome.badgeTextColor.cgColor
+        liveIndicatorLayer.backgroundColor = chrome.liveIndicatorColor.cgColor
+        liveIndicatorLayer.isHidden = !chrome.showsLiveIndicator
     }
 
     private func fittedPreviewFrame(in bounds: CGRect) -> CGRect {
@@ -496,6 +551,150 @@ struct HUDGridLayoutResult: Equatable {
         tileFrames: [],
         rows: []
     )
+}
+
+enum HUDTileSelectionStyle: Equatable {
+    case neutralFocusPlate
+    case minimal
+}
+
+struct HUDPanelChromeStyle {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
+    let cornerRadius: CGFloat
+    let tintColor: NSColor
+    let shadowColor: NSColor
+    let shadowOpacity: Float
+    let shadowRadius: CGFloat
+    let shadowOffset: CGSize
+}
+
+struct HUDTileChromeStyle {
+    let selectionStyle: HUDTileSelectionStyle
+    let backgroundColor: NSColor
+    let borderColor: NSColor
+    let borderWidth: CGFloat
+    let shadowColor: NSColor
+    let shadowOpacity: Float
+    let shadowRadius: CGFloat
+    let shadowOffset: CGSize
+    let previewShadowColor: NSColor
+    let previewShadowOpacity: Float
+    let previewShadowRadius: CGFloat
+    let previewShadowOffset: CGSize
+    let previewBackdropColor: NSColor
+    let overlayColor: NSColor
+    let titleColor: NSColor
+    let subtitleColor: NSColor
+    let badgeFillColor: NSColor
+    let badgeTextColor: NSColor
+    let liveIndicatorColor: NSColor
+    let showsLiveIndicator: Bool
+}
+
+struct HUDVisualStyle {
+    let panel: HUDPanelChromeStyle
+
+    static func resolve(appearance: AppearanceConfig) -> HUDVisualStyle {
+        let panel = HUDPanelChromeStyle(
+            material: .hudWindow,
+            blendingMode: .behindWindow,
+            cornerRadius: 24,
+            tintColor: NSColor.black.withAlphaComponent(0.24),
+            shadowColor: NSColor.black.withAlphaComponent(0.55),
+            shadowOpacity: 0.34,
+            shadowRadius: 26,
+            shadowOffset: CGSize(width: 0, height: -8)
+        )
+        return HUDVisualStyle(panel: panel)
+    }
+
+    func tileChrome(
+        isSelected: Bool,
+        thumbnailState: ThumbnailState,
+        showsSubtitle: Bool
+    ) -> HUDTileChromeStyle {
+        let titleColor = isSelected
+            ? NSColor.white.withAlphaComponent(0.96)
+            : NSColor.white.withAlphaComponent(0.88)
+        let subtitleColor = isSelected
+            ? NSColor.white.withAlphaComponent(0.68)
+            : NSColor.white.withAlphaComponent(showsSubtitle ? 0.52 : 0.0)
+
+        if isSelected {
+            return HUDTileChromeStyle(
+                selectionStyle: .neutralFocusPlate,
+                backgroundColor: NSColor(white: 0.06, alpha: 0.92),
+                borderColor: NSColor.white.withAlphaComponent(0.18),
+                borderWidth: 1,
+                shadowColor: NSColor.black.withAlphaComponent(0.45),
+                shadowOpacity: 0.26,
+                shadowRadius: 18,
+                shadowOffset: CGSize(width: 0, height: -5),
+                previewShadowColor: NSColor.black.withAlphaComponent(0.44),
+                previewShadowOpacity: 0.20,
+                previewShadowRadius: 14,
+                previewShadowOffset: CGSize(width: 0, height: -2),
+                previewBackdropColor: previewBackdropColor(for: thumbnailState, selected: true),
+                overlayColor: overlayColor(for: thumbnailState),
+                titleColor: titleColor,
+                subtitleColor: subtitleColor,
+                badgeFillColor: NSColor.white.withAlphaComponent(0.16),
+                badgeTextColor: NSColor.white.withAlphaComponent(0.9),
+                liveIndicatorColor: NSColor.systemGreen.withAlphaComponent(0.82),
+                showsLiveIndicator: thumbnailState == .liveSurface
+            )
+        }
+
+        return HUDTileChromeStyle(
+            selectionStyle: .minimal,
+            backgroundColor: NSColor.clear,
+            borderColor: NSColor.clear,
+            borderWidth: 0,
+            shadowColor: NSColor.clear,
+            shadowOpacity: 0,
+            shadowRadius: 0,
+            shadowOffset: .zero,
+            previewShadowColor: NSColor.black.withAlphaComponent(0.38),
+            previewShadowOpacity: 0.12,
+            previewShadowRadius: 10,
+            previewShadowOffset: CGSize(width: 0, height: -1),
+            previewBackdropColor: previewBackdropColor(for: thumbnailState, selected: false),
+            overlayColor: overlayColor(for: thumbnailState),
+            titleColor: titleColor,
+            subtitleColor: subtitleColor,
+            badgeFillColor: NSColor.white.withAlphaComponent(0.08),
+            badgeTextColor: NSColor.white.withAlphaComponent(0.76),
+            liveIndicatorColor: NSColor.systemGreen.withAlphaComponent(0.72),
+            showsLiveIndicator: thumbnailState == .liveSurface
+        )
+    }
+
+    private func previewBackdropColor(for state: ThumbnailState, selected: Bool) -> NSColor {
+        switch state {
+            case .placeholder:
+                return NSColor.white.withAlphaComponent(selected ? 0.045 : 0.035)
+            case .stale:
+                return NSColor.white.withAlphaComponent(selected ? 0.04 : 0.03)
+            case .freshStill, .liveSurface:
+                return .clear
+            case .unavailable:
+                return NSColor.white.withAlphaComponent(selected ? 0.06 : 0.05)
+        }
+    }
+
+    private func overlayColor(for state: ThumbnailState) -> NSColor {
+        switch state {
+            case .placeholder:
+                return NSColor.black.withAlphaComponent(0.05)
+            case .stale:
+                return NSColor.black.withAlphaComponent(0.08)
+            case .freshStill, .liveSurface:
+                return .clear
+            case .unavailable:
+                return NSColor.black.withAlphaComponent(0.18)
+        }
+    }
 }
 
 enum HUDGridLayout {
@@ -592,7 +791,7 @@ enum HUDGridLayout {
 }
 
 struct HUDGridMetrics {
-    let outerPadding: CGFloat = 12
+    let outerPadding: CGFloat = 18
     let innerPadding: CGFloat
     let tileSpacing: CGFloat
     let rowSpacing: CGFloat
@@ -603,13 +802,13 @@ struct HUDGridMetrics {
     let thumbnailSize: CGSize
 
     init(appearance: AppearanceConfig) {
-        iconSize = max(16, min(20, CGFloat(appearance.iconSize)))
-        innerPadding = max(6, CGFloat(appearance.itemPadding - 1))
-        tileSpacing = max(6, CGFloat(appearance.itemSpacing - 2))
-        rowSpacing = max(8, tileSpacing + 2)
-        tileWidth = max(136, iconSize * 6.2)
-        thumbnailHeight = max(76, tileWidth * 0.56)
-        tileHeight = thumbnailHeight + innerPadding * 2 + iconSize + 10
+        iconSize = max(18, min(22, CGFloat(appearance.iconSize)))
+        innerPadding = max(8, CGFloat(appearance.itemPadding + 1))
+        tileSpacing = max(8, CGFloat(appearance.itemSpacing))
+        rowSpacing = max(12, tileSpacing + 2)
+        tileWidth = max(144, iconSize * 6.45)
+        thumbnailHeight = max(82, tileWidth * 0.57)
+        tileHeight = thumbnailHeight + innerPadding * 2 + iconSize + 18
         thumbnailSize = CGSize(
             width: tileWidth - innerPadding * 2,
             height: thumbnailHeight
@@ -618,8 +817,8 @@ struct HUDGridMetrics {
 
     func maximumPanelSize(for visibleFrame: CGRect) -> CGSize {
         CGSize(
-            width: max(tileWidth + outerPadding * 2, visibleFrame.width * 0.78),
-            height: max(tileHeight + outerPadding * 2, visibleFrame.height * 0.62)
+            width: max(tileWidth + outerPadding * 2, visibleFrame.width * 0.8),
+            height: max(tileHeight + outerPadding * 2, visibleFrame.height * 0.64)
         )
     }
 }

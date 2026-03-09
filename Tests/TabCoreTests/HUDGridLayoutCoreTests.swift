@@ -4,6 +4,30 @@ import XCTest
 
 @MainActor
 final class HUDGridLayoutCoreTests: XCTestCase {
+    func testSelectedTileChromeUsesNeutralFocusPlate() {
+        let style = HUDVisualStyle.resolve(appearance: .default).tileChrome(
+            isSelected: true,
+            thumbnailState: .freshStill,
+            showsSubtitle: true
+        )
+
+        XCTAssertEqual(style.selectionStyle, .neutralFocusPlate)
+        XCTAssertEqual(style.borderWidth, 1)
+        XCTAssertGreaterThan(style.backgroundColor.alphaComponent, 0.8)
+    }
+
+    func testUnselectedTileChromeUsesMinimalBorderlessTreatment() {
+        let style = HUDVisualStyle.resolve(appearance: .default).tileChrome(
+            isSelected: false,
+            thumbnailState: .freshStill,
+            showsSubtitle: true
+        )
+
+        XCTAssertEqual(style.selectionStyle, .minimal)
+        XCTAssertEqual(style.borderWidth, 0)
+        XCTAssertEqual(style.backgroundColor.alphaComponent, 0, accuracy: 0.001)
+    }
+
     func testGridLayoutKeepsSmallSetsOnOneRowAndShrinksWidth() {
         let metrics = HUDGridMetrics(appearance: .default)
         let result = HUDGridLayout.layout(
@@ -81,20 +105,35 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         XCTAssertGreaterThan(contentView.debugScrollOrigin.y, 0)
     }
 
+    func testTileSuppressesSubtitleWhenLabelMatchesTitle() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 220, height: 160))
+        let snapshot = makeSnapshot(index: 0)
+        let item = HUDItem(
+            id: "1",
+            label: "Window 1",
+            title: "Window 1",
+            pid: snapshot.pid,
+            snapshot: snapshot,
+            isSelected: false,
+            thumbnailState: .placeholder
+        )
+
+        tile.configure(item: item, appearance: .default)
+
+        XCTAssertFalse(tile.debugShowsSubtitle)
+    }
+
+    func testRelaxedMetricsProvideMoreBreathingRoom() {
+        let metrics = HUDGridMetrics(appearance: .default)
+
+        XCTAssertGreaterThanOrEqual(metrics.outerPadding, 18)
+        XCTAssertGreaterThanOrEqual(metrics.tileWidth, 144)
+        XCTAssertGreaterThanOrEqual(metrics.thumbnailHeight, 82)
+    }
+
     private func makeModel(count: Int, selectedIndex: Int) -> HUDModel {
         let items = (0..<count).map { index in
-            let snapshot = WindowSnapshot(
-                windowId: UInt32(index + 1),
-                pid: 100 + Int32(index),
-                bundleId: "com.example.\(index)",
-                appName: "Example",
-                frame: CGRect(x: 0, y: 0, width: 1200, height: 700),
-                isMinimized: false,
-                appIsHidden: false,
-                isFullscreen: false,
-                title: "Window \(index + 1)",
-                revision: UInt64(index + 1)
-            )
+            let snapshot = makeSnapshot(index: index)
             return HUDItem(
                 id: "\(index + 1)",
                 label: index.isMultiple(of: 2) ? "Example" : "Window \(index + 1)",
@@ -106,5 +145,20 @@ final class HUDGridLayoutCoreTests: XCTestCase {
             )
         }
         return HUDModel(items: items, selectedIndex: selectedIndex)
+    }
+
+    private func makeSnapshot(index: Int) -> WindowSnapshot {
+        WindowSnapshot(
+            windowId: UInt32(index + 1),
+            pid: 100 + Int32(index),
+            bundleId: "com.example.\(index)",
+            appName: "Example",
+            frame: CGRect(x: 0, y: 0, width: 1200, height: 700),
+            isMinimized: false,
+            appIsHidden: false,
+            isFullscreen: false,
+            title: "Window \(index + 1)",
+            revision: UInt64(index + 1)
+        )
     }
 }
