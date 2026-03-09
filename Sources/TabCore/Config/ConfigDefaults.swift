@@ -130,6 +130,12 @@ enum TabDefaultsCatalog {
                     allowedValues: "true|false",
                     description: "Enable live window thumbnails in the HUD."
                 ),
+                ConfigSettingSpec(
+                    key: "size",
+                    defaultValue: .string(hud.size.rawValue),
+                    allowedValues: "small|medium|large",
+                    description: "Thumbnail HUD size preset."
+                ),
             ]
         ),
         ConfigSectionSpec(
@@ -220,24 +226,6 @@ enum TabDefaultsCatalog {
                     defaultValue: .string(appearance.theme.rawValue),
                     allowedValues: "light|dark|system",
                     description: "HUD theme mode."
-                ),
-                ConfigSettingSpec(
-                    key: "icon-size",
-                    defaultValue: .int(appearance.iconSize),
-                    allowedValues: "integer 14...64",
-                    description: "HUD icon size in points."
-                ),
-                ConfigSettingSpec(
-                    key: "item-padding",
-                    defaultValue: .int(appearance.itemPadding),
-                    allowedValues: "integer 0...24",
-                    description: "HUD item padding."
-                ),
-                ConfigSettingSpec(
-                    key: "item-spacing",
-                    defaultValue: .int(appearance.itemSpacing),
-                    allowedValues: "integer 0...24",
-                    description: "HUD item spacing."
                 ),
                 ConfigSettingSpec(
                     key: "show-window-count",

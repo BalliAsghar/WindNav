@@ -51,6 +51,7 @@ final class ThumbnailPipelineCoreTests: XCTestCase {
         tile.configure(
             item: makeItem(snapshot: snapshot, isSelected: false),
             appearance: .default,
+            hud: .default,
             presentationMode: .thumbnails,
             iconProvider: makeIconProvider()
         )
@@ -60,6 +61,7 @@ final class ThumbnailPipelineCoreTests: XCTestCase {
         tile.configure(
             item: makeItem(snapshot: snapshot, isSelected: true),
             appearance: .default,
+            hud: .default,
             presentationMode: .thumbnails,
             iconProvider: makeIconProvider()
         )
@@ -74,6 +76,7 @@ final class ThumbnailPipelineCoreTests: XCTestCase {
         tile.configure(
             item: makeItem(snapshot: makeSnapshot(windowId: 1, revision: 10), isSelected: false),
             appearance: .default,
+            hud: .default,
             presentationMode: .thumbnails,
             iconProvider: makeIconProvider()
         )
@@ -83,6 +86,7 @@ final class ThumbnailPipelineCoreTests: XCTestCase {
         tile.configure(
             item: makeItem(snapshot: makeSnapshot(windowId: 1, revision: 11), isSelected: false),
             appearance: .default,
+            hud: .default,
             presentationMode: .thumbnails,
             iconProvider: makeIconProvider()
         )

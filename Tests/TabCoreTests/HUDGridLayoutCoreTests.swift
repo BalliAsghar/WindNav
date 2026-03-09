@@ -4,6 +4,8 @@ import XCTest
 
 @MainActor
 final class HUDGridLayoutCoreTests: XCTestCase {
+    private let defaultHUD = HUDConfig.default
+
     func testSelectedTileChromeUsesNeutralFocusPlate() {
         let style = HUDVisualStyle.resolve(appearance: .default).tileChrome(
             isSelected: true,
@@ -29,7 +31,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
     }
 
     func testGridLayoutKeepsSmallSetsOnOneRowAndShrinksWidth() {
-        let metrics = HUDGridMetrics(appearance: .default)
+        let metrics = HUDGridMetrics(appearance: .default, hud: defaultHUD)
         let result = HUDGridLayout.layout(
             itemCount: 3,
             metrics: metrics,
@@ -42,7 +44,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
     }
 
     func testGridLayoutWrapsBeforeExceedingWidthCap() {
-        let metrics = HUDGridMetrics(appearance: .default)
+        let metrics = HUDGridMetrics(appearance: .default, hud: defaultHUD)
         let maximumWidth = metrics.outerPadding * 2
             + metrics.tileWidth * 3
             + metrics.tileSpacing * 2
@@ -58,7 +60,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
     }
 
     func testGridLayoutCentersShortFinalRow() {
-        let metrics = HUDGridMetrics(appearance: .default)
+        let metrics = HUDGridMetrics(appearance: .default, hud: defaultHUD)
         let maximumWidth = metrics.outerPadding * 2
             + metrics.tileWidth * 4
             + metrics.tileSpacing * 3
@@ -79,6 +81,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         let size = contentView.apply(
             model: makeModel(count: 2, selectedIndex: 0),
             appearance: .default,
+            hud: defaultHUD,
             maximumSize: maximumSize,
             presentationMode: .thumbnails
         )
@@ -88,7 +91,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
 
     func testSelectedTileRevealScrollsForLowerRows() {
         let contentView = HUDPanelContentView(frame: .zero)
-        let metrics = HUDGridMetrics(appearance: .default)
+        let metrics = HUDGridMetrics(appearance: .default, hud: defaultHUD)
         let maximumSize = CGSize(
             width: metrics.outerPadding * 2 + metrics.tileWidth * 3 + metrics.tileSpacing * 2 + 8,
             height: metrics.tileHeight + metrics.outerPadding * 2 + 4
@@ -96,6 +99,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         let size = contentView.apply(
             model: makeModel(count: 8, selectedIndex: 7),
             appearance: .default,
+            hud: defaultHUD,
             maximumSize: maximumSize,
             presentationMode: .thumbnails
         )
@@ -123,6 +127,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         tile.configure(
             item: item,
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .thumbnails,
             iconProvider: makeIconProvider()
         )
@@ -155,6 +160,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         tile.configure(
             item: withSubtitle,
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .thumbnails,
             iconProvider: makeIconProvider()
         )
@@ -165,6 +171,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         tile.configure(
             item: withoutSubtitle,
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .thumbnails,
             iconProvider: makeIconProvider()
         )
@@ -191,6 +198,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         tile.configure(
             item: item,
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .thumbnails,
             iconProvider: makeIconProvider()
         )
@@ -209,6 +217,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
                 thumbnailState: item.thumbnailState
             ),
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .thumbnails,
             iconProvider: makeIconProvider()
         )
@@ -219,7 +228,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
     }
 
     func testRelaxedMetricsProvideMoreBreathingRoom() {
-        let metrics = HUDGridMetrics(appearance: .default)
+        let metrics = HUDGridMetrics(appearance: .default, hud: defaultHUD)
 
         XCTAssertGreaterThanOrEqual(metrics.outerPadding, 18)
         XCTAssertGreaterThanOrEqual(metrics.tileWidth, 144)
@@ -249,6 +258,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         let size = contentView.apply(
             model: makeModel(count: 8, selectedIndex: 7),
             appearance: .default,
+            hud: defaultHUD,
             maximumSize: maximumSize,
             presentationMode: .iconOnly
         )
@@ -268,12 +278,14 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         let thumbnailSize = contentView.apply(
             model: makeModel(count: 2, selectedIndex: 0),
             appearance: .default,
+            hud: defaultHUD,
             maximumSize: maximumSize,
             presentationMode: .thumbnails
         )
         let iconOnlySize = contentView.apply(
             model: makeModel(count: 2, selectedIndex: 0),
             appearance: .default,
+            hud: defaultHUD,
             maximumSize: maximumSize,
             presentationMode: .iconOnly
         )
@@ -288,12 +300,14 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         let thumbnailSize = contentView.apply(
             model: makeModel(count: 2, selectedIndex: 0),
             appearance: .default,
+            hud: defaultHUD,
             maximumSize: maximumSize,
             presentationMode: .thumbnails
         )
         let iconOnlySize = contentView.apply(
             model: makeModel(count: 2, selectedIndex: 0),
             appearance: .default,
+            hud: defaultHUD,
             maximumSize: maximumSize,
             presentationMode: .iconOnly
         )
@@ -309,12 +323,14 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         let thumbnailSize = contentView.apply(
             model: model,
             appearance: .default,
+            hud: defaultHUD,
             maximumSize: maximumSize,
             presentationMode: .thumbnails
         )
         let iconOnlySize = contentView.apply(
             model: model,
             appearance: .default,
+            hud: defaultHUD,
             maximumSize: maximumSize,
             presentationMode: .iconOnly
         )
@@ -338,6 +354,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
                 thumbnailState: .unavailable
             ),
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .iconOnly,
             iconProvider: makeIconProvider()
         )
@@ -354,6 +371,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
                 thumbnailState: .unavailable
             ),
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .iconOnly,
             iconProvider: makeIconProvider()
         )
@@ -378,6 +396,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
                 thumbnailState: .unavailable
             ),
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .iconOnly,
             iconProvider: makeIconProvider()
         )
@@ -402,6 +421,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
                 thumbnailState: .unavailable
             ),
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .iconOnly,
             iconProvider: makeIconProvider()
         )
@@ -425,6 +445,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
                 thumbnailState: .unavailable
             ),
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .iconOnly,
             iconProvider: makeIconProvider()
         )
@@ -443,6 +464,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
                 thumbnailState: .unavailable
             ),
             appearance: .default,
+            hud: defaultHUD,
             presentationMode: .iconOnly,
             iconProvider: makeIconProvider()
         )
@@ -455,6 +477,70 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         XCTAssertNotEqual(tile.debugBadgeFrame, .zero)
         XCTAssertLessThanOrEqual(abs(tile.debugBadgeFrame.midX - unselectedFrame.midX), 16)
         XCTAssertLessThanOrEqual(abs(tile.debugBadgeFrame.midY - unselectedFrame.midY), 16)
+    }
+
+    func testThumbnailSizePresetsIncreaseViewportSize() {
+        let contentView = HUDPanelContentView(frame: .zero)
+        let maximumSize = CGSize(width: 1440, height: 900)
+        let model = makeModel(count: 2, selectedIndex: 0)
+
+        let smallSize = contentView.apply(
+            model: model,
+            appearance: .default,
+            hud: HUDConfig(thumbnails: true, size: .small),
+            maximumSize: maximumSize,
+            presentationMode: .thumbnails
+        )
+        let mediumSize = contentView.apply(
+            model: model,
+            appearance: .default,
+            hud: HUDConfig(thumbnails: true, size: .medium),
+            maximumSize: maximumSize,
+            presentationMode: .thumbnails
+        )
+        let largeSize = contentView.apply(
+            model: model,
+            appearance: .default,
+            hud: HUDConfig(thumbnails: true, size: .large),
+            maximumSize: maximumSize,
+            presentationMode: .thumbnails
+        )
+
+        XCTAssertGreaterThan(mediumSize.width, smallSize.width)
+        XCTAssertGreaterThan(mediumSize.height, smallSize.height)
+        XCTAssertGreaterThan(largeSize.width, mediumSize.width)
+        XCTAssertGreaterThan(largeSize.height, mediumSize.height)
+    }
+
+    func testIconOnlyViewportIsUnchangedAcrossThumbnailSizePresets() {
+        let contentView = HUDPanelContentView(frame: .zero)
+        let maximumSize = CGSize(width: 1440, height: 900)
+        let model = makeModel(count: 2, selectedIndex: 0)
+
+        let smallSize = contentView.apply(
+            model: model,
+            appearance: .default,
+            hud: HUDConfig(thumbnails: false, size: .small),
+            maximumSize: maximumSize,
+            presentationMode: .iconOnly
+        )
+        let mediumSize = contentView.apply(
+            model: model,
+            appearance: .default,
+            hud: HUDConfig(thumbnails: false, size: .medium),
+            maximumSize: maximumSize,
+            presentationMode: .iconOnly
+        )
+        let largeSize = contentView.apply(
+            model: model,
+            appearance: .default,
+            hud: HUDConfig(thumbnails: false, size: .large),
+            maximumSize: maximumSize,
+            presentationMode: .iconOnly
+        )
+
+        XCTAssertEqual(smallSize, mediumSize)
+        XCTAssertEqual(mediumSize, largeSize)
     }
 
     private func makeModel(count: Int, selectedIndex: Int) -> HUDModel {
@@ -493,7 +579,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
     }
 
     private func sharedMaximumPanelSize() -> CGSize {
-        HUDGridMetrics(appearance: .default).maximumPanelSize(
+        HUDGridMetrics(appearance: .default, hud: defaultHUD).maximumPanelSize(
             for: CGRect(x: 0, y: 0, width: 1440, height: 900)
         )
     }

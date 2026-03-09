@@ -9,6 +9,7 @@ final class ConfigCoreTests: XCTestCase {
 
     func testDefaultHUDThumbnailsEnabled() {
         XCTAssertTrue(TabConfig.default.hud.thumbnails)
+        XCTAssertEqual(TabConfig.default.hud.size, .small)
     }
 
     func testDefaultConfigPathUsesWindNavDirectory() {
@@ -39,6 +40,7 @@ final class ConfigCoreTests: XCTestCase {
         input.performance.logColor = .never
         input.onboarding.launchAtLoginEnabled = true
         input.hud.thumbnails = false
+        input.hud.size = .large
 
         try loader.save(input)
         let reparsed = try loader.loadOrCreate()
@@ -55,6 +57,9 @@ final class ConfigCoreTests: XCTestCase {
         let text = ConfigLoader.serialize(.default)
         XCTAssertFalse(text.contains("show-thumbnails"))
         XCTAssertFalse(text.contains("thumbnail-width"))
+        XCTAssertFalse(text.contains("icon-size"))
+        XCTAssertFalse(text.contains("item-padding"))
+        XCTAssertFalse(text.contains("item-spacing"))
     }
 
     func testSerializeIncludesHUDSection() {
@@ -62,6 +67,7 @@ final class ConfigCoreTests: XCTestCase {
 
         XCTAssertTrue(text.contains("[hud]"))
         XCTAssertTrue(text.contains("thumbnails = true"))
+        XCTAssertTrue(text.contains("size = \"small\""))
     }
 
     func testMissingLaunchAtLoginKeyDefaultsToFalse() throws {
@@ -102,17 +108,48 @@ final class ConfigCoreTests: XCTestCase {
         }
     }
 
-    func testParseOutOfRangeIconSizeThrows() {
+    func testRemovedAppearanceIconSizeKeyThrowsMigrationError() {
         let text = """
         [appearance]
         icon-size = 999
         """
 
         XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
-            guard case ConfigError.invalidValue(let key, _, _) = error else {
+            guard case ConfigError.invalidValue(let key, let expected, _) = error else {
                 return XCTFail("Expected invalidValue, got \(error)")
             }
             XCTAssertEqual(key, "appearance.icon-size")
+            XCTAssertEqual(expected, "key removed; use hud.size instead")
+        }
+    }
+
+    func testRemovedAppearanceItemPaddingKeyThrowsMigrationError() {
+        let text = """
+        [appearance]
+        item-padding = 12
+        """
+
+        XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
+            guard case ConfigError.invalidValue(let key, let expected, _) = error else {
+                return XCTFail("Expected invalidValue, got \(error)")
+            }
+            XCTAssertEqual(key, "appearance.item-padding")
+            XCTAssertEqual(expected, "key removed; use hud.size instead")
+        }
+    }
+
+    func testRemovedAppearanceItemSpacingKeyThrowsMigrationError() {
+        let text = """
+        [appearance]
+        item-spacing = 12
+        """
+
+        XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
+            guard case ConfigError.invalidValue(let key, let expected, _) = error else {
+                return XCTFail("Expected invalidValue, got \(error)")
+            }
+            XCTAssertEqual(key, "appearance.item-spacing")
+            XCTAssertEqual(expected, "key removed; use hud.size instead")
         }
     }
 
@@ -169,6 +206,20 @@ final class ConfigCoreTests: XCTestCase {
                 return XCTFail("Expected invalidValue, got \(error)")
             }
             XCTAssertEqual(key, "hud.thumbnails")
+        }
+    }
+
+    func testInvalidHUDSizeValueThrows() {
+        let text = """
+        [hud]
+        size = "huge"
+        """
+
+        XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
+            guard case ConfigError.invalidValue(let key, _, _) = error else {
+                return XCTFail("Expected invalidValue, got \(error)")
+            }
+            XCTAssertEqual(key, "hud.size")
         }
     }
 }

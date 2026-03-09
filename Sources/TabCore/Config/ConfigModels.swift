@@ -47,13 +47,21 @@ public struct TabConfig: Equatable, Sendable {
 }
 
 public struct HUDConfig: Equatable, Sendable {
+    public var size: HUDThumbnailSizePreset
     public var thumbnails: Bool
 
-    public init(thumbnails: Bool) {
+    public init(thumbnails: Bool, size: HUDThumbnailSizePreset = .small) {
         self.thumbnails = thumbnails
+        self.size = size
     }
 
-    public static let `default` = HUDConfig(thumbnails: true)
+    public static let `default` = HUDConfig(thumbnails: true, size: .small)
+}
+
+public enum HUDThumbnailSizePreset: String, Equatable, Sendable {
+    case small
+    case medium
+    case large
 }
 
 public struct OnboardingConfig: Equatable, Sendable {
@@ -201,30 +209,18 @@ public enum ThemeMode: String, Sendable {
 
 public struct AppearanceConfig: Equatable, Sendable {
     public var theme: ThemeMode
-    public var iconSize: Int
-    public var itemPadding: Int
-    public var itemSpacing: Int
     public var showWindowCount: Bool
 
     public init(
         theme: ThemeMode,
-        iconSize: Int,
-        itemPadding: Int,
-        itemSpacing: Int,
         showWindowCount: Bool
     ) {
         self.theme = theme
-        self.iconSize = iconSize
-        self.itemPadding = itemPadding
-        self.itemSpacing = itemSpacing
         self.showWindowCount = showWindowCount
     }
 
     public static let `default` = AppearanceConfig(
         theme: .system,
-        iconSize: 22,
-        itemPadding: 8,
-        itemSpacing: 8,
         showWindowCount: true
     )
 }

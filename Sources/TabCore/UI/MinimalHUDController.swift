@@ -34,16 +34,18 @@ final class MinimalHUDController: HUDControlling {
         let contentView = ensureContentView()
         let visibleFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1280, height: 800)
         let presentationMode = HUDPresentationMode(hud: hud)
-        let thumbnailMetrics = HUDGridMetrics(appearance: appearance)
+        let thumbnailMetrics = HUDGridMetrics(appearance: appearance, hud: hud)
         let maximumPanelSize = Self.maximumPanelSize(
             itemCount: model.items.count,
             for: presentationMode,
             appearance: appearance,
+            hud: hud,
             visibleFrame: visibleFrame
         )
         let contentSize = contentView.apply(
             model: model,
             appearance: appearance,
+            hud: hud,
             maximumSize: maximumPanelSize,
             presentationMode: presentationMode
         )
@@ -105,11 +107,13 @@ final class MinimalHUDController: HUDControlling {
         itemCount: Int,
         for presentationMode: HUDPresentationMode,
         appearance: AppearanceConfig,
+        hud: HUDConfig,
         visibleFrame: CGRect
     ) -> CGSize {
         HUDPanelSizePolicy.maximumPanelSize(
             itemCount: itemCount,
             appearance: appearance,
+            hud: hud,
             visibleFrame: visibleFrame,
             presentationMode: presentationMode
         )
@@ -120,11 +124,11 @@ private enum HUDPanelSizePolicy {
     static func maximumPanelSize(
         itemCount: Int,
         appearance: AppearanceConfig,
+        hud: HUDConfig,
         visibleFrame: CGRect,
         presentationMode: HUDPresentationMode
     ) -> CGSize {
-        let gridMetrics = HUDGridMetrics(appearance: appearance)
-        let sharedBudget = gridMetrics.maximumPanelSize(for: visibleFrame)
+        let sharedBudget = HUDGridMetrics(appearance: appearance, hud: hud).maximumPanelSize(for: visibleFrame)
         guard presentationMode == .iconOnly else {
             return sharedBudget
         }
@@ -169,6 +173,7 @@ final class HUDPanelContentView: NSVisualEffectView {
     private var tileViews: [HUDThumbnailTileView] = []
     private var currentModel: HUDModel?
     private var currentAppearance: AppearanceConfig = .default
+    private var currentHUD: HUDConfig = .default
     private var currentLayout = HUDLayoutResult.empty
     private var currentVisualStyle = HUDVisualStyle.resolve(appearance: .default)
     private var currentPresentationMode: HUDPresentationMode = .thumbnails
@@ -209,17 +214,20 @@ final class HUDPanelContentView: NSVisualEffectView {
     func apply(
         model: HUDModel,
         appearance: AppearanceConfig,
+        hud: HUDConfig,
         maximumSize: CGSize,
         presentationMode: HUDPresentationMode
     ) -> CGSize {
         let modeChanged = currentPresentationMode != presentationMode
         currentModel = model
         currentAppearance = appearance
+        currentHUD = hud
         currentPresentationMode = presentationMode
         currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
         currentLayout = layoutResult(
             itemCount: model.items.count,
             appearance: appearance,
+            hud: hud,
             maximumSize: maximumSize,
             presentationMode: presentationMode
         )
@@ -239,6 +247,7 @@ final class HUDPanelContentView: NSVisualEffectView {
                 tile.configure(
                     item: item,
                     appearance: appearance,
+                    hud: hud,
                     presentationMode: presentationMode,
                     iconProvider: iconProvider
                 )
@@ -267,6 +276,7 @@ final class HUDPanelContentView: NSVisualEffectView {
 
     func preferredSize(
         appearance: AppearanceConfig,
+        hud: HUDConfig,
         maximumSize: CGSize,
         presentationMode: HUDPresentationMode
     ) -> CGSize {
@@ -274,6 +284,7 @@ final class HUDPanelContentView: NSVisualEffectView {
         return layoutResult(
             itemCount: itemCount,
             appearance: appearance,
+            hud: hud,
             maximumSize: maximumSize,
             presentationMode: presentationMode
         ).viewportSize
@@ -339,6 +350,7 @@ final class HUDPanelContentView: NSVisualEffectView {
     private func layoutResult(
         itemCount: Int,
         appearance: AppearanceConfig,
+        hud: HUDConfig,
         maximumSize: CGSize,
         presentationMode: HUDPresentationMode
     ) -> HUDLayoutResult {
@@ -346,7 +358,7 @@ final class HUDPanelContentView: NSVisualEffectView {
         case .thumbnails:
             let result = HUDGridLayout.layout(
                 itemCount: itemCount,
-                metrics: HUDGridMetrics(appearance: appearance),
+                metrics: HUDGridMetrics(appearance: appearance, hud: hud),
                 maximumSize: maximumSize
             )
             return HUDLayoutResult(
@@ -388,6 +400,7 @@ final class HUDThumbnailTileView: NSView {
 
     private var item: HUDItem?
     private var appearanceConfig: AppearanceConfig = .default
+    private var hudConfig: HUDConfig = .default
     private var iconSurface: CGImage?
     private var representedThumbnailIdentity: ThumbnailTileIdentity?
     private var currentThumbnailState: ThumbnailState = .placeholder
@@ -474,7 +487,7 @@ final class HUDThumbnailTileView: NSView {
         super.layout()
         switch currentPresentationMode {
         case .thumbnails:
-            let metrics = HUDGridMetrics(appearance: appearanceConfig)
+            let metrics = HUDGridMetrics(appearance: appearanceConfig, hud: hudConfig)
             backgroundLayer.frame = bounds
             let previewBounds = CGRect(
                 x: metrics.innerPadding,
@@ -545,6 +558,7 @@ final class HUDThumbnailTileView: NSView {
     func configure(
         item: HUDItem,
         appearance: AppearanceConfig,
+        hud: HUDConfig,
         presentationMode: HUDPresentationMode,
         iconProvider: HUDIconProvider
     ) {
@@ -559,6 +573,7 @@ final class HUDThumbnailTileView: NSView {
 
         self.item = item
         self.appearanceConfig = appearance
+        self.hudConfig = hud
         self.currentPresentationMode = presentationMode
         currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
         representedThumbnailIdentity = newIdentity
@@ -576,7 +591,7 @@ final class HUDThumbnailTileView: NSView {
         showsSubtitle = !subtitleText.isEmpty
         let iconPointSize = switch presentationMode {
         case .thumbnails:
-            HUDGridMetrics(appearance: appearance).iconSize
+            HUDGridMetrics(appearance: appearance, hud: hud).iconSize
         case .iconOnly:
             HUDIconStripMetrics(appearance: appearance).iconSize
         }
@@ -1266,7 +1281,7 @@ enum HUDIconStripLayout {
 }
 
 struct HUDGridMetrics {
-    let outerPadding: CGFloat = 18
+    let outerPadding: CGFloat
     let innerPadding: CGFloat
     let tileSpacing: CGFloat
     let rowSpacing: CGFloat
@@ -1276,14 +1291,16 @@ struct HUDGridMetrics {
     let iconSize: CGFloat
     let thumbnailSize: CGSize
 
-    init(appearance: AppearanceConfig) {
-        iconSize = max(18, min(22, CGFloat(appearance.iconSize)))
-        innerPadding = max(8, CGFloat(appearance.itemPadding + 1))
-        tileSpacing = max(8, CGFloat(appearance.itemSpacing))
-        rowSpacing = max(12, tileSpacing + 2)
-        tileWidth = max(144, iconSize * 6.45)
-        thumbnailHeight = max(82, tileWidth * 0.57)
-        tileHeight = thumbnailHeight + innerPadding * 2 + iconSize + 18
+    init(appearance _: AppearanceConfig, hud: HUDConfig) {
+        let preset = HUDThumbnailMetricsPreset(hud.size)
+        outerPadding = preset.outerPadding
+        iconSize = preset.iconSize
+        innerPadding = preset.innerPadding
+        tileSpacing = preset.tileSpacing
+        rowSpacing = preset.rowSpacing
+        tileWidth = preset.tileWidth
+        thumbnailHeight = preset.thumbnailHeight
+        tileHeight = preset.tileHeight
         thumbnailSize = CGSize(
             width: tileWidth - innerPadding * 2,
             height: thumbnailHeight
@@ -1295,6 +1312,38 @@ struct HUDGridMetrics {
             width: max(tileWidth + outerPadding * 2, visibleFrame.width * 0.8),
             height: max(tileHeight + outerPadding * 2, visibleFrame.height * 0.64)
         )
+    }
+}
+
+private struct HUDThumbnailMetricsPreset {
+    let outerPadding: CGFloat
+    let innerPadding: CGFloat
+    let tileSpacing: CGFloat
+    let rowSpacing: CGFloat
+    let tileWidth: CGFloat
+    let thumbnailHeight: CGFloat
+    let tileHeight: CGFloat
+    let iconSize: CGFloat
+
+    init(_ size: HUDThumbnailSizePreset) {
+        let scale: CGFloat = switch size {
+        case .small: 1
+        case .medium: 1.14
+        case .large: 1.28
+        }
+
+        outerPadding = Self.scaled(18, by: scale)
+        innerPadding = Self.scaled(9, by: scale)
+        tileSpacing = Self.scaled(8, by: scale)
+        rowSpacing = max(Self.scaled(12, by: scale), tileSpacing + Self.scaled(2, by: scale))
+        iconSize = Self.scaled(22, by: scale)
+        tileWidth = max(Self.scaled(144, by: scale), iconSize * 6.45)
+        thumbnailHeight = max(Self.scaled(82, by: scale), tileWidth * 0.57)
+        tileHeight = thumbnailHeight + innerPadding * 2 + iconSize + Self.scaled(18, by: scale)
+    }
+
+    private static func scaled(_ value: CGFloat, by scale: CGFloat) -> CGFloat {
+        (value * scale).rounded()
     }
 }
 

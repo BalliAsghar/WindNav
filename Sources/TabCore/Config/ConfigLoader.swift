@@ -170,7 +170,7 @@ final class ConfigLoader {
 
         if let hudTable = table["hud"]?.table {
             logUnknownKeys(in: hudTable, section: "hud", known: [
-                "thumbnails",
+                "thumbnails", "size",
             ])
             hud.thumbnails = try parseBoolIfPresent(
                 table: hudTable,
@@ -178,6 +178,22 @@ final class ConfigLoader {
                 section: "hud",
                 defaultValue: hud.thumbnails
             )
+            if let sizeRaw = hudTable["size"]?.string {
+                guard let size = HUDThumbnailSizePreset(rawValue: sizeRaw) else {
+                    throw ConfigError.invalidValue(
+                        key: "hud.size",
+                        expected: "small|medium|large",
+                        actual: sizeRaw
+                    )
+                }
+                hud.size = size
+            } else if let raw = hudTable["size"] {
+                throw ConfigError.invalidValue(
+                    key: "hud.size",
+                    expected: "small|medium|large",
+                    actual: renderedValue(raw)
+                )
+            }
         }
 
         if let onboardingTable = table["onboarding"]?.table {
@@ -309,8 +325,29 @@ final class ConfigLoader {
                     actual: renderedValue(raw)
                 )
             }
+            if let raw = appearanceTable["icon-size"] {
+                throw ConfigError.invalidValue(
+                    key: "appearance.icon-size",
+                    expected: "key removed; use hud.size instead",
+                    actual: renderedValue(raw)
+                )
+            }
+            if let raw = appearanceTable["item-padding"] {
+                throw ConfigError.invalidValue(
+                    key: "appearance.item-padding",
+                    expected: "key removed; use hud.size instead",
+                    actual: renderedValue(raw)
+                )
+            }
+            if let raw = appearanceTable["item-spacing"] {
+                throw ConfigError.invalidValue(
+                    key: "appearance.item-spacing",
+                    expected: "key removed; use hud.size instead",
+                    actual: renderedValue(raw)
+                )
+            }
             logUnknownKeys(in: appearanceTable, section: "appearance", known: [
-                "theme", "icon-size", "item-padding", "item-spacing", "show-window-count",
+                "theme", "show-window-count",
             ])
 
             if let themeRaw = appearanceTable["theme"]?.string {
@@ -330,24 +367,6 @@ final class ConfigLoader {
                 )
             }
 
-            appearance.iconSize = try parseIntIfPresent(
-                table: appearanceTable,
-                key: "icon-size",
-                section: "appearance",
-                defaultValue: appearance.iconSize
-            )
-            appearance.itemPadding = try parseIntIfPresent(
-                table: appearanceTable,
-                key: "item-padding",
-                section: "appearance",
-                defaultValue: appearance.itemPadding
-            )
-            appearance.itemSpacing = try parseIntIfPresent(
-                table: appearanceTable,
-                key: "item-spacing",
-                section: "appearance",
-                defaultValue: appearance.itemSpacing
-            )
             appearance.showWindowCount = try parseBoolIfPresent(
                 table: appearanceTable,
                 key: "show-window-count",
@@ -431,6 +450,7 @@ final class ConfigLoader {
 
         [hud]
         thumbnails = \(config.hud.thumbnails)
+        size = "\(config.hud.size.rawValue)"
 
         [onboarding]
         permission-explainer-shown = \(config.onboarding.permissionExplainerShown)
@@ -452,9 +472,6 @@ final class ConfigLoader {
 
         [appearance]
         theme = "\(config.appearance.theme.rawValue)"
-        icon-size = \(config.appearance.iconSize)
-        item-padding = \(config.appearance.itemPadding)
-        item-spacing = \(config.appearance.itemSpacing)
         show-window-count = \(config.appearance.showWindowCount)
 
         [performance]
@@ -464,29 +481,6 @@ final class ConfigLoader {
     }
 
     private static func validate(_ config: TabConfig) throws {
-        if !(14...64).contains(config.appearance.iconSize) {
-            throw ConfigError.invalidValue(
-                key: "appearance.icon-size",
-                expected: "integer in range 14...64",
-                actual: "\(config.appearance.iconSize)"
-            )
-        }
-
-        if !(0...24).contains(config.appearance.itemPadding) {
-            throw ConfigError.invalidValue(
-                key: "appearance.item-padding",
-                expected: "integer in range 0...24",
-                actual: "\(config.appearance.itemPadding)"
-            )
-        }
-
-        if !(0...24).contains(config.appearance.itemSpacing) {
-            throw ConfigError.invalidValue(
-                key: "appearance.item-spacing",
-                expected: "integer in range 0...24",
-                actual: "\(config.appearance.itemSpacing)"
-            )
-        }
     }
 
     private static func parseStringIfPresent(
