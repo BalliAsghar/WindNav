@@ -76,6 +76,13 @@ final class ConfigLoader {
         ])
 
         if let activationTable = table["activation"]?.table {
+            if let raw = activationTable["override-system-cmd-tab"] {
+                throw ConfigError.invalidValue(
+                    key: "activation.override-system-cmd-tab",
+                    expected: "key removed; delete it from the config",
+                    actual: renderedValue(raw)
+                )
+            }
             if let raw = activationTable["reverse-trigger"] {
                 throw ConfigError.invalidValue(
                     key: "activation.reverse-trigger",
@@ -84,20 +91,13 @@ final class ConfigLoader {
                 )
             }
             logUnknownKeys(in: activationTable, section: "activation", known: [
-                "trigger", "override-system-cmd-tab",
+                "trigger",
             ])
             activation.trigger = try parseStringIfPresent(
                 table: activationTable,
                 key: "trigger",
                 section: "activation",
                 defaultValue: activation.trigger
-            )
-            // Deprecated key: accepted for backward compatibility, ignored by runtime.
-            _ = try parseBoolIfPresent(
-                table: activationTable,
-                key: "override-system-cmd-tab",
-                section: "activation",
-                defaultValue: true
             )
         }
 

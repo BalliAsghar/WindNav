@@ -62,14 +62,18 @@ final class ConfigCoreTests: XCTestCase {
         XCTAssertFalse(parsed.onboarding.launchAtLoginEnabled)
     }
 
-    func testDeprecatedOverrideSystemCmdTabKeyIsAcceptedAndIgnored() throws {
+    func testRemovedOverrideSystemCmdTabKeyThrows() {
         let text = """
         [activation]
         override-system-cmd-tab = false
         """
 
-        let parsed = try ConfigLoader.parse(text)
-        XCTAssertEqual(parsed.activation.trigger, TabConfig.default.activation.trigger)
+        XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
+            guard case ConfigError.invalidValue(let key, _, _) = error else {
+                return XCTFail("Expected invalidValue, got \(error)")
+            }
+            XCTAssertEqual(key, "activation.override-system-cmd-tab")
+        }
     }
 
     func testRemovedReverseTriggerKeyThrows() {

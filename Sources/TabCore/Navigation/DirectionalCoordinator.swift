@@ -285,7 +285,7 @@ final class DirectionalCoordinator {
             let step = direction == .left ? -1 : 1
             let nextIndex: Int
             if let currentIndex {
-                nextIndex = wrappedIndex(currentIndex + step, count: windows.count)
+                nextIndex = WindowSnapshotSupport.wrappedIndex(currentIndex + step, count: windows.count)
             } else {
                 nextIndex = direction == .left ? windows.count - 1 : 0
             }
@@ -336,7 +336,7 @@ final class DirectionalCoordinator {
             let step = goesForward ? 1 : -1
             let nextIndex: Int
             if let currentIndex {
-                nextIndex = wrappedIndex(currentIndex + step, count: windows.count)
+                nextIndex = WindowSnapshotSupport.wrappedIndex(currentIndex + step, count: windows.count)
             } else {
                 nextIndex = goesForward ? 0 : windows.count - 1
             }
@@ -427,26 +427,12 @@ final class DirectionalCoordinator {
     }
 
     private func showHUD(windows: [WindowSnapshot], selectedIndex: Int) {
-        let windowTotalsByPID = Dictionary(grouping: windows, by: \.pid).mapValues(\.count)
-        var nextWindowIndexByPID: [pid_t: Int] = [:]
-
-        let items = windows.enumerated().map { index, window in
-            let totalForPID = windowTotalsByPID[window.pid] ?? 1
-            let windowIndex = (nextWindowIndexByPID[window.pid] ?? 0) + 1
-            nextWindowIndexByPID[window.pid] = windowIndex
-
-            return HUDItem(
-                id: "\(window.windowId)",
-                label: window.appName ?? window.bundleId ?? "App",
-                pid: window.pid,
-                isSelected: index == selectedIndex,
-                isWindowlessApp: window.isWindowlessApp,
-                windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil
-            )
-        }
-
         hudController.show(
-            model: HUDModel(items: items, selectedIndex: selectedIndex),
+            model: HUDModelFactory.makeModel(
+                windows: windows,
+                selectedIndex: selectedIndex,
+                appearance: config.appearance
+            ),
             appearance: config.appearance
         )
     }
@@ -466,7 +452,7 @@ final class DirectionalCoordinator {
 
         let groups = appGroups(from: candidates)
         let windows = groups.flatMap { group in
-            group.windows.sorted(by: snapshotSortOrder(lhs:rhs:))
+            group.windows.sorted(by: WindowSnapshotSupport.snapshotSortOrder(lhs:rhs:))
         }
 
         return windows
@@ -486,8 +472,8 @@ final class DirectionalCoordinator {
         return grouped.keys.sorted { lhs, rhs in
             let lhsSeed = grouped[lhs]!
             let rhsSeed = grouped[rhs]!
-            let lhsLabel = appLabel(for: lhsSeed)
-            let rhsLabel = appLabel(for: rhsSeed)
+            let lhsLabel = WindowSnapshotSupport.appLabel(for: lhsSeed)
+            let rhsLabel = WindowSnapshotSupport.appLabel(for: rhsSeed)
             let cmp = lhsLabel.localizedCaseInsensitiveCompare(rhsLabel)
             if cmp != .orderedSame {
                 return cmp == .orderedAscending
@@ -495,56 +481,20 @@ final class DirectionalCoordinator {
             return lhs.rawValue < rhs.rawValue
         }.map { key in
             let windows = grouped[key]!
-            return AppRingGroupSeed(key: key, label: appLabel(for: windows), windows: windows)
+            return AppRingGroupSeed(
+                key: key,
+                label: WindowSnapshotSupport.appLabel(for: windows),
+                windows: windows
+            )
         }
-    }
-
-    private func appLabel(for windows: [WindowSnapshot]) -> String {
-        if let name = windows.first(where: { $0.appName != nil })?.appName {
-            return name
-        }
-        if let bundle = windows.first(where: { $0.bundleId != nil })?.bundleId {
-            return bundle
-        }
-        return "App"
     }
 
     private func applyFilters(_ snapshots: [WindowSnapshot]) -> [WindowSnapshot] {
-        let excludedNames = Set(config.filters.excludeApps.map { $0.lowercased() })
-        let excludedBundleIds = Set(config.filters.excludeBundleIds.map { $0.lowercased() })
-
-        return snapshots.filter { snapshot in
-            if !config.visibility.showMinimized && snapshot.isMinimized { return false }
-            if !config.visibility.showHidden && snapshot.appIsHidden { return false }
-            if !config.visibility.showFullscreen && snapshot.isFullscreen { return false }
-            if snapshot.isWindowlessApp && snapshot.bundleId == "com.apple.finder" { return false }
-            if config.visibility.showEmptyApps == .hide && snapshot.isWindowlessApp { return false }
-            if let appName = snapshot.appName, excludedNames.contains(appName.lowercased()) { return false }
-            if let bundleId = snapshot.bundleId, excludedBundleIds.contains(bundleId.lowercased()) { return false }
-            return true
-        }
-    }
-
-    private func snapshotSortOrder(lhs: WindowSnapshot, rhs: WindowSnapshot) -> Bool {
-        let lhsName = lhs.appName ?? lhs.bundleId ?? ""
-        let rhsName = rhs.appName ?? rhs.bundleId ?? ""
-        let cmp = lhsName.localizedCaseInsensitiveCompare(rhsName)
-        if cmp != .orderedSame {
-            return cmp == .orderedAscending
-        }
-        let lhsTitle = lhs.title ?? ""
-        let rhsTitle = rhs.title ?? ""
-        let titleCmp = lhsTitle.localizedCaseInsensitiveCompare(rhsTitle)
-        if titleCmp != .orderedSame {
-            return titleCmp == .orderedAscending
-        }
-        return lhs.windowId < rhs.windowId
-    }
-
-    private func wrappedIndex(_ index: Int, count: Int) -> Int {
-        guard count > 0 else { return 0 }
-        let next = index % count
-        return next < 0 ? next + count : next
+        WindowSnapshotSupport.applyFilters(
+            snapshots,
+            visibility: config.visibility,
+            filters: config.filters
+        )
     }
 
     private func msSince(_ start: DispatchTime) -> Int {

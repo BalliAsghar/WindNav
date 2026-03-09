@@ -109,9 +109,8 @@ final class AXWindowProvider: WindowProvider, FocusedWindowProvider {
         guard app.activationPolicy == .regular else { return nil }
         guard !app.isTerminated else { return nil }
 
-        let syntheticWindowId = UInt32.max - UInt32(app.processIdentifier % Int32.max)
         return WindowSnapshot(
-            windowId: syntheticWindowId,
+            windowId: SyntheticWindowID.make(pid: app.processIdentifier),
             pid: app.processIdentifier,
             bundleId: app.bundleIdentifier,
             appName: app.localizedName,

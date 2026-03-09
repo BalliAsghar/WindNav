@@ -9,7 +9,7 @@ protocol WindowClosePerformer: AnyObject {
 @MainActor
 final class AXWindowClosePerformer: WindowClosePerformer {
     func close(windowId: UInt32, pid: pid_t) -> Bool {
-        guard !isWindowlessAppId(windowId, pid: pid) else { return false }
+        guard !SyntheticWindowID.matches(windowId: windowId, pid: pid) else { return false }
         guard let window = findWindowElement(windowId: windowId, pid: pid) else { return false }
 
         if AXUIElementPerformAction(window, "AXClose" as CFString) == .success {
@@ -25,11 +25,6 @@ final class AXWindowClosePerformer: WindowClosePerformer {
 
         let closeButton = closeButtonRaw as! AXUIElement
         return AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == .success
-    }
-
-    private func isWindowlessAppId(_ windowId: UInt32, pid: pid_t) -> Bool {
-        let expectedSyntheticId = UInt32.max - UInt32(pid % Int32.max)
-        return windowId == expectedSyntheticId
     }
 
     private func findWindowElement(windowId: UInt32, pid: pid_t) -> AXUIElement? {

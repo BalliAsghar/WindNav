@@ -52,7 +52,10 @@ final class NavigationCoordinator {
             }
 
             let step = normalizedDirection == .left ? -1 : 1
-            session.selectedIndex = wrappedIndex(session.selectedIndex + step, count: session.ordered.count)
+            session.selectedIndex = WindowSnapshotSupport.wrappedIndex(
+                session.selectedIndex + step,
+                count: session.ordered.count
+            )
             cycleSession = session
             showHUD(for: session)
             Logger.info(.ui, "hud-selection-latency-ms=\(msSince(hotkeyTimestamp))")
@@ -225,23 +228,12 @@ final class NavigationCoordinator {
     }
 
     private func showHUD(for session: CycleSession) {
-        let windowTotalsByPID = Dictionary(grouping: session.ordered, by: \.pid).mapValues(\.count)
-        var nextWindowIndexByPID: [pid_t: Int] = [:]
-        let items = session.ordered.enumerated().map { index, snapshot in
-            let totalForPID = windowTotalsByPID[snapshot.pid] ?? 1
-            let windowIndex = (nextWindowIndexByPID[snapshot.pid] ?? 0) + 1
-            nextWindowIndexByPID[snapshot.pid] = windowIndex
-            return HUDItem(
-                id: "\(snapshot.windowId)",
-                label: snapshot.appName ?? snapshot.bundleId ?? "App",
-                pid: snapshot.pid,
-                isSelected: index == session.selectedIndex,
-                isWindowlessApp: snapshot.isWindowlessApp,
-                windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil
-            )
-        }
         hudController.show(
-            model: HUDModel(items: items, selectedIndex: session.selectedIndex),
+            model: HUDModelFactory.makeModel(
+                windows: session.ordered,
+                selectedIndex: session.selectedIndex,
+                appearance: config.appearance
+            ),
             appearance: config.appearance
         )
     }
@@ -279,42 +271,24 @@ final class NavigationCoordinator {
 
         let remaining = filtered
             .filter { !used.contains($0.windowId) }
-            .sorted(by: snapshotSortOrder(lhs:rhs:))
+            .sorted(by: WindowSnapshotSupport.snapshotSortOrder(lhs:rhs:))
         ordered.append(contentsOf: remaining)
-        return applyWindowlessOrdering(ordered)
-    }
-
-    private func snapshotSortOrder(lhs: WindowSnapshot, rhs: WindowSnapshot) -> Bool {
-        let lhsName = lhs.appName ?? lhs.bundleId ?? ""
-        let rhsName = rhs.appName ?? rhs.bundleId ?? ""
-        let cmp = lhsName.localizedCaseInsensitiveCompare(rhsName)
-        if cmp != .orderedSame {
-            return cmp == .orderedAscending
-        }
-        let lhsTitle = lhs.title ?? ""
-        let rhsTitle = rhs.title ?? ""
-        let titleCmp = lhsTitle.localizedCaseInsensitiveCompare(rhsTitle)
-        if titleCmp != .orderedSame {
-            return titleCmp == .orderedAscending
-        }
-        return lhs.windowId < rhs.windowId
+        return WindowSnapshotSupport.applyWindowlessOrdering(
+            ordered,
+            showEmptyApps: config.visibility.showEmptyApps
+        )
     }
 
     private func applyFilters(_ snapshots: [WindowSnapshot]) -> [WindowSnapshot] {
-        let excludedNames = Set(config.filters.excludeApps.map { $0.lowercased() })
-        let excludedBundleIds = Set(config.filters.excludeBundleIds.map { $0.lowercased() })
-
-        let filtered = snapshots.filter { snapshot in
-            if !config.visibility.showMinimized && snapshot.isMinimized { return false }
-            if !config.visibility.showHidden && snapshot.appIsHidden { return false }
-            if !config.visibility.showFullscreen && snapshot.isFullscreen { return false }
-            if snapshot.isWindowlessApp && snapshot.bundleId == "com.apple.finder" { return false }
-            if config.visibility.showEmptyApps == .hide && snapshot.isWindowlessApp { return false }
-            if let appName = snapshot.appName, excludedNames.contains(appName.lowercased()) { return false }
-            if let bundleId = snapshot.bundleId, excludedBundleIds.contains(bundleId.lowercased()) { return false }
-            return true
-        }
-        return applyWindowlessOrdering(filtered)
+        let filtered = WindowSnapshotSupport.applyFilters(
+            snapshots,
+            visibility: config.visibility,
+            filters: config.filters
+        )
+        return WindowSnapshotSupport.applyWindowlessOrdering(
+            filtered,
+            showEmptyApps: config.visibility.showEmptyApps
+        )
     }
 
     private func orderByMostRecent(_ snapshots: [WindowSnapshot], focusedWindowID: UInt32?) -> [WindowSnapshot] {
@@ -340,18 +314,12 @@ final class NavigationCoordinator {
 
         let remaining = snapshots
             .filter { !used.contains($0.windowId) }
-            .sorted(by: snapshotSortOrder(lhs:rhs:))
+            .sorted(by: WindowSnapshotSupport.snapshotSortOrder(lhs:rhs:))
         ordered.append(contentsOf: remaining)
-        return applyWindowlessOrdering(ordered)
-    }
-
-    private func applyWindowlessOrdering(_ snapshots: [WindowSnapshot]) -> [WindowSnapshot] {
-        guard config.visibility.showEmptyApps == .showAtEnd else {
-            return snapshots
-        }
-        let windowed = snapshots.filter { !$0.isWindowlessApp }
-        let windowless = snapshots.filter(\.isWindowlessApp)
-        return windowed + windowless
+        return WindowSnapshotSupport.applyWindowlessOrdering(
+            ordered,
+            showEmptyApps: config.visibility.showEmptyApps
+        )
     }
 
     private func initialSelectionIndex(direction: Direction, ordered: [WindowSnapshot], focusedWindowID: UInt32?) -> Int {
@@ -361,21 +329,15 @@ final class NavigationCoordinator {
 
         if direction == .left {
             if let focusedIndex {
-                return wrappedIndex(focusedIndex - 1, count: ordered.count)
+                return WindowSnapshotSupport.wrappedIndex(focusedIndex - 1, count: ordered.count)
             }
             return ordered.count - 1
         }
 
         if let focusedIndex {
-            return wrappedIndex(focusedIndex + 1, count: ordered.count)
+            return WindowSnapshotSupport.wrappedIndex(focusedIndex + 1, count: ordered.count)
         }
         return 0
-    }
-
-    private func wrappedIndex(_ index: Int, count: Int) -> Int {
-        guard count > 0 else { return 0 }
-        let next = index % count
-        return next < 0 ? next + count : next
     }
 
     private func updateHistory(_ windowId: UInt32) {
