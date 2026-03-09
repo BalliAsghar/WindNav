@@ -362,6 +362,101 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         XCTAssertEqual(tile.debugTitleString, "Example")
     }
 
+    func testIconOnlyTileShowsBadgeForRepeatedAppWindow() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 126, height: 154))
+        let snapshot = makeSnapshot(index: 0)
+
+        tile.configure(
+            item: HUDItem(
+                id: "1",
+                label: "Ghostty",
+                title: "Terminal",
+                pid: snapshot.pid,
+                snapshot: snapshot,
+                isSelected: false,
+                windowIndexInApp: 2,
+                thumbnailState: .unavailable
+            ),
+            appearance: .default,
+            presentationMode: .iconOnly,
+            iconProvider: makeIconProvider()
+        )
+
+        XCTAssertFalse(tile.debugBadgeIsHidden)
+        XCTAssertEqual(tile.debugBadgeString, "2")
+    }
+
+    func testIconOnlyTileHidesBadgeForSingleWindowApp() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 126, height: 154))
+        let snapshot = makeSnapshot(index: 0)
+
+        tile.configure(
+            item: HUDItem(
+                id: "1",
+                label: "Ghostty",
+                title: "Terminal",
+                pid: snapshot.pid,
+                snapshot: snapshot,
+                isSelected: true,
+                windowIndexInApp: nil,
+                thumbnailState: .unavailable
+            ),
+            appearance: .default,
+            presentationMode: .iconOnly,
+            iconProvider: makeIconProvider()
+        )
+
+        XCTAssertTrue(tile.debugBadgeIsHidden)
+    }
+
+    func testIconOnlyBadgePlacementIsStableAcrossSelectionState() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 126, height: 154))
+        let snapshot = makeSnapshot(index: 0)
+
+        tile.configure(
+            item: HUDItem(
+                id: "1",
+                label: "Ghostty",
+                title: "Terminal",
+                pid: snapshot.pid,
+                snapshot: snapshot,
+                isSelected: false,
+                windowIndexInApp: 2,
+                thumbnailState: .unavailable
+            ),
+            appearance: .default,
+            presentationMode: .iconOnly,
+            iconProvider: makeIconProvider()
+        )
+        tile.layoutSubtreeIfNeeded()
+        let unselectedFrame = tile.debugBadgeFrame
+
+        tile.configure(
+            item: HUDItem(
+                id: "1",
+                label: "Ghostty",
+                title: "Terminal",
+                pid: snapshot.pid,
+                snapshot: snapshot,
+                isSelected: true,
+                windowIndexInApp: 2,
+                thumbnailState: .unavailable
+            ),
+            appearance: .default,
+            presentationMode: .iconOnly,
+            iconProvider: makeIconProvider()
+        )
+        tile.layoutSubtreeIfNeeded()
+
+        XCTAssertFalse(tile.debugBadgeIsHidden)
+        XCTAssertEqual(tile.debugBadgeString, "2")
+        XCTAssertGreaterThan(tile.debugBadgeFrame.minX, 0)
+        XCTAssertGreaterThan(tile.debugBadgeFrame.minY, 0)
+        XCTAssertNotEqual(tile.debugBadgeFrame, .zero)
+        XCTAssertLessThanOrEqual(abs(tile.debugBadgeFrame.midX - unselectedFrame.midX), 16)
+        XCTAssertLessThanOrEqual(abs(tile.debugBadgeFrame.midY - unselectedFrame.midY), 16)
+    }
+
     private func makeModel(count: Int, selectedIndex: Int) -> HUDModel {
         let items = (0..<count).map { index in
             let snapshot = makeSnapshot(index: index)

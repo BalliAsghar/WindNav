@@ -531,7 +531,14 @@ final class HUDThumbnailTileView: NSView {
             )
             subtitleLayer.frame = .zero
             liveIndicatorLayer.frame = .zero
-            badgeLayer.frame = .zero
+            let badgeSize = CGSize(width: 18, height: 14)
+            let badgeAnchorFrame = isSelected ? plateFrame : iconFrame
+            badgeLayer.frame = CGRect(
+                x: min(bounds.width - badgeSize.width, badgeAnchorFrame.maxX - badgeSize.width * 0.45),
+                y: min(bounds.height - badgeSize.height, badgeAnchorFrame.maxY - badgeSize.height * 0.25),
+                width: badgeSize.width,
+                height: badgeSize.height
+            ).integral
         }
     }
 
@@ -597,8 +604,8 @@ final class HUDThumbnailTileView: NSView {
 
             iconLayer.contents = iconSurface
 
-            badgeLayer.isHidden = presentationMode == .iconOnly || item.windowIndexInApp == nil
-            badgeLayer.string = item.windowIndexInApp.map(String.init)
+            badgeLayer.string = HUDBadgeFormatter.badgeText(for: item.windowIndexInApp)
+            badgeLayer.isHidden = badgeLayer.string == nil
         }
 
         needsLayout = true
@@ -667,6 +674,18 @@ final class HUDThumbnailTileView: NSView {
 
     var debugTitleString: String {
         (titleLayer.string as? String) ?? ""
+    }
+
+    var debugBadgeIsHidden: Bool {
+        badgeLayer.isHidden
+    }
+
+    var debugBadgeString: String {
+        (badgeLayer.string as? String) ?? ""
+    }
+
+    var debugBadgeFrame: CGRect {
+        badgeLayer.frame
     }
 
     private func clearThumbnailContents() {
@@ -747,8 +766,8 @@ final class HUDThumbnailTileView: NSView {
             titleLayer.alignmentMode = .center
             titleLayer.foregroundColor = chrome.labelColor.cgColor
             subtitleLayer.foregroundColor = NSColor.clear.cgColor
-            badgeLayer.backgroundColor = NSColor.clear.cgColor
-            badgeLayer.foregroundColor = NSColor.clear.cgColor
+            badgeLayer.backgroundColor = chrome.badgeFillColor.cgColor
+            badgeLayer.foregroundColor = chrome.badgeTextColor.cgColor
             liveIndicatorLayer.isHidden = true
         }
     }
@@ -928,6 +947,8 @@ struct HUDIconTileChromeStyle {
     let plateShadowOffset: CGSize
     let plateCornerRadius: CGFloat
     let labelColor: NSColor
+    let badgeFillColor: NSColor
+    let badgeTextColor: NSColor
 }
 
 struct HUDVisualStyle {
@@ -1061,7 +1082,9 @@ struct HUDVisualStyle {
                 plateShadowRadius: 16,
                 plateShadowOffset: CGSize(width: 0, height: -4),
                 plateCornerRadius: 18,
-                labelColor: NSColor.white.withAlphaComponent(0.82)
+                labelColor: NSColor.white.withAlphaComponent(0.82),
+                badgeFillColor: NSColor.white.withAlphaComponent(0.18),
+                badgeTextColor: NSColor.white.withAlphaComponent(0.92)
             )
         }
 
@@ -1075,7 +1098,9 @@ struct HUDVisualStyle {
             plateShadowRadius: 0,
             plateShadowOffset: .zero,
             plateCornerRadius: 18,
-            labelColor: NSColor.clear
+            labelColor: NSColor.clear,
+            badgeFillColor: NSColor.black.withAlphaComponent(0.68),
+            badgeTextColor: NSColor.white.withAlphaComponent(0.88)
         )
     }
 }
