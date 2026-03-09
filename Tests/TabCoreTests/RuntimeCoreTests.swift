@@ -7,6 +7,14 @@ import XCTest
 final class RuntimeCoreTests: XCTestCase {
     func testCycleCommandRouting() {
         XCTAssertEqual(
+            TabRuntime.cycleCommand(keyCode: UInt16(kVK_Tab), flags: [.command]),
+            .move(.right)
+        )
+        XCTAssertEqual(
+            TabRuntime.cycleCommand(keyCode: UInt16(kVK_Tab), flags: [.command, .shift]),
+            .move(.left)
+        )
+        XCTAssertEqual(
             TabRuntime.cycleCommand(keyCode: UInt16(kVK_Escape), flags: []),
             .cancel
         )
@@ -28,6 +36,9 @@ final class RuntimeCoreTests: XCTestCase {
         )
         XCTAssertNil(
             TabRuntime.cycleCommand(keyCode: UInt16(kVK_RightArrow), flags: [])
+        )
+        XCTAssertNil(
+            TabRuntime.cycleCommand(keyCode: UInt16(kVK_Tab), flags: [])
         )
     }
 

@@ -438,6 +438,9 @@ public final class TabRuntime {
 
     static func cycleCommand(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> CycleInputCommand? {
         switch keyCode {
+            case UInt16(kVK_Tab):
+                guard flags.contains(.command) else { return nil }
+                return flags.contains(.shift) ? .move(.left) : .move(.right)
             case UInt16(kVK_Escape):
                 return .cancel
             case UInt16(kVK_LeftArrow):
