@@ -25,7 +25,7 @@ final class MinimalHUDController: HUDControlling {
         self.permissionService = permissionService
     }
 
-    func show(model: HUDModel, appearance: AppearanceConfig) {
+    func show(model: HUDModel, appearance: AppearanceConfig, hud: HUDConfig) {
         guard !model.items.isEmpty else {
             hide()
             return
@@ -33,12 +33,19 @@ final class MinimalHUDController: HUDControlling {
 
         let contentView = ensureContentView()
         let visibleFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1280, height: 800)
-        let metrics = HUDGridMetrics(appearance: appearance)
-        let maximumPanelSize = metrics.maximumPanelSize(for: visibleFrame)
+        let presentationMode = HUDPresentationMode(hud: hud)
+        let thumbnailMetrics = HUDGridMetrics(appearance: appearance)
+        let maximumPanelSize = Self.maximumPanelSize(
+            itemCount: model.items.count,
+            for: presentationMode,
+            appearance: appearance,
+            visibleFrame: visibleFrame
+        )
         let contentSize = contentView.apply(
             model: model,
             appearance: appearance,
-            maximumSize: maximumPanelSize
+            maximumSize: maximumPanelSize,
+            presentationMode: presentationMode
         )
 
         guard let panel else { return }
@@ -55,11 +62,15 @@ final class MinimalHUDController: HUDControlling {
         panel.orderFrontRegardless()
 
         let screenRecordingGranted = permissionService.status(for: .screenRecording) == .granted
+        let shouldCaptureThumbnails = Self.shouldCaptureThumbnails(
+            hud: hud,
+            screenRecordingGranted: screenRecordingGranted
+        )
         Task {
             await captureScheduler.show(
                 model: model,
-                targetSize: metrics.thumbnailSize,
-                screenRecordingGranted: screenRecordingGranted
+                targetSize: thumbnailMetrics.thumbnailSize,
+                screenRecordingGranted: shouldCaptureThumbnails
             )
         }
     }
@@ -83,6 +94,55 @@ final class MinimalHUDController: HUDControlling {
         return contentView
     }
 
+    static func shouldCaptureThumbnails(
+        hud: HUDConfig,
+        screenRecordingGranted: Bool
+    ) -> Bool {
+        hud.thumbnails && screenRecordingGranted
+    }
+
+    private static func maximumPanelSize(
+        itemCount: Int,
+        for presentationMode: HUDPresentationMode,
+        appearance: AppearanceConfig,
+        visibleFrame: CGRect
+    ) -> CGSize {
+        HUDPanelSizePolicy.maximumPanelSize(
+            itemCount: itemCount,
+            appearance: appearance,
+            visibleFrame: visibleFrame,
+            presentationMode: presentationMode
+        )
+    }
+}
+
+private enum HUDPanelSizePolicy {
+    static func maximumPanelSize(
+        itemCount: Int,
+        appearance: AppearanceConfig,
+        visibleFrame: CGRect,
+        presentationMode: HUDPresentationMode
+    ) -> CGSize {
+        let gridMetrics = HUDGridMetrics(appearance: appearance)
+        let sharedBudget = gridMetrics.maximumPanelSize(for: visibleFrame)
+        guard presentationMode == .iconOnly else {
+            return sharedBudget
+        }
+
+        let iconMetrics = HUDIconStripMetrics(appearance: appearance)
+        let minimumWidth = iconMetrics.tileWidth + iconMetrics.outerPadding * 2
+        let estimatedRowWidth = CGFloat(itemCount) * iconMetrics.tileWidth
+            + CGFloat(max(itemCount - 1, 0)) * iconMetrics.tileSpacing
+            + iconMetrics.outerPadding * 2
+
+        return CGSize(
+            width: min(sharedBudget.width, max(minimumWidth, estimatedRowWidth)),
+            height: sharedBudget.height
+        )
+    }
+}
+
+extension MinimalHUDController {
     private func makePanel(contentView: NSView) -> NSPanel {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 840, height: 240),
@@ -105,11 +165,13 @@ final class HUDPanelContentView: NSVisualEffectView {
     private let scrollView = NSScrollView(frame: .zero)
     private let documentView = NSView(frame: .zero)
     private let tintLayer = CALayer()
+    private let iconProvider = HUDIconProvider()
     private var tileViews: [HUDThumbnailTileView] = []
     private var currentModel: HUDModel?
     private var currentAppearance: AppearanceConfig = .default
-    private var currentLayout = HUDGridLayoutResult.empty
+    private var currentLayout = HUDLayoutResult.empty
     private var currentVisualStyle = HUDVisualStyle.resolve(appearance: .default)
+    private var currentPresentationMode: HUDPresentationMode = .thumbnails
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -123,14 +185,14 @@ final class HUDPanelContentView: NSVisualEffectView {
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         scrollView.hasHorizontalScroller = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.scrollerStyle = .overlay
         scrollView.contentView.postsBoundsChangedNotifications = true
         scrollView.documentView = documentView
 
         addSubview(scrollView)
-        applyPanelStyle(currentVisualStyle.panel)
+        applyPanelStyle(currentVisualStyle.panel(for: .thumbnails))
     }
 
     required init?(coder: NSCoder) {
@@ -144,25 +206,42 @@ final class HUDPanelContentView: NSVisualEffectView {
     }
 
     @discardableResult
-    func apply(model: HUDModel, appearance: AppearanceConfig, maximumSize: CGSize) -> CGSize {
+    func apply(
+        model: HUDModel,
+        appearance: AppearanceConfig,
+        maximumSize: CGSize,
+        presentationMode: HUDPresentationMode
+    ) -> CGSize {
+        let modeChanged = currentPresentationMode != presentationMode
         currentModel = model
         currentAppearance = appearance
+        currentPresentationMode = presentationMode
         currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
-        let metrics = HUDGridMetrics(appearance: appearance)
-        currentLayout = HUDGridLayout.layout(
+        currentLayout = layoutResult(
             itemCount: model.items.count,
-            metrics: metrics,
-            maximumSize: maximumSize
+            appearance: appearance,
+            maximumSize: maximumSize,
+            presentationMode: presentationMode
         )
-        applyPanelStyle(currentVisualStyle.panel)
+        applyPanelStyle(currentVisualStyle.panel(for: presentationMode))
 
         ensureTileCount(model.items.count)
         withoutAnimations {
+            if modeChanged {
+                scrollView.contentView.scroll(to: .zero)
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+            }
+
             for (index, item) in model.items.enumerated() {
                 let tile = tileViews[index]
                 tile.isHidden = false
                 tile.frame = currentLayout.tileFrames[index]
-                tile.configure(item: item, appearance: appearance)
+                tile.configure(
+                    item: item,
+                    appearance: appearance,
+                    presentationMode: presentationMode,
+                    iconProvider: iconProvider
+                )
             }
 
             for index in model.items.count..<tileViews.count {
@@ -170,13 +249,15 @@ final class HUDPanelContentView: NSVisualEffectView {
             }
 
             documentView.frame = CGRect(origin: .zero, size: currentLayout.documentSize)
-            scrollView.hasVerticalScroller = currentLayout.documentSize.height > currentLayout.viewportSize.height + 1
+            scrollView.hasVerticalScroller = presentationMode == .thumbnails
+                && currentLayout.documentSize.height > currentLayout.viewportSize.height + 1
         }
 
         return currentLayout.viewportSize
     }
 
     func apply(update: ThumbnailUpdate) {
+        guard currentPresentationMode == .thumbnails else { return }
         guard let model = currentModel else { return }
         guard let index = model.items.firstIndex(where: {
             $0.snapshot.windowId == update.windowId && $0.snapshot.revision == update.revision
@@ -184,13 +265,17 @@ final class HUDPanelContentView: NSVisualEffectView {
         tileViews[index].applyThumbnail(update.state, surface: update.surface)
     }
 
-    func preferredSize(appearance: AppearanceConfig, maximumSize: CGSize) -> CGSize {
-        let metrics = HUDGridMetrics(appearance: appearance)
+    func preferredSize(
+        appearance: AppearanceConfig,
+        maximumSize: CGSize,
+        presentationMode: HUDPresentationMode
+    ) -> CGSize {
         let itemCount = currentModel?.items.count ?? 0
-        return HUDGridLayout.layout(
+        return layoutResult(
             itemCount: itemCount,
-            metrics: metrics,
-            maximumSize: maximumSize
+            appearance: appearance,
+            maximumSize: maximumSize,
+            presentationMode: presentationMode
         ).viewportSize
     }
 
@@ -206,7 +291,14 @@ final class HUDPanelContentView: NSVisualEffectView {
     func revealSelectedTile() {
         guard let model = currentModel, let selectedIndex = model.selectedIndex else { return }
         guard tileViews.indices.contains(selectedIndex) else { return }
-        documentView.scrollToVisible(HUDGridLayout.revealRect(for: tileViews[selectedIndex].frame))
+        let tileFrame = tileViews[selectedIndex].frame
+        let revealRect = switch currentPresentationMode {
+        case .thumbnails:
+            HUDGridLayout.revealRect(for: tileFrame)
+        case .iconOnly:
+            HUDIconStripLayout.revealRect(for: tileFrame)
+        }
+        documentView.scrollToVisible(revealRect)
     }
 
     var debugScrollOrigin: CGPoint {
@@ -243,6 +335,38 @@ final class HUDPanelContentView: NSVisualEffectView {
         mask.resizingMode = .stretch
         maskImage = mask
     }
+
+    private func layoutResult(
+        itemCount: Int,
+        appearance: AppearanceConfig,
+        maximumSize: CGSize,
+        presentationMode: HUDPresentationMode
+    ) -> HUDLayoutResult {
+        switch presentationMode {
+        case .thumbnails:
+            let result = HUDGridLayout.layout(
+                itemCount: itemCount,
+                metrics: HUDGridMetrics(appearance: appearance),
+                maximumSize: maximumSize
+            )
+            return HUDLayoutResult(
+                viewportSize: result.viewportSize,
+                documentSize: result.documentSize,
+                tileFrames: result.tileFrames
+            )
+        case .iconOnly:
+            let result = HUDIconStripLayout.layout(
+                itemCount: itemCount,
+                metrics: HUDIconStripMetrics(appearance: appearance),
+                maximumSize: maximumSize
+            )
+            return HUDLayoutResult(
+                viewportSize: result.viewportSize,
+                documentSize: result.documentSize,
+                tileFrames: result.tileFrames
+            )
+        }
+    }
 }
 
 private struct ThumbnailTileIdentity: Equatable {
@@ -269,6 +393,7 @@ final class HUDThumbnailTileView: NSView {
     private var currentThumbnailState: ThumbnailState = .placeholder
     private var currentVisualStyle = HUDVisualStyle.resolve(appearance: .default)
     private var currentSelectionStyle: HUDTileSelectionStyle = .minimal
+    private var currentPresentationMode: HUDPresentationMode = .thumbnails
     private var isSelected = false
     private var showsSubtitle = true
     private var footerLayout = HUDFooterLayout.zero
@@ -347,38 +472,75 @@ final class HUDThumbnailTileView: NSView {
 
     override func layout() {
         super.layout()
-        let metrics = HUDGridMetrics(appearance: appearanceConfig)
-        backgroundLayer.frame = bounds
-        let previewBounds = CGRect(
-            x: metrics.innerPadding,
-            y: bounds.height - metrics.thumbnailHeight - metrics.innerPadding,
-            width: bounds.width - metrics.innerPadding * 2,
-            height: metrics.thumbnailHeight
-        )
-        previewShadowLayer.frame = previewBounds
-        previewBackdropLayer.frame = previewBounds
-        previewLayer.frame = fittedPreviewFrame(in: previewBounds)
-        overlayLayer.frame = previewBounds
-        let footerY = metrics.innerPadding
-        footerLayout = makeFooterLayout(metrics: metrics, footerY: footerY)
-        iconLayer.frame = footerLayout.iconFrame
-        titleLayer.frame = footerLayout.titleFrame
-        subtitleLayer.frame = footerLayout.subtitleFrame
-        liveIndicatorLayer.frame = CGRect(
-            x: bounds.width - metrics.innerPadding - 8,
-            y: footerY + 9,
-            width: 6,
-            height: 6
-        )
-        badgeLayer.frame = CGRect(
-            x: bounds.width - metrics.innerPadding - 20,
-            y: bounds.height - metrics.innerPadding - 18,
-            width: 18,
-            height: 12
-        )
+        switch currentPresentationMode {
+        case .thumbnails:
+            let metrics = HUDGridMetrics(appearance: appearanceConfig)
+            backgroundLayer.frame = bounds
+            let previewBounds = CGRect(
+                x: metrics.innerPadding,
+                y: bounds.height - metrics.thumbnailHeight - metrics.innerPadding,
+                width: bounds.width - metrics.innerPadding * 2,
+                height: metrics.thumbnailHeight
+            )
+            previewShadowLayer.frame = previewBounds
+            previewBackdropLayer.frame = previewBounds
+            previewLayer.frame = fittedPreviewFrame(in: previewBounds)
+            overlayLayer.frame = previewBounds
+            let footerY = metrics.innerPadding
+            footerLayout = makeFooterLayout(metrics: metrics, footerY: footerY)
+            iconLayer.frame = footerLayout.iconFrame
+            titleLayer.frame = footerLayout.titleFrame
+            subtitleLayer.frame = footerLayout.subtitleFrame
+            liveIndicatorLayer.frame = CGRect(
+                x: bounds.width - metrics.innerPadding - 8,
+                y: footerY + 9,
+                width: 6,
+                height: 6
+            )
+            badgeLayer.frame = CGRect(
+                x: bounds.width - metrics.innerPadding - 20,
+                y: bounds.height - metrics.innerPadding - 18,
+                width: 18,
+                height: 12
+            )
+        case .iconOnly:
+            let metrics = HUDIconStripMetrics(appearance: appearanceConfig)
+            let plateFrame = CGRect(
+                x: bounds.midX - (metrics.selectionPlateSize / 2),
+                y: metrics.labelHeight + metrics.labelSpacing,
+                width: metrics.selectionPlateSize,
+                height: metrics.selectionPlateSize
+            )
+            let iconFrame = CGRect(
+                x: bounds.midX - (metrics.iconSize / 2),
+                y: plateFrame.midY - (metrics.iconSize / 2),
+                width: metrics.iconSize,
+                height: metrics.iconSize
+            )
+            backgroundLayer.frame = isSelected ? plateFrame : .zero
+            previewShadowLayer.frame = .zero
+            previewBackdropLayer.frame = .zero
+            previewLayer.frame = .zero
+            overlayLayer.frame = .zero
+            iconLayer.frame = iconFrame
+            titleLayer.frame = CGRect(
+                x: 0,
+                y: 0,
+                width: bounds.width,
+                height: metrics.labelHeight
+            )
+            subtitleLayer.frame = .zero
+            liveIndicatorLayer.frame = .zero
+            badgeLayer.frame = .zero
+        }
     }
 
-    func configure(item: HUDItem, appearance: AppearanceConfig) {
+    func configure(
+        item: HUDItem,
+        appearance: AppearanceConfig,
+        presentationMode: HUDPresentationMode,
+        iconProvider: HUDIconProvider
+    ) {
         let newIdentity = ThumbnailTileIdentity(
             windowId: item.snapshot.windowId,
             revision: item.snapshot.revision
@@ -390,23 +552,52 @@ final class HUDThumbnailTileView: NSView {
 
         self.item = item
         self.appearanceConfig = appearance
+        self.currentPresentationMode = presentationMode
         currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
         representedThumbnailIdentity = newIdentity
         isSelected = item.isSelected
-        let subtitleText = item.label
+        let subtitleText: String
+        let titleText: String
+        switch presentationMode {
+        case .thumbnails:
+            subtitleText = item.label
+            titleText = item.title
+        case .iconOnly:
+            subtitleText = ""
+            titleText = item.isSelected ? WindowSnapshotSupport.appLabel(for: [item.snapshot]) : ""
+        }
         showsSubtitle = !subtitleText.isEmpty
-        iconSurface = NSRunningApplication(processIdentifier: item.pid)?
-            .icon?
-            .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        let iconPointSize = switch presentationMode {
+        case .thumbnails:
+            HUDGridMetrics(appearance: appearance).iconSize
+        case .iconOnly:
+            HUDIconStripMetrics(appearance: appearance).iconSize
+        }
+        let scale = window?.backingScaleFactor
+            ?? NSScreen.main?.backingScaleFactor
+            ?? 2
+        iconSurface = iconProvider.icon(
+            for: item.snapshot,
+            pointSize: iconPointSize,
+            scale: scale
+        )
 
         withoutAnimations {
-            titleLayer.string = item.title
+            titleLayer.string = titleText
             subtitleLayer.string = subtitleText
-            subtitleLayer.isHidden = !showsSubtitle
+            titleLayer.isHidden = presentationMode == .iconOnly && !item.isSelected
+            subtitleLayer.isHidden = presentationMode == .iconOnly || !showsSubtitle
+            if presentationMode == .iconOnly {
+                titleLayer.font = NSFont.systemFont(ofSize: 15, weight: .medium)
+                titleLayer.fontSize = 15
+            } else {
+                titleLayer.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+                titleLayer.fontSize = 12
+            }
 
             iconLayer.contents = iconSurface
 
-            badgeLayer.isHidden = item.windowIndexInApp == nil
+            badgeLayer.isHidden = presentationMode == .iconOnly || item.windowIndexInApp == nil
             badgeLayer.string = item.windowIndexInApp.map(String.init)
         }
 
@@ -470,6 +661,14 @@ final class HUDThumbnailTileView: NSView {
         iconLayer.frame
     }
 
+    var debugTitleIsHidden: Bool {
+        titleLayer.isHidden
+    }
+
+    var debugTitleString: String {
+        (titleLayer.string as? String) ?? ""
+    }
+
     private func clearThumbnailContents() {
         previewLayer.contents = nil
         liveIndicatorLayer.isHidden = true
@@ -478,34 +677,80 @@ final class HUDThumbnailTileView: NSView {
 
     private func applyChrome() {
         guard let item else { return }
-        let chrome = currentVisualStyle.tileChrome(
-            isSelected: item.isSelected,
-            thumbnailState: currentThumbnailState,
-            showsSubtitle: showsSubtitle
-        )
-        currentSelectionStyle = chrome.selectionStyle
-        backgroundLayer.backgroundColor = chrome.backgroundColor.cgColor
-        backgroundLayer.borderColor = chrome.borderColor.cgColor
-        backgroundLayer.borderWidth = chrome.borderWidth
-        backgroundLayer.shadowColor = chrome.shadowColor.cgColor
-        backgroundLayer.shadowOpacity = chrome.shadowOpacity
-        backgroundLayer.shadowRadius = chrome.shadowRadius
-        backgroundLayer.shadowOffset = chrome.shadowOffset
+        switch currentPresentationMode {
+        case .thumbnails:
+            let chrome = currentVisualStyle.tileChrome(
+                isSelected: item.isSelected,
+                thumbnailState: currentThumbnailState,
+                showsSubtitle: showsSubtitle
+            )
+            currentSelectionStyle = chrome.selectionStyle
+            backgroundLayer.cornerRadius = 14
+            backgroundLayer.cornerCurve = .continuous
+            backgroundLayer.backgroundColor = chrome.backgroundColor.cgColor
+            backgroundLayer.borderColor = chrome.borderColor.cgColor
+            backgroundLayer.borderWidth = chrome.borderWidth
+            backgroundLayer.shadowColor = chrome.shadowColor.cgColor
+            backgroundLayer.shadowOpacity = chrome.shadowOpacity
+            backgroundLayer.shadowRadius = chrome.shadowRadius
+            backgroundLayer.shadowOffset = chrome.shadowOffset
 
-        previewShadowLayer.shadowColor = chrome.previewShadowColor.cgColor
-        previewShadowLayer.shadowOpacity = chrome.previewShadowOpacity
-        previewShadowLayer.shadowRadius = chrome.previewShadowRadius
-        previewShadowLayer.shadowOffset = chrome.previewShadowOffset
+            previewShadowLayer.isHidden = false
+            previewBackdropLayer.isHidden = false
+            previewLayer.isHidden = false
+            overlayLayer.isHidden = false
+            previewShadowLayer.shadowColor = chrome.previewShadowColor.cgColor
+            previewShadowLayer.shadowOpacity = chrome.previewShadowOpacity
+            previewShadowLayer.shadowRadius = chrome.previewShadowRadius
+            previewShadowLayer.shadowOffset = chrome.previewShadowOffset
+            previewBackdropLayer.backgroundColor = chrome.previewBackdropColor.cgColor
+            overlayLayer.backgroundColor = chrome.overlayColor.cgColor
 
-        previewBackdropLayer.backgroundColor = chrome.previewBackdropColor.cgColor
-        overlayLayer.backgroundColor = chrome.overlayColor.cgColor
+            iconLayer.cornerRadius = 7
+            iconLayer.cornerCurve = .continuous
+            iconLayer.masksToBounds = true
+            iconLayer.contentsGravity = .resizeAspectFill
+            iconLayer.borderWidth = 0.5
+            iconLayer.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
 
-        titleLayer.foregroundColor = chrome.titleColor.cgColor
-        subtitleLayer.foregroundColor = chrome.subtitleColor.cgColor
-        badgeLayer.backgroundColor = chrome.badgeFillColor.cgColor
-        badgeLayer.foregroundColor = chrome.badgeTextColor.cgColor
-        liveIndicatorLayer.backgroundColor = chrome.liveIndicatorColor.cgColor
-        liveIndicatorLayer.isHidden = !chrome.showsLiveIndicator
+            titleLayer.alignmentMode = .left
+            titleLayer.foregroundColor = chrome.titleColor.cgColor
+            subtitleLayer.foregroundColor = chrome.subtitleColor.cgColor
+            badgeLayer.backgroundColor = chrome.badgeFillColor.cgColor
+            badgeLayer.foregroundColor = chrome.badgeTextColor.cgColor
+            liveIndicatorLayer.backgroundColor = chrome.liveIndicatorColor.cgColor
+            liveIndicatorLayer.isHidden = !chrome.showsLiveIndicator
+        case .iconOnly:
+            let chrome = currentVisualStyle.iconTileChrome(isSelected: item.isSelected)
+            currentSelectionStyle = chrome.selectionStyle
+            backgroundLayer.backgroundColor = chrome.plateColor.cgColor
+            backgroundLayer.borderColor = chrome.plateBorderColor.cgColor
+            backgroundLayer.borderWidth = chrome.plateBorderWidth
+            backgroundLayer.shadowColor = chrome.plateShadowColor.cgColor
+            backgroundLayer.shadowOpacity = chrome.plateShadowOpacity
+            backgroundLayer.shadowRadius = chrome.plateShadowRadius
+            backgroundLayer.shadowOffset = chrome.plateShadowOffset
+            backgroundLayer.cornerRadius = chrome.plateCornerRadius
+            backgroundLayer.cornerCurve = .continuous
+
+            previewShadowLayer.isHidden = true
+            previewBackdropLayer.isHidden = true
+            previewLayer.isHidden = true
+            overlayLayer.isHidden = true
+
+            iconLayer.cornerRadius = 0
+            iconLayer.borderWidth = 0
+            iconLayer.borderColor = NSColor.clear.cgColor
+            iconLayer.masksToBounds = false
+            iconLayer.contentsGravity = .resizeAspect
+
+            titleLayer.alignmentMode = .center
+            titleLayer.foregroundColor = chrome.labelColor.cgColor
+            subtitleLayer.foregroundColor = NSColor.clear.cgColor
+            badgeLayer.backgroundColor = NSColor.clear.cgColor
+            badgeLayer.foregroundColor = NSColor.clear.cgColor
+            liveIndicatorLayer.isHidden = true
+        }
     }
 
     private func applySelectionMotion(animated: Bool) {
@@ -517,6 +762,11 @@ final class HUDThumbnailTileView: NSView {
                 var transform = CATransform3DIdentity
                 transform = CATransform3DTranslate(transform, 0, 3, 0)
                 transform = CATransform3DScale(transform, 1.018, 1.018, 1)
+                targetTransform = transform
+            case .nativeIconPlate:
+                var transform = CATransform3DIdentity
+                transform = CATransform3DTranslate(transform, 0, 4, 0)
+                transform = CATransform3DScale(transform, 1.024, 1.024, 1)
                 targetTransform = transform
             case .minimal:
                 targetTransform = CATransform3DIdentity
@@ -615,8 +865,21 @@ struct HUDGridLayoutResult: Equatable {
     )
 }
 
+struct HUDLayoutResult: Equatable {
+    let viewportSize: CGSize
+    let documentSize: CGSize
+    let tileFrames: [CGRect]
+
+    static let empty = HUDLayoutResult(
+        viewportSize: .zero,
+        documentSize: .zero,
+        tileFrames: []
+    )
+}
+
 enum HUDTileSelectionStyle: Equatable {
     case neutralFocusPlate
+    case nativeIconPlate
     case minimal
 }
 
@@ -654,21 +917,49 @@ struct HUDTileChromeStyle {
     let showsLiveIndicator: Bool
 }
 
-struct HUDVisualStyle {
-    let panel: HUDPanelChromeStyle
+struct HUDIconTileChromeStyle {
+    let selectionStyle: HUDTileSelectionStyle
+    let plateColor: NSColor
+    let plateBorderColor: NSColor
+    let plateBorderWidth: CGFloat
+    let plateShadowColor: NSColor
+    let plateShadowOpacity: Float
+    let plateShadowRadius: CGFloat
+    let plateShadowOffset: CGSize
+    let plateCornerRadius: CGFloat
+    let labelColor: NSColor
+}
 
+struct HUDVisualStyle {
     static func resolve(appearance: AppearanceConfig) -> HUDVisualStyle {
-        let panel = HUDPanelChromeStyle(
-            material: .hudWindow,
-            blendingMode: .behindWindow,
-            cornerRadius: 24,
-            tintColor: NSColor.black.withAlphaComponent(0.24),
-            shadowColor: NSColor.black.withAlphaComponent(0.55),
-            shadowOpacity: 0.34,
-            shadowRadius: 26,
-            shadowOffset: CGSize(width: 0, height: -8)
-        )
-        return HUDVisualStyle(panel: panel)
+        HUDVisualStyle()
+    }
+
+    func panel(for presentationMode: HUDPresentationMode) -> HUDPanelChromeStyle {
+        switch presentationMode {
+        case .thumbnails:
+            return HUDPanelChromeStyle(
+                material: .hudWindow,
+                blendingMode: .behindWindow,
+                cornerRadius: 24,
+                tintColor: NSColor.black.withAlphaComponent(0.24),
+                shadowColor: NSColor.black.withAlphaComponent(0.55),
+                shadowOpacity: 0.34,
+                shadowRadius: 26,
+                shadowOffset: CGSize(width: 0, height: -8)
+            )
+        case .iconOnly:
+            return HUDPanelChromeStyle(
+                material: .hudWindow,
+                blendingMode: .behindWindow,
+                cornerRadius: 30,
+                tintColor: NSColor.black.withAlphaComponent(0.18),
+                shadowColor: NSColor.black.withAlphaComponent(0.48),
+                shadowOpacity: 0.28,
+                shadowRadius: 24,
+                shadowOffset: CGSize(width: 0, height: -6)
+            )
+        }
     }
 
     func tileChrome(
@@ -756,6 +1047,36 @@ struct HUDVisualStyle {
             case .unavailable:
                 return NSColor.black.withAlphaComponent(0.18)
         }
+    }
+
+    func iconTileChrome(isSelected: Bool) -> HUDIconTileChromeStyle {
+        if isSelected {
+            return HUDIconTileChromeStyle(
+                selectionStyle: .nativeIconPlate,
+                plateColor: NSColor(white: 0.02, alpha: 0.94),
+                plateBorderColor: NSColor.white.withAlphaComponent(0.08),
+                plateBorderWidth: 0.6,
+                plateShadowColor: NSColor.black.withAlphaComponent(0.4),
+                plateShadowOpacity: 0.24,
+                plateShadowRadius: 16,
+                plateShadowOffset: CGSize(width: 0, height: -4),
+                plateCornerRadius: 18,
+                labelColor: NSColor.white.withAlphaComponent(0.82)
+            )
+        }
+
+        return HUDIconTileChromeStyle(
+            selectionStyle: .minimal,
+            plateColor: .clear,
+            plateBorderColor: .clear,
+            plateBorderWidth: 0,
+            plateShadowColor: .clear,
+            plateShadowOpacity: 0,
+            plateShadowRadius: 0,
+            plateShadowOffset: .zero,
+            plateCornerRadius: 18,
+            labelColor: NSColor.clear
+        )
     }
 }
 
@@ -852,6 +1173,73 @@ enum HUDGridLayout {
     }
 }
 
+struct HUDIconStripLayoutResult: Equatable {
+    let viewportSize: CGSize
+    let documentSize: CGSize
+    let tileFrames: [CGRect]
+
+    static let empty = HUDIconStripLayoutResult(
+        viewportSize: .zero,
+        documentSize: .zero,
+        tileFrames: []
+    )
+}
+
+enum HUDIconStripLayout {
+    static func layout(
+        itemCount: Int,
+        metrics: HUDIconStripMetrics,
+        maximumSize: CGSize
+    ) -> HUDIconStripLayoutResult {
+        guard itemCount > 0 else {
+            let emptySize = CGSize(
+                width: metrics.tileWidth + metrics.outerPadding * 2,
+                height: metrics.tileHeight + metrics.outerPadding * 2
+            )
+            return HUDIconStripLayoutResult(
+                viewportSize: emptySize,
+                documentSize: emptySize,
+                tileFrames: []
+            )
+        }
+
+        let rowWidth = CGFloat(itemCount) * metrics.tileWidth
+            + CGFloat(max(itemCount - 1, 0)) * metrics.tileSpacing
+        let contentWidth = rowWidth + metrics.outerPadding * 2
+        let viewportWidth = min(maximumSize.width, contentWidth)
+        let rowOriginX = metrics.outerPadding + max(
+            0,
+            ((viewportWidth - metrics.outerPadding * 2 - rowWidth) / 2).rounded()
+        )
+        let y = metrics.outerPadding
+
+        let tileFrames = (0..<itemCount).map { index in
+            CGRect(
+                x: rowOriginX + CGFloat(index) * (metrics.tileWidth + metrics.tileSpacing),
+                y: y,
+                width: metrics.tileWidth,
+                height: metrics.tileHeight
+            )
+        }
+
+        return HUDIconStripLayoutResult(
+            viewportSize: CGSize(
+                width: viewportWidth,
+                height: min(maximumSize.height, metrics.tileHeight + metrics.outerPadding * 2)
+            ),
+            documentSize: CGSize(
+                width: max(contentWidth, viewportWidth),
+                height: metrics.tileHeight + metrics.outerPadding * 2
+            ),
+            tileFrames: tileFrames
+        )
+    }
+
+    static func revealRect(for tileFrame: CGRect) -> CGRect {
+        tileFrame.insetBy(dx: -22, dy: -6)
+    }
+}
+
 struct HUDGridMetrics {
     let outerPadding: CGFloat = 18
     let innerPadding: CGFloat
@@ -881,6 +1269,26 @@ struct HUDGridMetrics {
         CGSize(
             width: max(tileWidth + outerPadding * 2, visibleFrame.width * 0.8),
             height: max(tileHeight + outerPadding * 2, visibleFrame.height * 0.64)
+        )
+    }
+}
+
+struct HUDIconStripMetrics {
+    let outerPadding: CGFloat = 18
+    let tileSpacing: CGFloat = 12
+    let tileWidth: CGFloat = 114
+    let tileHeight: CGFloat = 124
+    let iconSize: CGFloat = 82
+    let selectionPlateSize: CGFloat = 98
+    let labelHeight: CGFloat = 24
+    let labelSpacing: CGFloat = 6
+
+    init(appearance _: AppearanceConfig) {}
+
+    func maximumPanelSize(for visibleFrame: CGRect) -> CGSize {
+        CGSize(
+            width: max(tileWidth + outerPadding * 2, visibleFrame.width * 0.72),
+            height: min(visibleFrame.height * 0.34, tileHeight + outerPadding * 2)
         )
     }
 }

@@ -40,7 +40,8 @@ final class HUDMetadataCoreTests: XCTestCase {
         let model = HUDModelFactory.makeModel(
             windows: windows,
             selectedIndex: 0,
-            appearance: .default
+            appearance: .default,
+            hud: .default
         )
 
         XCTAssertEqual(model.items.map(\.title), ["Docs", "Codex", "Ghostty"])

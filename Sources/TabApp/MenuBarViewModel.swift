@@ -111,11 +111,14 @@ func menuBarPermissionTitle(_ permission: PermissionKind) -> String {
 final class MenuBarViewModel: ObservableObject {
     enum FeatureToggle: CaseIterable {
         case directionalNavigation
+        case thumbnails
 
         var rowTitle: String {
             switch self {
             case .directionalNavigation:
                 "Directional Navigation"
+            case .thumbnails:
+                "Window Thumbnails"
             }
         }
 
@@ -123,6 +126,8 @@ final class MenuBarViewModel: ObservableObject {
             switch self {
             case .directionalNavigation:
                 "directional navigation"
+            case .thumbnails:
+                "window thumbnails"
             }
         }
     }
@@ -192,6 +197,8 @@ final class MenuBarViewModel: ObservableObject {
         switch feature {
         case .directionalNavigation:
             config.directional.enabled
+        case .thumbnails:
+            config.hud.thumbnails
         }
     }
 
@@ -327,6 +334,8 @@ final class MenuBarViewModel: ObservableObject {
         switch feature {
         case .directionalNavigation:
             config.directional.enabled = enabled
+        case .thumbnails:
+            config.hud.thumbnails = enabled
         }
     }
 
@@ -334,11 +343,20 @@ final class MenuBarViewModel: ObservableObject {
         switch feature {
         case .directionalNavigation:
             [.accessibility]
+        case .thumbnails:
+            [.screenRecording]
         }
     }
 
     private func permissionsRequiredForEnabledFeatures() -> [PermissionKind] {
-        [.accessibility]
+        var required: [PermissionKind] = []
+        if config.directional.enabled {
+            required.append(.accessibility)
+        }
+        if config.hud.thumbnails {
+            required.append(.screenRecording)
+        }
+        return required
     }
 
     private func refreshPermissionStatuses() {

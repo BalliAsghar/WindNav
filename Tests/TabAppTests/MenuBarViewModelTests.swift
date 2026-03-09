@@ -8,6 +8,7 @@ final class MenuBarViewModelTests: XCTestCase {
     func testInitialStateReflectsPersistedConfigAndPermissionStatuses() throws {
         var config = TabConfig.default
         config.directional.enabled = false
+        config.hud.thumbnails = false
 
         let runtime = RuntimeStub(statuses: [.accessibility: .granted])
         let settingsStore = SettingsStoreStub(storedConfig: config)
@@ -20,6 +21,7 @@ final class MenuBarViewModelTests: XCTestCase {
         )
 
         XCTAssertFalse(viewModel.isFeatureEnabled(.directionalNavigation))
+        XCTAssertFalse(viewModel.isFeatureEnabled(.thumbnails))
         XCTAssertEqual(viewModel.statusLabel(for: .accessibility), "Granted")
         XCTAssertEqual(viewModel.summaryText, "Status: Ready")
     }
@@ -112,6 +114,95 @@ final class MenuBarViewModelTests: XCTestCase {
         XCTAssertTrue(runtime.appliedConfigs[0].directional.enabled)
     }
 
+    func testThumbnailToggleOnPersistsAndAppliesConfigWhenScreenRecordingGranted() throws {
+        var config = TabConfig.default
+        config.hud.thumbnails = false
+
+        let runtime = RuntimeStub(statuses: [.screenRecording: .granted])
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let viewModel = try MenuBarViewModel(
+            runtime: runtime,
+            settingsStore: settingsStore,
+            alertPresenter: AlertPresenterStub()
+        )
+
+        viewModel.setFeature(.thumbnails, enabled: true)
+
+        XCTAssertTrue(viewModel.isFeatureEnabled(.thumbnails))
+        XCTAssertEqual(settingsStore.savedConfigs.count, 1)
+        XCTAssertTrue(settingsStore.savedConfigs[0].hud.thumbnails)
+        XCTAssertEqual(runtime.appliedConfigs.count, 1)
+        XCTAssertTrue(runtime.appliedConfigs[0].hud.thumbnails)
+    }
+
+    func testEnableThumbnailsCancelledAtPrePermissionPromptDoesNotPersist() throws {
+        var config = TabConfig.default
+        config.hud.thumbnails = false
+
+        let runtime = RuntimeStub(statuses: [.screenRecording: .notDetermined])
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let alerts = AlertPresenterStub()
+        alerts.prePermissionResponses = [false]
+
+        let viewModel = try MenuBarViewModel(
+            runtime: runtime,
+            settingsStore: settingsStore,
+            alertPresenter: alerts
+        )
+
+        viewModel.setFeature(.thumbnails, enabled: true)
+
+        XCTAssertFalse(viewModel.isFeatureEnabled(.thumbnails))
+        XCTAssertEqual(alerts.prePermissionPrompts.count, 1)
+        XCTAssertEqual(runtime.requestedPermissions, [])
+        XCTAssertEqual(settingsStore.savedConfigs.count, 0)
+    }
+
+    func testEnableThumbnailsDeniedPermissionDoesNotPersist() throws {
+        var config = TabConfig.default
+        config.hud.thumbnails = false
+
+        let runtime = RuntimeStub(statuses: [.screenRecording: .notDetermined])
+        runtime.requestResults[.screenRecording] = [.denied]
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let alerts = AlertPresenterStub()
+        alerts.prePermissionResponses = [true]
+
+        let viewModel = try MenuBarViewModel(
+            runtime: runtime,
+            settingsStore: settingsStore,
+            alertPresenter: alerts
+        )
+
+        viewModel.setFeature(.thumbnails, enabled: true)
+
+        XCTAssertFalse(viewModel.isFeatureEnabled(.thumbnails))
+        XCTAssertEqual(alerts.permissionDeniedCalls, [.screenRecording])
+        XCTAssertEqual(settingsStore.savedConfigs.count, 0)
+    }
+
+    func testDisableThumbnailsPersistsWithoutPermissionPrompt() throws {
+        var config = TabConfig.default
+        config.hud.thumbnails = true
+
+        let runtime = RuntimeStub(statuses: [.screenRecording: .denied])
+        let settingsStore = SettingsStoreStub(storedConfig: config)
+        let alerts = AlertPresenterStub()
+
+        let viewModel = try MenuBarViewModel(
+            runtime: runtime,
+            settingsStore: settingsStore,
+            alertPresenter: alerts
+        )
+
+        viewModel.setFeature(.thumbnails, enabled: false)
+
+        XCTAssertFalse(viewModel.isFeatureEnabled(.thumbnails))
+        XCTAssertEqual(alerts.prePermissionPrompts.count, 0)
+        XCTAssertEqual(runtime.requestedPermissions, [])
+        XCTAssertEqual(settingsStore.savedConfigs.last?.hud.thumbnails, false)
+    }
+
     func testSaveFailureShowsErrorAndReloadsConfig() throws {
         var config = TabConfig.default
         config.directional.enabled = false
@@ -160,7 +251,8 @@ final class MenuBarViewModelTests: XCTestCase {
 
     func testSummaryStatusTracksAccessibilityRequirement() throws {
         var config = TabConfig.default
-        config.directional.enabled = false
+        config.directional.enabled = true
+        config.hud.thumbnails = false
 
         let runtime = RuntimeStub(statuses: [.accessibility: .denied])
         let settingsStore = SettingsStoreStub(storedConfig: config)
@@ -181,6 +273,8 @@ final class MenuBarViewModelTests: XCTestCase {
     }
 
     func testSummaryIgnoresOptionalScreenRecordingPermission() throws {
+        var config = TabConfig.default
+        config.hud.thumbnails = false
         let runtime = RuntimeStub(
             statuses: [
                 .accessibility: .granted,
@@ -189,12 +283,31 @@ final class MenuBarViewModelTests: XCTestCase {
         )
         let viewModel = try MenuBarViewModel(
             runtime: runtime,
-            settingsStore: SettingsStoreStub(storedConfig: .default),
+            settingsStore: SettingsStoreStub(storedConfig: config),
             alertPresenter: AlertPresenterStub()
         )
 
         XCTAssertEqual(viewModel.summaryText, "Status: Ready")
         XCTAssertEqual(viewModel.statusLabel(for: .screenRecording), "Not Granted")
+    }
+
+    func testSummaryRequiresScreenRecordingWhenThumbnailsEnabled() throws {
+        var config = TabConfig.default
+        config.directional.enabled = false
+        config.hud.thumbnails = true
+
+        let runtime = RuntimeStub(
+            statuses: [
+                .screenRecording: .denied,
+            ]
+        )
+        let viewModel = try MenuBarViewModel(
+            runtime: runtime,
+            settingsStore: SettingsStoreStub(storedConfig: config),
+            alertPresenter: AlertPresenterStub()
+        )
+
+        XCTAssertEqual(viewModel.summaryText, "Status: Permissions Needed")
     }
 
     func testOnboardingShownOnceAndPersistsFlag() throws {

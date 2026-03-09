@@ -52,8 +52,17 @@ struct HUDModel: Equatable, Sendable {
     let selectedIndex: Int?
 }
 
+enum HUDPresentationMode: Equatable, Sendable {
+    case thumbnails
+    case iconOnly
+
+    init(hud: HUDConfig) {
+        self = hud.thumbnails ? .thumbnails : .iconOnly
+    }
+}
+
 @MainActor
 protocol HUDControlling: AnyObject {
-    func show(model: HUDModel, appearance: AppearanceConfig)
+    func show(model: HUDModel, appearance: AppearanceConfig, hud: HUDConfig)
     func hide()
 }

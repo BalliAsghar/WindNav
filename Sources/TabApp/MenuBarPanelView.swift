@@ -14,10 +14,8 @@ struct MenuBarPanelView: View {
     private let chipSize: CGFloat = 24
     private let chipSymbolSize: CGFloat = 12
 
-    private var allPermissionsGranted: Bool {
-        PermissionKind.allCases.allSatisfy {
-            viewModel.permissionStatus(for: $0) == .granted
-        }
+    private var hasVisiblePermissionRows: Bool {
+        PermissionKind.allCases.contains(where: shouldShowPermissionRow)
     }
 
     var body: some View {
@@ -35,20 +33,29 @@ struct MenuBarPanelView: View {
                     set: { viewModel.setFeature(.directionalNavigation, enabled: $0) }
                 )
             )
+            featureToggleRow(
+                id: "feature.thumbnails",
+                title: MenuBarViewModel.FeatureToggle.thumbnails.rowTitle,
+                systemImage: "photo.on.rectangle.angled",
+                isOn: Binding(
+                    get: { viewModel.isFeatureEnabled(.thumbnails) },
+                    set: { viewModel.setFeature(.thumbnails, enabled: $0) }
+                )
+            )
 
-            if !allPermissionsGranted {
+            if hasVisiblePermissionRows {
                 Divider()
                     .padding(.top, 4)
 
                 sectionLabel("Permissions")
-                if viewModel.permissionStatus(for: .accessibility) != .granted {
+                if shouldShowPermissionRow(.accessibility) {
                     permissionRow(
                         id: "permission.accessibility",
                         permission: .accessibility,
                         systemImage: "figure.roll"
                     )
                 }
-                if viewModel.permissionStatus(for: .screenRecording) != .granted {
+                if shouldShowPermissionRow(.screenRecording) {
                     permissionRow(
                         id: "permission.screen-recording",
                         permission: .screenRecording,
@@ -189,6 +196,16 @@ struct MenuBarPanelView: View {
         .buttonStyle(MenuRowButtonStyle())
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
+    }
+
+    private func shouldShowPermissionRow(_ permission: PermissionKind) -> Bool {
+        guard viewModel.permissionStatus(for: permission) != .granted else { return false }
+        switch permission {
+        case .accessibility:
+            return viewModel.isFeatureEnabled(.directionalNavigation)
+        case .screenRecording:
+            return viewModel.isFeatureEnabled(.thumbnails)
+        }
     }
 
     private func rowContainer<Content: View>(id: String, @ViewBuilder content: () -> Content) -> some View {

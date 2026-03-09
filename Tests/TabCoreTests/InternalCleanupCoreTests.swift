@@ -159,7 +159,8 @@ final class InternalCleanupCoreTests: XCTestCase {
         let model = HUDModelFactory.makeModel(
             windows: windows,
             selectedIndex: 1,
-            appearance: .default
+            appearance: .default,
+            hud: .default
         )
 
         XCTAssertEqual(model.selectedIndex, 1)

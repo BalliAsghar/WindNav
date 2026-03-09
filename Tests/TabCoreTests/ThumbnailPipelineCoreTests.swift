@@ -50,14 +50,18 @@ final class ThumbnailPipelineCoreTests: XCTestCase {
 
         tile.configure(
             item: makeItem(snapshot: snapshot, isSelected: false),
-            appearance: .default
+            appearance: .default,
+            presentationMode: .thumbnails,
+            iconProvider: makeIconProvider()
         )
         tile.applyThumbnail(.freshStill, surface: surface)
         XCTAssertTrue(tile.debugPreviewHasContents)
 
         tile.configure(
             item: makeItem(snapshot: snapshot, isSelected: true),
-            appearance: .default
+            appearance: .default,
+            presentationMode: .thumbnails,
+            iconProvider: makeIconProvider()
         )
 
         XCTAssertTrue(tile.debugPreviewHasContents)
@@ -69,14 +73,18 @@ final class ThumbnailPipelineCoreTests: XCTestCase {
 
         tile.configure(
             item: makeItem(snapshot: makeSnapshot(windowId: 1, revision: 10), isSelected: false),
-            appearance: .default
+            appearance: .default,
+            presentationMode: .thumbnails,
+            iconProvider: makeIconProvider()
         )
         tile.applyThumbnail(.freshStill, surface: surface)
         XCTAssertTrue(tile.debugPreviewHasContents)
 
         tile.configure(
             item: makeItem(snapshot: makeSnapshot(windowId: 1, revision: 11), isSelected: false),
-            appearance: .default
+            appearance: .default,
+            presentationMode: .thumbnails,
+            iconProvider: makeIconProvider()
         )
 
         XCTAssertFalse(tile.debugPreviewHasContents)
@@ -123,5 +131,21 @@ final class ThumbnailPipelineCoreTests: XCTestCase {
         context.setFillColor(NSColor.systemBlue.cgColor)
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         return context.makeImage()!
+    }
+
+    private func makeIconProvider() -> HUDIconProvider {
+        HUDIconProvider(source: ThumbnailTestIconSource())
+    }
+}
+
+@MainActor
+private struct ThumbnailTestIconSource: HUDIconSourcing {
+    func image(for snapshot: WindowSnapshot) -> NSImage? {
+        let image = NSImage(size: NSSize(width: 64, height: 64))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: 64, height: 64), xRadius: 12, yRadius: 12).fill()
+        image.unlockFocus()
+        return image
     }
 }

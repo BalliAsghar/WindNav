@@ -42,6 +42,7 @@ struct ConfigSectionSpec: Equatable, Sendable {
 enum TabDefaultsCatalog {
     static let activation = ActivationConfig.default
     static let directional = DirectionalConfig.default
+    static let hud = HUDConfig.default
     static let onboarding = OnboardingConfig.default
     static let visibility = VisibilityConfig.default
     static let ordering = OrderingConfig.default
@@ -52,6 +53,7 @@ enum TabDefaultsCatalog {
     static let config = TabConfig(
         activation: activation,
         directional: directional,
+        hud: hud,
         onboarding: onboarding,
         visibility: visibility,
         ordering: ordering,
@@ -116,6 +118,17 @@ enum TabDefaultsCatalog {
                     defaultValue: .bool(directional.commitOnModifierRelease),
                     allowedValues: "true|false",
                     description: "Commit browse selection on modifier release."
+                ),
+            ]
+        ),
+        ConfigSectionSpec(
+            name: "hud",
+            settings: [
+                ConfigSettingSpec(
+                    key: "thumbnails",
+                    defaultValue: .bool(hud.thumbnails),
+                    allowedValues: "true|false",
+                    description: "Enable live window thumbnails in the HUD."
                 ),
             ]
         ),

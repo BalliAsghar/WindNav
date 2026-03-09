@@ -431,9 +431,11 @@ final class DirectionalCoordinator {
             model: HUDModelFactory.makeModel(
                 windows: windows,
                 selectedIndex: selectedIndex,
-                appearance: config.appearance
+                appearance: config.appearance,
+                hud: config.hud
             ),
-            appearance: config.appearance
+            appearance: config.appearance,
+            hud: config.hud
         )
     }
 

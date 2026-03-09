@@ -232,9 +232,11 @@ final class NavigationCoordinator {
             model: HUDModelFactory.makeModel(
                 windows: session.ordered,
                 selectedIndex: session.selectedIndex,
-                appearance: config.appearance
+                appearance: config.appearance,
+                hud: config.hud
             ),
-            appearance: config.appearance
+            appearance: config.appearance,
+            hud: config.hud
         )
     }
 

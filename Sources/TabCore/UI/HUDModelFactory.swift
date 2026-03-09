@@ -4,7 +4,8 @@ enum HUDModelFactory {
     static func makeModel(
         windows: [WindowSnapshot],
         selectedIndex: Int,
-        appearance: AppearanceConfig
+        appearance: AppearanceConfig,
+        hud: HUDConfig
     ) -> HUDModel {
         let windowTotalsByPID = Dictionary(grouping: windows, by: \.pid).mapValues(\.count)
         var nextWindowIndexByPID: [pid_t: Int] = [:]
@@ -24,7 +25,7 @@ enum HUDModelFactory {
                 isSelected: index == selectedIndex,
                 isWindowlessApp: window.isWindowlessApp,
                 windowIndexInApp: appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil,
-                thumbnailState: window.canCaptureThumbnail ? .placeholder : .unavailable
+                thumbnailState: hud.thumbnails && window.canCaptureThumbnail ? .placeholder : .unavailable
             )
         }
 

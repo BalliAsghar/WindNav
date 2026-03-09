@@ -157,7 +157,7 @@ private final class FakeHUDController: HUDControlling {
     var lastModel: HUDModel?
     var hideCalls = 0
 
-    func show(model: HUDModel, appearance: AppearanceConfig) {
+    func show(model: HUDModel, appearance: AppearanceConfig, hud: HUDConfig) {
         lastModel = model
     }
 

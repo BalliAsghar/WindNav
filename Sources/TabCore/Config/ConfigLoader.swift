@@ -64,6 +64,7 @@ final class ConfigLoader {
 
         var activation = ActivationConfig.default
         var directional = DirectionalConfig.default
+        var hud = HUDConfig.default
         var onboarding = OnboardingConfig.default
         var visibility = VisibilityConfig.default
         var ordering = OrderingConfig.default
@@ -72,7 +73,7 @@ final class ConfigLoader {
         var performance = PerformanceConfig.default
 
         logUnknownKeys(in: table, section: "root", known: [
-            "activation", "directional", "onboarding", "visibility", "ordering", "filters", "appearance", "performance",
+            "activation", "directional", "hud", "onboarding", "visibility", "ordering", "filters", "appearance", "performance",
         ])
 
         if let activationTable = table["activation"]?.table {
@@ -164,6 +165,18 @@ final class ConfigLoader {
                 key: "commit-on-modifier-release",
                 section: "directional",
                 defaultValue: directional.commitOnModifierRelease
+            )
+        }
+
+        if let hudTable = table["hud"]?.table {
+            logUnknownKeys(in: hudTable, section: "hud", known: [
+                "thumbnails",
+            ])
+            hud.thumbnails = try parseBoolIfPresent(
+                table: hudTable,
+                key: "thumbnails",
+                section: "hud",
+                defaultValue: hud.thumbnails
             )
         }
 
@@ -386,6 +399,7 @@ final class ConfigLoader {
         let config = TabConfig(
             activation: activation,
             directional: directional,
+            hud: hud,
             onboarding: onboarding,
             visibility: visibility,
             ordering: ordering,
@@ -414,6 +428,9 @@ final class ConfigLoader {
         down = "\(escape(config.directional.down))"
         browse-left-right-mode = "\(config.directional.browseLeftRightMode.rawValue)"
         commit-on-modifier-release = \(config.directional.commitOnModifierRelease)
+
+        [hud]
+        thumbnails = \(config.hud.thumbnails)
 
         [onboarding]
         permission-explainer-shown = \(config.onboarding.permissionExplainerShown)

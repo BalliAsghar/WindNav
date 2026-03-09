@@ -3,6 +3,7 @@ import Foundation
 public struct TabConfig: Equatable, Sendable {
     public var activation: ActivationConfig
     public var directional: DirectionalConfig
+    public var hud: HUDConfig
     public var onboarding: OnboardingConfig
     public var visibility: VisibilityConfig
     public var ordering: OrderingConfig
@@ -13,6 +14,7 @@ public struct TabConfig: Equatable, Sendable {
     public init(
         activation: ActivationConfig,
         directional: DirectionalConfig,
+        hud: HUDConfig,
         onboarding: OnboardingConfig,
         visibility: VisibilityConfig,
         ordering: OrderingConfig,
@@ -22,6 +24,7 @@ public struct TabConfig: Equatable, Sendable {
     ) {
         self.activation = activation
         self.directional = directional
+        self.hud = hud
         self.onboarding = onboarding
         self.visibility = visibility
         self.ordering = ordering
@@ -33,6 +36,7 @@ public struct TabConfig: Equatable, Sendable {
     public static let `default` = TabConfig(
         activation: .default,
         directional: .default,
+        hud: .default,
         onboarding: .default,
         visibility: .default,
         ordering: .default,
@@ -40,6 +44,16 @@ public struct TabConfig: Equatable, Sendable {
         appearance: .default,
         performance: .default
     )
+}
+
+public struct HUDConfig: Equatable, Sendable {
+    public var thumbnails: Bool
+
+    public init(thumbnails: Bool) {
+        self.thumbnails = thumbnails
+    }
+
+    public static let `default` = HUDConfig(thumbnails: true)
 }
 
 public struct OnboardingConfig: Equatable, Sendable {

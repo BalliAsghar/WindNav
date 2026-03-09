@@ -7,6 +7,10 @@ final class ConfigCoreTests: XCTestCase {
         XCTAssertFalse(TabConfig.default.onboarding.launchAtLoginEnabled)
     }
 
+    func testDefaultHUDThumbnailsEnabled() {
+        XCTAssertTrue(TabConfig.default.hud.thumbnails)
+    }
+
     func testDefaultConfigPathUsesWindNavDirectory() {
         let path = ConfigLoader.defaultConfigURL().path
         XCTAssertTrue(path.hasSuffix("/.config/windnav/config.toml"))
@@ -34,6 +38,7 @@ final class ConfigCoreTests: XCTestCase {
         input.filters.excludeApps = ["Finder"]
         input.performance.logColor = .never
         input.onboarding.launchAtLoginEnabled = true
+        input.hud.thumbnails = false
 
         try loader.save(input)
         let reparsed = try loader.loadOrCreate()
@@ -50,6 +55,13 @@ final class ConfigCoreTests: XCTestCase {
         let text = ConfigLoader.serialize(.default)
         XCTAssertFalse(text.contains("show-thumbnails"))
         XCTAssertFalse(text.contains("thumbnail-width"))
+    }
+
+    func testSerializeIncludesHUDSection() {
+        let text = ConfigLoader.serialize(.default)
+
+        XCTAssertTrue(text.contains("[hud]"))
+        XCTAssertTrue(text.contains("thumbnails = true"))
     }
 
     func testMissingLaunchAtLoginKeyDefaultsToFalse() throws {
@@ -143,6 +155,20 @@ final class ConfigCoreTests: XCTestCase {
                 return XCTFail("Expected invalidValue, got \(error)")
             }
             XCTAssertEqual(key, "directional.show-thumbnails")
+        }
+    }
+
+    func testInvalidHUDThumbnailsValueThrows() {
+        let text = """
+        [hud]
+        thumbnails = "yes"
+        """
+
+        XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
+            guard case ConfigError.invalidValue(let key, _, _) = error else {
+                return XCTFail("Expected invalidValue, got \(error)")
+            }
+            XCTAssertEqual(key, "hud.thumbnails")
         }
     }
 }
