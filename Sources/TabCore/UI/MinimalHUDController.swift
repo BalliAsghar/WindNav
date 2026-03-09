@@ -268,6 +268,8 @@ final class HUDThumbnailTileView: NSView {
     private var representedThumbnailIdentity: ThumbnailTileIdentity?
     private var currentThumbnailState: ThumbnailState = .placeholder
     private var currentVisualStyle = HUDVisualStyle.resolve(appearance: .default)
+    private var currentSelectionStyle: HUDTileSelectionStyle = .minimal
+    private var isSelected = false
     private var showsSubtitle = true
 
     override init(frame frameRect: NSRect) {
@@ -407,11 +409,15 @@ final class HUDThumbnailTileView: NSView {
             revision: item.snapshot.revision
         )
         let identityChanged = representedThumbnailIdentity != newIdentity
+        let selectionChanged = representedThumbnailIdentity != nil
+            && representedThumbnailIdentity == newIdentity
+            && isSelected != item.isSelected
 
         self.item = item
         self.appearanceConfig = appearance
         currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
         representedThumbnailIdentity = newIdentity
+        isSelected = item.isSelected
         let subtitleText = item.label == item.title ? "" : item.label
         showsSubtitle = !subtitleText.isEmpty
         iconSurface = NSRunningApplication(processIdentifier: item.pid)?
@@ -431,6 +437,7 @@ final class HUDThumbnailTileView: NSView {
 
         needsLayout = true
         applyChrome()
+        applySelectionMotion(animated: selectionChanged)
         if identityChanged {
             clearThumbnailContents()
             applyThumbnail(item.thumbnailState, surface: nil)
@@ -489,6 +496,7 @@ final class HUDThumbnailTileView: NSView {
             thumbnailState: currentThumbnailState,
             showsSubtitle: showsSubtitle
         )
+        currentSelectionStyle = chrome.selectionStyle
         backgroundLayer.backgroundColor = chrome.backgroundColor.cgColor
         backgroundLayer.borderColor = chrome.borderColor.cgColor
         backgroundLayer.borderWidth = chrome.borderWidth
@@ -511,6 +519,37 @@ final class HUDThumbnailTileView: NSView {
         badgeLayer.foregroundColor = chrome.badgeTextColor.cgColor
         liveIndicatorLayer.backgroundColor = chrome.liveIndicatorColor.cgColor
         liveIndicatorLayer.isHidden = !chrome.showsLiveIndicator
+    }
+
+    private func applySelectionMotion(animated: Bool) {
+        guard let layer else { return }
+
+        let targetTransform: CATransform3D
+        switch currentSelectionStyle {
+            case .neutralFocusPlate:
+                var transform = CATransform3DIdentity
+                transform = CATransform3DTranslate(transform, 0, 3, 0)
+                transform = CATransform3DScale(transform, 1.018, 1.018, 1)
+                targetTransform = transform
+            case .minimal:
+                targetTransform = CATransform3DIdentity
+        }
+
+        if animated {
+            let animation = CABasicAnimation(keyPath: "transform")
+            animation.fromValue = layer.presentation()?.transform ?? layer.transform
+            animation.toValue = targetTransform
+            animation.duration = 0.14
+            animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(animation, forKey: "windnav.selection.lift")
+        } else {
+            layer.removeAnimation(forKey: "windnav.selection.lift")
+        }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.transform = targetTransform
+        CATransaction.commit()
     }
 
     private func fittedPreviewFrame(in bounds: CGRect) -> CGRect {
