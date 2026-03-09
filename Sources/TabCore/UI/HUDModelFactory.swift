@@ -13,11 +13,12 @@ enum HUDModelFactory {
             let totalForPID = windowTotalsByPID[window.pid] ?? 1
             let windowIndex = (nextWindowIndexByPID[window.pid] ?? 0) + 1
             nextWindowIndexByPID[window.pid] = windowIndex
+            let metadata = HUDMetadataFormatter.lines(for: window)
 
             return HUDItem(
                 id: "\(window.windowId)",
-                label: WindowSnapshotSupport.appLabel(for: [window]),
-                title: window.title ?? WindowSnapshotSupport.appLabel(for: [window]),
+                label: metadata.secondary,
+                title: metadata.primary,
                 pid: window.pid,
                 snapshot: window,
                 isSelected: index == selectedIndex,

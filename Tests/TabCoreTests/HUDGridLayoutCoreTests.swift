@@ -110,7 +110,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         let snapshot = makeSnapshot(index: 0)
         let item = HUDItem(
             id: "1",
-            label: "Window 1",
+            label: "",
             title: "Window 1",
             pid: snapshot.pid,
             snapshot: snapshot,
@@ -121,6 +121,77 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         tile.configure(item: item, appearance: .default)
 
         XCTAssertFalse(tile.debugShowsSubtitle)
+    }
+
+    func testTileKeepsStableTitleAndSubtitleFramesWhenSecondaryTextIsMissing() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 220, height: 160))
+        let snapshot = makeSnapshot(index: 0)
+        let withSubtitle = HUDItem(
+            id: "1",
+            label: "Ghostty",
+            title: "Terminal",
+            pid: snapshot.pid,
+            snapshot: snapshot,
+            isSelected: false,
+            thumbnailState: .placeholder
+        )
+        let withoutSubtitle = HUDItem(
+            id: "1",
+            label: "",
+            title: "Ghostty",
+            pid: snapshot.pid,
+            snapshot: snapshot,
+            isSelected: false,
+            thumbnailState: .placeholder
+        )
+
+        tile.configure(item: withSubtitle, appearance: .default)
+        let titleFrameWithSubtitle = tile.debugTitleFrame
+        let subtitleFrameWithSubtitle = tile.debugSubtitleFrame
+        let iconFrameWithSubtitle = tile.debugIconFrame
+
+        tile.configure(item: withoutSubtitle, appearance: .default)
+
+        XCTAssertEqual(tile.debugTitleFrame, titleFrameWithSubtitle)
+        XCTAssertEqual(tile.debugSubtitleFrame, subtitleFrameWithSubtitle)
+        XCTAssertEqual(tile.debugIconFrame, iconFrameWithSubtitle)
+        XCTAssertFalse(tile.debugShowsSubtitle)
+    }
+
+    func testTileMetadataAlignmentIsStableAcrossSelectionState() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 220, height: 160))
+        let snapshot = makeSnapshot(index: 0)
+        let item = HUDItem(
+            id: "1",
+            label: "Google Chrome",
+            title: "YouTube",
+            pid: snapshot.pid,
+            snapshot: snapshot,
+            isSelected: false,
+            thumbnailState: .placeholder
+        )
+
+        tile.configure(item: item, appearance: .default)
+        let unselectedTitleFrame = tile.debugTitleFrame
+        let unselectedSubtitleFrame = tile.debugSubtitleFrame
+        let unselectedIconFrame = tile.debugIconFrame
+
+        tile.configure(
+            item: HUDItem(
+                id: item.id,
+                label: item.label,
+                title: item.title,
+                pid: item.pid,
+                snapshot: item.snapshot,
+                isSelected: true,
+                thumbnailState: item.thumbnailState
+            ),
+            appearance: .default
+        )
+
+        XCTAssertEqual(tile.debugTitleFrame, unselectedTitleFrame)
+        XCTAssertEqual(tile.debugSubtitleFrame, unselectedSubtitleFrame)
+        XCTAssertEqual(tile.debugIconFrame, unselectedIconFrame)
     }
 
     func testRelaxedMetricsProvideMoreBreathingRoom() {

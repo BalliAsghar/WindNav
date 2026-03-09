@@ -271,6 +271,7 @@ final class HUDThumbnailTileView: NSView {
     private var currentSelectionStyle: HUDTileSelectionStyle = .minimal
     private var isSelected = false
     private var showsSubtitle = true
+    private var footerLayout = HUDFooterLayout.zero
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -359,36 +360,10 @@ final class HUDThumbnailTileView: NSView {
         previewLayer.frame = fittedPreviewFrame(in: previewBounds)
         overlayLayer.frame = previewBounds
         let footerY = metrics.innerPadding
-        iconLayer.frame = CGRect(
-            x: metrics.innerPadding,
-            y: footerY + 3,
-            width: metrics.iconSize,
-            height: metrics.iconSize
-        )
-        let textX = iconLayer.frame.maxX + 8
-        let textWidth = max(24, bounds.width - textX - metrics.innerPadding - 16)
-        if showsSubtitle {
-            titleLayer.frame = CGRect(
-                x: textX,
-                y: footerY + 14,
-                width: textWidth,
-                height: 16
-            )
-            subtitleLayer.frame = CGRect(
-                x: textX,
-                y: footerY + 1,
-                width: textWidth,
-                height: 14
-            )
-        } else {
-            titleLayer.frame = CGRect(
-                x: textX,
-                y: footerY + 6,
-                width: textWidth,
-                height: metrics.iconSize
-            )
-            subtitleLayer.frame = .zero
-        }
+        footerLayout = makeFooterLayout(metrics: metrics, footerY: footerY)
+        iconLayer.frame = footerLayout.iconFrame
+        titleLayer.frame = footerLayout.titleFrame
+        subtitleLayer.frame = footerLayout.subtitleFrame
         liveIndicatorLayer.frame = CGRect(
             x: bounds.width - metrics.innerPadding - 8,
             y: footerY + 9,
@@ -418,7 +393,7 @@ final class HUDThumbnailTileView: NSView {
         currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
         representedThumbnailIdentity = newIdentity
         isSelected = item.isSelected
-        let subtitleText = item.label == item.title ? "" : item.label
+        let subtitleText = item.label
         showsSubtitle = !subtitleText.isEmpty
         iconSurface = NSRunningApplication(processIdentifier: item.pid)?
             .icon?
@@ -481,6 +456,18 @@ final class HUDThumbnailTileView: NSView {
 
     var debugShowsSubtitle: Bool {
         !subtitleLayer.isHidden
+    }
+
+    var debugTitleFrame: CGRect {
+        titleLayer.frame
+    }
+
+    var debugSubtitleFrame: CGRect {
+        subtitleLayer.frame
+    }
+
+    var debugIconFrame: CGRect {
+        iconLayer.frame
     }
 
     private func clearThumbnailContents() {
@@ -571,6 +558,42 @@ final class HUDThumbnailTileView: NSView {
             height: fittedHeight
         )
     }
+
+    private func makeFooterLayout(metrics: HUDGridMetrics, footerY: CGFloat) -> HUDFooterLayout {
+        let iconFrame = CGRect(
+            x: metrics.innerPadding,
+            y: footerY + 3,
+            width: metrics.iconSize,
+            height: metrics.iconSize
+        )
+        let textX = iconFrame.maxX + 8
+        let textWidth = max(24, bounds.width - textX - metrics.innerPadding - 16)
+        let subtitleFrame = CGRect(
+            x: textX,
+            y: footerY + 1,
+            width: textWidth,
+            height: 14
+        )
+        let titleFrame = CGRect(
+            x: textX,
+            y: footerY + 14,
+            width: textWidth,
+            height: 16
+        )
+        return HUDFooterLayout(
+            iconFrame: iconFrame,
+            titleFrame: titleFrame,
+            subtitleFrame: subtitleFrame
+        )
+    }
+}
+
+private struct HUDFooterLayout {
+    let iconFrame: CGRect
+    let titleFrame: CGRect
+    let subtitleFrame: CGRect
+
+    static let zero = HUDFooterLayout(iconFrame: .zero, titleFrame: .zero, subtitleFrame: .zero)
 }
 
 struct HUDGridRow: Equatable {
