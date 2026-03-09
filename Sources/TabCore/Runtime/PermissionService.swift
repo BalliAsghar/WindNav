@@ -1,8 +1,10 @@
 import AppKit
+import CoreGraphics
 import Foundation
 
 public enum PermissionKind: String, CaseIterable, Sendable {
     case accessibility
+    case screenRecording
 }
 
 public enum PermissionStatus: Sendable, Equatable {
@@ -19,11 +21,15 @@ public enum PermissionRequestResult: Sendable, Equatable {
 struct PermissionStatusEvaluator {
     let isAccessibilityGranted: () -> Bool
     let requestAccessibility: () -> Bool
+    let isScreenRecordingGranted: () -> Bool
+    let requestScreenRecording: () -> Bool
 
     @MainActor
     static let live = PermissionStatusEvaluator(
         isAccessibilityGranted: { AXPermission.ensureTrusted(prompt: false) },
-        requestAccessibility: { AXPermission.ensureTrusted(prompt: true) }
+        requestAccessibility: { AXPermission.ensureTrusted(prompt: true) },
+        isScreenRecordingGranted: { CGPreflightScreenCaptureAccess() },
+        requestScreenRecording: { CGRequestScreenCaptureAccess() }
     )
 }
 
@@ -57,7 +63,13 @@ public final class PermissionService {
 
     public func request(_ permission: PermissionKind) -> PermissionRequestResult {
         markRequested(permission)
-        let granted = evaluator.requestAccessibility()
+        let granted: Bool
+        switch permission {
+            case .accessibility:
+                granted = evaluator.requestAccessibility()
+            case .screenRecording:
+                granted = evaluator.requestScreenRecording()
+        }
         return granted ? .granted : .denied
     }
 
@@ -67,7 +79,12 @@ public final class PermissionService {
     }
 
     private func isGranted(_ permission: PermissionKind) -> Bool {
-        evaluator.isAccessibilityGranted()
+        switch permission {
+            case .accessibility:
+                evaluator.isAccessibilityGranted()
+            case .screenRecording:
+                evaluator.isScreenRecordingGranted()
+        }
     }
 
     private func hasRequested(_ permission: PermissionKind) -> Bool {
@@ -83,6 +100,11 @@ public final class PermissionService {
     }
 
     private func settingsURLString(for permission: PermissionKind) -> String {
-        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        switch permission {
+            case .accessibility:
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+            case .screenRecording:
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        }
     }
 }

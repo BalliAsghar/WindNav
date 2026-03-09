@@ -8,6 +8,7 @@ public enum LogCategory: String, Sendable {
     case windows
     case navigation
     case ui
+    case capture
 }
 
 public enum LogLevel: String, Sendable {
@@ -167,6 +168,7 @@ private extension LogCategory {
             case .windows: return "Windows"
             case .navigation: return "Navigation"
             case .ui: return "UI"
+            case .capture: return "Capture"
         }
     }
 
@@ -178,6 +180,7 @@ private extension LogCategory {
             case .windows: return ANSIColor.green
             case .navigation: return ANSIColor.blue
             case .ui: return ANSIColor.brightCyan
+            case .capture: return ANSIColor.yellow
         }
     }
 }

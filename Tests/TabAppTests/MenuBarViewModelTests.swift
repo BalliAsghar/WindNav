@@ -180,6 +180,23 @@ final class MenuBarViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.summaryText, "Status: Ready")
     }
 
+    func testSummaryIgnoresOptionalScreenRecordingPermission() throws {
+        let runtime = RuntimeStub(
+            statuses: [
+                .accessibility: .granted,
+                .screenRecording: .denied,
+            ]
+        )
+        let viewModel = try MenuBarViewModel(
+            runtime: runtime,
+            settingsStore: SettingsStoreStub(storedConfig: .default),
+            alertPresenter: AlertPresenterStub()
+        )
+
+        XCTAssertEqual(viewModel.summaryText, "Status: Ready")
+        XCTAssertEqual(viewModel.statusLabel(for: .screenRecording), "Not Granted")
+    }
+
     func testOnboardingShownOnceAndPersistsFlag() throws {
         var config = TabConfig.default
         config.onboarding.permissionExplainerShown = false

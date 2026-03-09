@@ -24,7 +24,7 @@ public final class TabRuntime {
 
     private let configLoader: ConfigLoader
     private let hotkeys: CarbonHotkeyRegistrar
-    private let windowProvider: AXWindowProvider
+    private let windowProvider: CatalogWindowProvider
     private let focusPerformer: FocusPerformer
     private let hudController: any HUDControlling
     private let permissionService: PermissionService
@@ -38,20 +38,22 @@ public final class TabRuntime {
     nonisolated(unsafe) private let captureState = SessionCaptureState()
 
     public convenience init(configURL: URL? = nil) {
+        let permissionService = PermissionService()
+        let sourceProvider = AXWindowProvider()
         self.init(
             configLoader: ConfigLoader(configURL: configURL ?? ConfigLoader.defaultConfigURL()),
             hotkeys: CarbonHotkeyRegistrar(),
-            windowProvider: AXWindowProvider(),
+            windowProvider: CatalogWindowProvider(source: sourceProvider),
             focusPerformer: AXFocusPerformer(),
-            hudController: MinimalHUDController(),
-            permissionService: PermissionService()
+            hudController: MinimalHUDController(permissionService: permissionService),
+            permissionService: permissionService
         )
     }
 
     init(
         configLoader: ConfigLoader,
         hotkeys: CarbonHotkeyRegistrar,
-        windowProvider: AXWindowProvider,
+        windowProvider: CatalogWindowProvider,
         focusPerformer: FocusPerformer,
         hudController: any HUDControlling,
         permissionService: PermissionService = PermissionService()

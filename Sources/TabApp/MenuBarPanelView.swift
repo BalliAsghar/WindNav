@@ -14,8 +14,8 @@ struct MenuBarPanelView: View {
     private let chipSize: CGFloat = 24
     private let chipSymbolSize: CGFloat = 12
 
-    private var allRequiredPermissionsGranted: Bool {
-        [.accessibility].allSatisfy {
+    private var allPermissionsGranted: Bool {
+        PermissionKind.allCases.allSatisfy {
             viewModel.permissionStatus(for: $0) == .granted
         }
     }
@@ -36,7 +36,7 @@ struct MenuBarPanelView: View {
                 )
             )
 
-            if !allRequiredPermissionsGranted {
+            if !allPermissionsGranted {
                 Divider()
                     .padding(.top, 4)
 
@@ -46,6 +46,13 @@ struct MenuBarPanelView: View {
                         id: "permission.accessibility",
                         permission: .accessibility,
                         systemImage: "figure.roll"
+                    )
+                }
+                if viewModel.permissionStatus(for: .screenRecording) != .granted {
+                    permissionRow(
+                        id: "permission.screen-recording",
+                        permission: .screenRecording,
+                        systemImage: "rectangle.on.rectangle.badge.person.crop"
                     )
                 }
             }

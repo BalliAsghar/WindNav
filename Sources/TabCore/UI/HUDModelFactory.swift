@@ -17,10 +17,13 @@ enum HUDModelFactory {
             return HUDItem(
                 id: "\(window.windowId)",
                 label: WindowSnapshotSupport.appLabel(for: [window]),
+                title: window.title ?? WindowSnapshotSupport.appLabel(for: [window]),
                 pid: window.pid,
+                snapshot: window,
                 isSelected: index == selectedIndex,
                 isWindowlessApp: window.isWindowlessApp,
-                windowIndexInApp: appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil
+                windowIndexInApp: appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil,
+                thumbnailState: window.canCaptureThumbnail ? .placeholder : .unavailable
             )
         }
 

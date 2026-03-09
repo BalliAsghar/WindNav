@@ -12,7 +12,9 @@ final class PermissionServiceCoreTests: XCTestCase {
         let service = PermissionService(
             evaluator: PermissionStatusEvaluator(
                 isAccessibilityGranted: { false },
-                requestAccessibility: { false }
+                requestAccessibility: { false },
+                isScreenRecordingGranted: { false },
+                requestScreenRecording: { false }
             ),
             defaults: defaults
         )
@@ -29,12 +31,35 @@ final class PermissionServiceCoreTests: XCTestCase {
         let service = PermissionService(
             evaluator: PermissionStatusEvaluator(
                 isAccessibilityGranted: { granted },
-                requestAccessibility: { granted = true; return true }
+                requestAccessibility: { granted = true; return true },
+                isScreenRecordingGranted: { false },
+                requestScreenRecording: { false }
             ),
             defaults: defaults
         )
 
         XCTAssertEqual(service.request(.accessibility), .granted)
         XCTAssertEqual(service.status(for: .accessibility), .granted)
+    }
+
+    func testScreenRecordingPermissionTracksSeparateState() {
+        let suite = "PermissionServiceCoreTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        var granted = false
+        let service = PermissionService(
+            evaluator: PermissionStatusEvaluator(
+                isAccessibilityGranted: { false },
+                requestAccessibility: { false },
+                isScreenRecordingGranted: { granted },
+                requestScreenRecording: { granted = true; return true }
+            ),
+            defaults: defaults
+        )
+
+        XCTAssertEqual(service.status(for: .screenRecording), .notDetermined)
+        XCTAssertEqual(service.request(.screenRecording), .granted)
+        XCTAssertEqual(service.status(for: .screenRecording), .granted)
     }
 }

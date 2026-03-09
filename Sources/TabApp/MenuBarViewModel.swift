@@ -100,8 +100,10 @@ final class AppKitMenuBarAlertPresenter: MenuBarAlertPresenting {
 @MainActor
 func menuBarPermissionTitle(_ permission: PermissionKind) -> String {
     switch permission {
-    case .accessibility:
-        "Accessibility"
+        case .accessibility:
+            "Accessibility"
+        case .screenRecording:
+            "Screen Recording"
     }
 }
 

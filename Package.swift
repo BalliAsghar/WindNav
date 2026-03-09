@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "TabPlusPlus",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [
         .executable(name: "TabApp", targets: ["TabApp"]),
         .library(name: "TabCore", targets: ["TabCore"]),
