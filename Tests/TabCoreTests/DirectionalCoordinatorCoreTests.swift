@@ -47,6 +47,60 @@ final class DirectionalCoordinatorCoreTests: XCTestCase {
         XCTAssertEqual(harness.focus.calls.count, 1)
     }
 
+    func testRepeatedUpClosesActiveBrowseSessionWithoutFocusOrCommit() async {
+        var config = TabConfig.default
+        config.directional.commitOnModifierRelease = true
+        config.directional.browseLeftRightMode = .selection
+
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta"),
+            ],
+            focusedWindowID: 10,
+            config: config
+        )
+
+        await harness.coordinator.handleHotkey(direction: .up, hotkeyTimestamp: .now())
+        XCTAssertTrue(harness.coordinator.hasActiveSession())
+        XCTAssertEqual(harness.hud.hideCalls, 0)
+
+        await harness.coordinator.handleHotkey(direction: .up, hotkeyTimestamp: .now())
+
+        XCTAssertFalse(harness.coordinator.hasActiveSession())
+        XCTAssertEqual(harness.hud.hideCalls, 1)
+        XCTAssertTrue(harness.focus.calls.isEmpty)
+
+        await harness.coordinator.commitOrEndSessionOnModifierRelease(commitTimestamp: .now())
+
+        XCTAssertTrue(harness.focus.calls.isEmpty)
+        XCTAssertEqual(harness.hud.hideCalls, 1)
+    }
+
+    func testDownClosesActiveBrowseSessionWithoutFocus() async {
+        var config = TabConfig.default
+        config.directional.commitOnModifierRelease = true
+        config.directional.browseLeftRightMode = .selection
+
+        let harness = makeHarness(
+            snapshots: [
+                snapshot(windowId: 10, pid: 1001, appName: "Alpha"),
+                snapshot(windowId: 20, pid: 1002, appName: "Beta"),
+            ],
+            focusedWindowID: 10,
+            config: config
+        )
+
+        await harness.coordinator.handleHotkey(direction: .up, hotkeyTimestamp: .now())
+        XCTAssertTrue(harness.coordinator.hasActiveSession())
+
+        await harness.coordinator.handleHotkey(direction: .down, hotkeyTimestamp: .now())
+
+        XCTAssertFalse(harness.coordinator.hasActiveSession())
+        XCTAssertEqual(harness.hud.hideCalls, 1)
+        XCTAssertTrue(harness.focus.calls.isEmpty)
+    }
+
     func testCloseSelectedWindowRefreshesBrowseSession() async {
         let harness = makeHarness(
             snapshots: [

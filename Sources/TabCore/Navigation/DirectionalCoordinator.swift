@@ -194,7 +194,11 @@ final class DirectionalCoordinator {
                     await advanceNavigation(direction: direction, hotkeyTimestamp: hotkeyTimestamp)
                 }
             case .up, .down:
-                await advanceBrowse(direction: direction, hotkeyTimestamp: hotkeyTimestamp)
+                if session?.flow == .browse {
+                    cancelSession()
+                } else {
+                    await advanceBrowse(direction: direction, hotkeyTimestamp: hotkeyTimestamp)
+                }
         }
     }
 
