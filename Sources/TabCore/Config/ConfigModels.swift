@@ -59,16 +59,13 @@ public struct OnboardingConfig: Equatable, Sendable {
 
 public struct ActivationConfig: Equatable, Sendable {
     public var trigger: String
-    public var reverseTrigger: String
 
-    public init(trigger: String, reverseTrigger: String) {
+    public init(trigger: String) {
         self.trigger = trigger
-        self.reverseTrigger = reverseTrigger
     }
 
     public static let `default` = ActivationConfig(
-        trigger: "cmd-tab",
-        reverseTrigger: "cmd-shift-tab"
+        trigger: "cmd-tab"
     )
 }
 

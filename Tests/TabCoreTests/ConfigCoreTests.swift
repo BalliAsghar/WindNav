@@ -70,7 +70,20 @@ final class ConfigCoreTests: XCTestCase {
 
         let parsed = try ConfigLoader.parse(text)
         XCTAssertEqual(parsed.activation.trigger, TabConfig.default.activation.trigger)
-        XCTAssertEqual(parsed.activation.reverseTrigger, TabConfig.default.activation.reverseTrigger)
+    }
+
+    func testRemovedReverseTriggerKeyThrows() {
+        let text = """
+        [activation]
+        reverse-trigger = "cmd-shift-tab"
+        """
+
+        XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
+            guard case ConfigError.invalidValue(let key, _, _) = error else {
+                return XCTFail("Expected invalidValue, got \(error)")
+            }
+            XCTAssertEqual(key, "activation.reverse-trigger")
+        }
     }
 
     func testParseOutOfRangeIconSizeThrows() {

@@ -2,7 +2,6 @@ import Foundation
 
 enum HotkeyAction: String, CaseIterable, Sendable {
     case activationForward = "activation-forward"
-    case activationBackward = "activation-backward"
     case directionalLeft = "directional-left"
     case directionalRight = "directional-right"
     case directionalBrowseUp = "directional-browse-up"

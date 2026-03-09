@@ -20,7 +20,6 @@
 | Action            | Shortcut            |
 | ----------------- | ------------------- |
 | Open app switcher | `Cmd + Tab`         |
-| Reverse cycle     | `Cmd + Shift + Tab` |
 | Navigate left     | `Cmd + Opt + Left`  |
 | Navigate right    | `Cmd + Opt + Right` |
 | Navigate up       | `Cmd + Opt + Up`    |
@@ -56,7 +55,6 @@ WindNav is configured via a TOML file located at:
 ```toml
 [activation]
 trigger = "cmd-tab"
-reverse-trigger = "cmd-shift-tab"
 
 [directional]
 enabled = true

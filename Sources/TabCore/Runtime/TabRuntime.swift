@@ -151,7 +151,6 @@ public final class TabRuntime {
         var bindings: [HotkeyAction: ParsedHotkey] = [:]
 
         bindings[.activationForward] = try HotkeyParser.parse(config.activation.trigger)
-        bindings[.activationBackward] = try HotkeyParser.parse(config.activation.reverseTrigger)
 
         if config.directional.enabled {
             bindings[.directionalLeft] = try HotkeyParser.parse(config.directional.left)
@@ -207,9 +206,6 @@ public final class TabRuntime {
             case .activationForward:
                 flow = .activationCycle
                 direction = .right
-            case .activationBackward:
-                flow = .activationCycle
-                direction = .left
             case .directionalLeft:
                 flow = .directionalNavigation
                 direction = .left
@@ -440,7 +436,8 @@ public final class TabRuntime {
         switch keyCode {
             case UInt16(kVK_Tab):
                 guard flags.contains(.command) else { return nil }
-                return flags.contains(.shift) ? .move(.left) : .move(.right)
+                guard !flags.contains(.shift) else { return nil }
+                return .move(.right)
             case UInt16(kVK_Escape):
                 return .cancel
             case UInt16(kVK_LeftArrow):

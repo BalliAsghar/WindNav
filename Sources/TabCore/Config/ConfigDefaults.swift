@@ -70,12 +70,6 @@ enum TabDefaultsCatalog {
                     allowedValues: "hotkey expression",
                     description: "Forward activation trigger."
                 ),
-                ConfigSettingSpec(
-                    key: "reverse-trigger",
-                    defaultValue: .string(activation.reverseTrigger),
-                    allowedValues: "hotkey expression",
-                    description: "Reverse activation trigger."
-                ),
             ]
         ),
         ConfigSectionSpec(
