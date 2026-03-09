@@ -3,14 +3,6 @@ import Foundation
 import XCTest
 
 final class ConfigCoreTests: XCTestCase {
-    func testDefaultThumbnailWidthIs220() {
-        XCTAssertEqual(TabConfig.default.appearance.thumbnailWidth, 220)
-    }
-
-    func testDefaultDirectionalThumbnailsDisabled() {
-        XCTAssertFalse(TabConfig.default.directional.showThumbnails)
-    }
-
     func testDefaultLaunchAtLoginDisabled() {
         XCTAssertFalse(TabConfig.default.onboarding.launchAtLoginEnabled)
     }
@@ -38,11 +30,8 @@ final class ConfigCoreTests: XCTestCase {
 
         var input = TabConfig.default
         input.directional.enabled = false
-        input.directional.showThumbnails = false
         input.ordering.pinnedApps = ["com.apple.Safari"]
         input.filters.excludeApps = ["Finder"]
-        input.appearance.showThumbnails = false
-        input.appearance.thumbnailWidth = 220
         input.performance.logColor = .never
         input.onboarding.launchAtLoginEnabled = true
 
@@ -57,10 +46,10 @@ final class ConfigCoreTests: XCTestCase {
         XCTAssertFalse(text.contains("override-system-cmd-tab"))
     }
 
-    func testSerializeIncludesDirectionalThumbnailKey() {
+    func testSerializeOmitsRemovedThumbnailKeys() {
         let text = ConfigLoader.serialize(.default)
-        XCTAssertTrue(text.contains("show-thumbnails = false"))
-        XCTAssertTrue(text.contains("[directional]"))
+        XCTAssertFalse(text.contains("show-thumbnails"))
+        XCTAssertFalse(text.contains("thumbnail-width"))
     }
 
     func testMissingLaunchAtLoginKeyDefaultsToFalse() throws {
@@ -98,10 +87,24 @@ final class ConfigCoreTests: XCTestCase {
         }
     }
 
-    func testParseOutOfRangeThumbnailWidthThrows() {
+    func testRemovedAppearanceThumbnailKeyThrows() {
         let text = """
         [appearance]
-        thumbnail-width = 8
+        show-thumbnails = true
+        """
+
+        XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
+            guard case ConfigError.invalidValue(let key, _, _) = error else {
+                return XCTFail("Expected invalidValue, got \(error)")
+            }
+            XCTAssertEqual(key, "appearance.show-thumbnails")
+        }
+    }
+
+    func testRemovedAppearanceThumbnailWidthKeyThrows() {
+        let text = """
+        [appearance]
+        thumbnail-width = 220
         """
 
         XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
@@ -112,13 +115,17 @@ final class ConfigCoreTests: XCTestCase {
         }
     }
 
-    func testDirectionalThumbnailFlagDefaultsToFalseWhenMissing() throws {
+    func testRemovedDirectionalThumbnailKeyThrows() {
         let text = """
         [directional]
-        enabled = true
+        show-thumbnails = true
         """
 
-        let parsed = try ConfigLoader.parse(text)
-        XCTAssertFalse(parsed.directional.showThumbnails)
+        XCTAssertThrowsError(try ConfigLoader.parse(text)) { error in
+            guard case ConfigError.invalidValue(let key, _, _) = error else {
+                return XCTFail("Expected invalidValue, got \(error)")
+            }
+            XCTAssertEqual(key, "directional.show-thumbnails")
+        }
     }
 }

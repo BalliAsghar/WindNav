@@ -1,5 +1,4 @@
 @testable import TabCore
-import CoreGraphics
 import Foundation
 import XCTest
 
@@ -62,88 +61,14 @@ final class NavigationCoordinatorCoreTests: XCTestCase {
         XCTAssertTrue(harness.coordinator.hasActiveCycleSession())
     }
 
-    func testThumbnailCallbackUpdatesHudForActiveSession() async {
-        let harness = makeHarness(
-            snapshots: [
-                snapshot(windowId: 10, pid: 1001, appName: "Alpha"),
-                snapshot(windowId: 20, pid: 1002, appName: "Beta"),
-            ],
-            focusedWindowID: 10
-        )
-
-        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
-        let baselineShowCalls = harness.hud.showCalls
-
-        harness.thumbnails.emit(windowId: 20)
-        try? await Task.sleep(nanoseconds: 60_000_000)
-
-        XCTAssertGreaterThan(harness.hud.showCalls, baselineShowCalls)
-        XCTAssertNotNil(harness.hud.lastModel?.items.first(where: { $0.id == "20" })?.thumbnail)
-    }
-
-    func testLateThumbnailCallbackIgnoredWhenSessionIsClosed() async {
-        let harness = makeHarness(
-            snapshots: [
-                snapshot(windowId: 10, pid: 1001, appName: "Alpha"),
-                snapshot(windowId: 20, pid: 1002, appName: "Beta"),
-            ],
-            focusedWindowID: 10
-        )
-
-        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
-        await harness.coordinator.commitCycleOnModifierRelease(commitTimestamp: .now())
-        let showCallsAfterCommit = harness.hud.showCalls
-
-        harness.thumbnails.emit(windowId: 20)
-        try? await Task.sleep(nanoseconds: 60_000_000)
-
-        XCTAssertEqual(harness.hud.showCalls, showCallsAfterCommit)
-    }
-
-    func testHudItemIncludesThumbnailAspectRatio() async {
-        let harness = makeHarness(
-            snapshots: [
-                snapshot(windowId: 10, pid: 1001, appName: "Alpha", size: CGSize(width: 110, height: 200)),
-                snapshot(windowId: 20, pid: 1002, appName: "Beta", size: CGSize(width: 200, height: 110)),
-            ],
-            focusedWindowID: 10
-        )
-
-        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
-
-        let portraitRatio = harness.hud.lastModel?.items.first(where: { $0.id == "10" })?.thumbnailAspectRatio
-        let landscapeRatio = harness.hud.lastModel?.items.first(where: { $0.id == "20" })?.thumbnailAspectRatio
-        XCTAssertEqual(portraitRatio ?? 0, 0.55, accuracy: 0.001)
-        XCTAssertEqual(landscapeRatio ?? 0, 1.818, accuracy: 0.001)
-    }
-
-    func testThumbnailModeDisabledWhenCaptureUnavailable() async {
-        let harness = makeHarness(
-            snapshots: [
-                snapshot(windowId: 10, pid: 1001, appName: "Alpha"),
-                snapshot(windowId: 20, pid: 1002, appName: "Beta"),
-            ],
-            focusedWindowID: 10,
-            thumbnailCaptureEnabled: false
-        )
-
-        await harness.coordinator.startOrAdvanceCycle(direction: .right, hotkeyTimestamp: .now())
-
-        XCTAssertEqual(harness.thumbnails.requestCalls, 0)
-        let item = harness.hud.lastModel?.items.first(where: { $0.id == "10" })
-        XCTAssertNil(item?.thumbnailAspectRatio)
-    }
-
     private func makeHarness(
         snapshots: [WindowSnapshot],
-        focusedWindowID: UInt32?,
-        thumbnailCaptureEnabled: Bool = true
+        focusedWindowID: UInt32?
     ) -> Harness {
         let provider = FakeWindowProvider(snapshots: snapshots)
         let focused = FakeFocusedWindowProvider(focusedWindowID: focusedWindowID)
         let focus = FakeFocusPerformer()
         let hud = FakeHUDController()
-        let thumbnails = FakeThumbnailService(captureEnabled: thumbnailCaptureEnabled)
         let terminator = FakeAppTerminationPerformer()
         let closer = FakeWindowClosePerformer()
         let coordinator = NavigationCoordinator(
@@ -153,7 +78,6 @@ final class NavigationCoordinatorCoreTests: XCTestCase {
             appTerminationPerformer: terminator,
             windowClosePerformer: closer,
             hudController: hud,
-            thumbnailService: thumbnails,
             config: .default
         )
         return Harness(
@@ -161,8 +85,7 @@ final class NavigationCoordinatorCoreTests: XCTestCase {
             provider: provider,
             focus: focus,
             hud: hud,
-            closer: closer,
-            thumbnails: thumbnails
+            closer: closer
         )
     }
 
@@ -192,7 +115,6 @@ private struct Harness {
     let focus: FakeFocusPerformer
     let hud: FakeHUDController
     let closer: FakeWindowClosePerformer
-    let thumbnails: FakeThumbnailService
 }
 
 @MainActor
@@ -234,11 +156,9 @@ private final class FakeFocusPerformer: FocusPerformer {
 private final class FakeHUDController: HUDControlling {
     var lastModel: HUDModel?
     var hideCalls = 0
-    var showCalls = 0
 
     func show(model: HUDModel, appearance: AppearanceConfig) {
         lastModel = model
-        showCalls += 1
     }
 
     func hide() {
@@ -260,67 +180,5 @@ private final class FakeWindowClosePerformer: WindowClosePerformer {
     func close(windowId: UInt32, pid: pid_t) -> Bool {
         calls.append((windowId: windowId, pid: pid))
         return true
-    }
-}
-
-private final class FakeThumbnailService: WindowThumbnailProviding {
-    private let captureEnabled: Bool
-    var cache: [UInt32: CGImage] = [:]
-    var requestCalls = 0
-    private var update: (@MainActor (_ windowID: UInt32, _ image: CGImage) -> Void)?
-
-    init(captureEnabled: Bool = true) {
-        self.captureEnabled = captureEnabled
-    }
-
-    func canCaptureThumbnails() -> Bool {
-        captureEnabled
-    }
-
-    func cachedThumbnails(for windowIDs: [UInt32]) -> [UInt32: CGImage] {
-        var output: [UInt32: CGImage] = [:]
-        for windowID in windowIDs {
-            if let image = cache[windowID] {
-                output[windowID] = image
-            }
-        }
-        return output
-    }
-
-    func requestThumbnails(
-        for snapshots: [WindowSnapshot],
-        thumbnailWidth: Int,
-        onUpdate: @escaping @MainActor (_ windowID: UInt32, _ image: CGImage) -> Void
-    ) {
-        requestCalls += 1
-        update = onUpdate
-    }
-
-    func clear() {
-        cache.removeAll()
-    }
-
-    @MainActor
-    func emit(windowId: UInt32) {
-        let image = Self.makeImage()
-        cache[windowId] = image
-        update?(windowId, image)
-    }
-
-    private static func makeImage() -> CGImage {
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-        let context = CGContext(
-            data: nil,
-            width: 8,
-            height: 8,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo
-        )!
-        context.setFillColor(CGColor(red: 0.2, green: 0.6, blue: 0.8, alpha: 1))
-        context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
-        return context.makeImage()!
     }
 }

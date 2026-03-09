@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 
 struct HUDItem: Equatable, Identifiable {
@@ -8,8 +7,6 @@ struct HUDItem: Equatable, Identifiable {
     let isSelected: Bool
     let isWindowlessApp: Bool
     let windowIndexInApp: Int?
-    let thumbnail: CGImage?
-    let thumbnailAspectRatio: CGFloat?
 
     init(
         id: String,
@@ -17,9 +14,7 @@ struct HUDItem: Equatable, Identifiable {
         pid: pid_t,
         isSelected: Bool,
         isWindowlessApp: Bool = false,
-        windowIndexInApp: Int? = nil,
-        thumbnail: CGImage? = nil,
-        thumbnailAspectRatio: CGFloat? = nil
+        windowIndexInApp: Int? = nil
     ) {
         self.id = id
         self.label = label
@@ -27,8 +22,6 @@ struct HUDItem: Equatable, Identifiable {
         self.isSelected = isSelected
         self.isWindowlessApp = isWindowlessApp
         self.windowIndexInApp = windowIndexInApp
-        self.thumbnail = thumbnail
-        self.thumbnailAspectRatio = thumbnailAspectRatio
     }
 }
 

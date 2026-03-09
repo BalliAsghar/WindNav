@@ -10,7 +10,6 @@
 
 - **Fast App & Window Switching** - Navigate between apps and specific windows with customizable keyboard shortcuts
 - **Directional Navigation** - Use arrow keys to move through your open apps and windows
-- **Live Window Thumbnails** - See real-time previews of your windows in the switcher
 - **Pinned Apps** - Keep your most-used apps always visible at the front
 - **Smart Filtering** - Exclude specific apps and control which windows appear
 - **Customizable Appearance** - Adjust theme, icon sizes, spacing, and layout
@@ -37,13 +36,11 @@ The default macOS app switcher is limited. WindNav gives you:
 - Navigate directionally with arrow keys
 - Pin your favorite apps to the front
 - Exclude apps you never want to see
-- Visual thumbnails so you know exactly which window you're switching to
 - Complete control over appearance and behavior
 
 ## System Requirements
 
 - macOS 14.0 (Sonoma) or later
-- Screen recording permissions (for window thumbnails)
 - Accessibility permissions (for app switching and keyboard navigation)
 
 ## Configuration
@@ -90,8 +87,6 @@ icon-size = 22
 item-padding = 8
 item-spacing = 8
 show-window-count = true
-show-thumbnails = true
-thumbnail-width = 220
 
 [onboarding]
 permission-explainer-shown = false

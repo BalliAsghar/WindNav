@@ -112,12 +112,6 @@ enum TabDefaultsCatalog {
                     description: "Browse down."
                 ),
                 ConfigSettingSpec(
-                    key: "show-thumbnails",
-                    defaultValue: .bool(directional.showThumbnails),
-                    allowedValues: "true|false",
-                    description: "Show thumbnails during directional navigation."
-                ),
-                ConfigSettingSpec(
                     key: "browse-left-right-mode",
                     defaultValue: .string(directional.browseLeftRightMode.rawValue),
                     allowedValues: "immediate|selection",
@@ -243,18 +237,6 @@ enum TabDefaultsCatalog {
                     defaultValue: .bool(appearance.showWindowCount),
                     allowedValues: "true|false",
                     description: "Show in-app window index badges."
-                ),
-                ConfigSettingSpec(
-                    key: "show-thumbnails",
-                    defaultValue: .bool(appearance.showThumbnails),
-                    allowedValues: "true|false",
-                    description: "Show live window thumbnails in the HUD."
-                ),
-                ConfigSettingSpec(
-                    key: "thumbnail-width",
-                    defaultValue: .int(appearance.thumbnailWidth),
-                    allowedValues: "integer 120...320",
-                    description: "Target thumbnail width in points."
                 ),
             ]
         ),

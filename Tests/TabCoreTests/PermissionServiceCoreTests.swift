@@ -12,15 +12,12 @@ final class PermissionServiceCoreTests: XCTestCase {
         let service = PermissionService(
             evaluator: PermissionStatusEvaluator(
                 isAccessibilityGranted: { false },
-                isScreenRecordingGranted: { false },
-                requestAccessibility: { false },
-                requestScreenRecording: { false }
+                requestAccessibility: { false }
             ),
             defaults: defaults
         )
 
         XCTAssertEqual(service.status(for: .accessibility), .notDetermined)
-        XCTAssertEqual(service.status(for: .screenRecording), .notDetermined)
     }
 
     func testRequestTransitionsDeniedToGranted() {
@@ -32,16 +29,12 @@ final class PermissionServiceCoreTests: XCTestCase {
         let service = PermissionService(
             evaluator: PermissionStatusEvaluator(
                 isAccessibilityGranted: { granted },
-                isScreenRecordingGranted: { granted },
-                requestAccessibility: { granted = true; return true },
-                requestScreenRecording: { granted = true; return true }
+                requestAccessibility: { granted = true; return true }
             ),
             defaults: defaults
         )
 
         XCTAssertEqual(service.request(.accessibility), .granted)
         XCTAssertEqual(service.status(for: .accessibility), .granted)
-        XCTAssertEqual(service.request(.screenRecording), .granted)
-        XCTAssertEqual(service.status(for: .screenRecording), .granted)
     }
 }

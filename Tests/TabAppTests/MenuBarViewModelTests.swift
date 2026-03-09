@@ -8,14 +8,8 @@ final class MenuBarViewModelTests: XCTestCase {
     func testInitialStateReflectsPersistedConfigAndPermissionStatuses() throws {
         var config = TabConfig.default
         config.directional.enabled = false
-        config.appearance.showThumbnails = false
 
-        let runtime = RuntimeStub(
-            statuses: [
-                .accessibility: .granted,
-                .screenRecording: .granted,
-            ]
-        )
+        let runtime = RuntimeStub(statuses: [.accessibility: .granted])
         let settingsStore = SettingsStoreStub(storedConfig: config)
         let alerts = AlertPresenterStub()
 
@@ -26,7 +20,6 @@ final class MenuBarViewModelTests: XCTestCase {
         )
 
         XCTAssertFalse(viewModel.isFeatureEnabled(.directionalNavigation))
-        XCTAssertFalse(viewModel.isFeatureEnabled(.thumbnails))
         XCTAssertEqual(viewModel.statusLabel(for: .accessibility), "Granted")
         XCTAssertEqual(viewModel.summaryText, "Status: Ready")
     }
@@ -34,14 +27,8 @@ final class MenuBarViewModelTests: XCTestCase {
     func testEnableFeatureCancelledAtPrePermissionPromptDoesNotPersist() throws {
         var config = TabConfig.default
         config.directional.enabled = false
-        config.appearance.showThumbnails = false
 
-        let runtime = RuntimeStub(
-            statuses: [
-                .accessibility: .notDetermined,
-                .screenRecording: .granted,
-            ]
-        )
+        let runtime = RuntimeStub(statuses: [.accessibility: .notDetermined])
         let settingsStore = SettingsStoreStub(storedConfig: config)
         let alerts = AlertPresenterStub()
         alerts.prePermissionResponses = [false]
@@ -63,14 +50,8 @@ final class MenuBarViewModelTests: XCTestCase {
     func testEnableFeatureDeniedPermissionShowsAlertAndCanOpenSettings() throws {
         var config = TabConfig.default
         config.directional.enabled = false
-        config.appearance.showThumbnails = false
 
-        let runtime = RuntimeStub(
-            statuses: [
-                .accessibility: .notDetermined,
-                .screenRecording: .granted,
-            ]
-        )
+        let runtime = RuntimeStub(statuses: [.accessibility: .notDetermined])
         runtime.requestResults[.accessibility] = [.denied]
 
         let settingsStore = SettingsStoreStub(storedConfig: config)
@@ -95,15 +76,9 @@ final class MenuBarViewModelTests: XCTestCase {
     func testPermissionRowDenialOpensSystemSettings() throws {
         var config = TabConfig.default
         config.directional.enabled = false
-        config.appearance.showThumbnails = false
 
-        let runtime = RuntimeStub(
-            statuses: [
-                .accessibility: .granted,
-                .screenRecording: .denied,
-            ]
-        )
-        runtime.requestResults[.screenRecording] = [.denied]
+        let runtime = RuntimeStub(statuses: [.accessibility: .denied])
+        runtime.requestResults[.accessibility] = [.denied]
 
         let viewModel = try MenuBarViewModel(
             runtime: runtime,
@@ -111,22 +86,16 @@ final class MenuBarViewModelTests: XCTestCase {
             alertPresenter: AlertPresenterStub()
         )
 
-        viewModel.handlePermissionRowClick(.screenRecording)
+        viewModel.handlePermissionRowClick(.accessibility)
 
-        XCTAssertEqual(runtime.openedSettingsPermissions, [.screenRecording])
+        XCTAssertEqual(runtime.openedSettingsPermissions, [.accessibility])
     }
 
     func testSuccessfulTogglePersistsAndAppliesConfig() throws {
         var config = TabConfig.default
         config.directional.enabled = false
-        config.appearance.showThumbnails = false
 
-        let runtime = RuntimeStub(
-            statuses: [
-                .accessibility: .granted,
-                .screenRecording: .granted,
-            ]
-        )
+        let runtime = RuntimeStub(statuses: [.accessibility: .granted])
         let settingsStore = SettingsStoreStub(storedConfig: config)
         let viewModel = try MenuBarViewModel(
             runtime: runtime,
@@ -146,14 +115,8 @@ final class MenuBarViewModelTests: XCTestCase {
     func testSaveFailureShowsErrorAndReloadsConfig() throws {
         var config = TabConfig.default
         config.directional.enabled = false
-        config.appearance.showThumbnails = false
 
-        let runtime = RuntimeStub(
-            statuses: [
-                .accessibility: .granted,
-                .screenRecording: .granted,
-            ]
-        )
+        let runtime = RuntimeStub(statuses: [.accessibility: .granted])
         let settingsStore = SettingsStoreStub(storedConfig: config)
         settingsStore.saveError = StubError.saveFailed
         let alerts = AlertPresenterStub()
@@ -164,9 +127,9 @@ final class MenuBarViewModelTests: XCTestCase {
             alertPresenter: alerts
         )
 
-        viewModel.setFeature(.thumbnails, enabled: true)
+        viewModel.setFeature(.directionalNavigation, enabled: true)
 
-        XCTAssertFalse(viewModel.isFeatureEnabled(.thumbnails))
+        XCTAssertFalse(viewModel.isFeatureEnabled(.directionalNavigation))
         XCTAssertEqual(alerts.errorAlerts.count, 1)
         XCTAssertTrue(runtime.appliedConfigs.isEmpty)
     }
@@ -174,14 +137,8 @@ final class MenuBarViewModelTests: XCTestCase {
     func testApplyFailureShowsErrorAndReloadsPersistedConfig() throws {
         var config = TabConfig.default
         config.directional.enabled = false
-        config.appearance.showThumbnails = false
 
-        let runtime = RuntimeStub(
-            statuses: [
-                .accessibility: .granted,
-                .screenRecording: .granted,
-            ]
-        )
+        let runtime = RuntimeStub(statuses: [.accessibility: .granted])
         runtime.applyError = StubError.applyFailed
 
         let settingsStore = SettingsStoreStub(storedConfig: config)
@@ -193,25 +150,19 @@ final class MenuBarViewModelTests: XCTestCase {
             alertPresenter: alerts
         )
 
-        viewModel.setFeature(.thumbnails, enabled: true)
+        viewModel.setFeature(.directionalNavigation, enabled: true)
 
-        XCTAssertTrue(viewModel.isFeatureEnabled(.thumbnails))
+        XCTAssertTrue(viewModel.isFeatureEnabled(.directionalNavigation))
         XCTAssertEqual(settingsStore.savedConfigs.count, 1)
         XCTAssertEqual(alerts.errorAlerts.count, 1)
         XCTAssertTrue(runtime.appliedConfigs.isEmpty)
     }
 
-    func testSummaryStatusTracksPermissionRequirementsForEnabledFeatures() throws {
+    func testSummaryStatusTracksAccessibilityRequirement() throws {
         var config = TabConfig.default
         config.directional.enabled = false
-        config.appearance.showThumbnails = false
 
-        let runtime = RuntimeStub(
-            statuses: [
-                .accessibility: .denied,
-                .screenRecording: .denied,
-            ]
-        )
+        let runtime = RuntimeStub(statuses: [.accessibility: .denied])
         let settingsStore = SettingsStoreStub(storedConfig: config)
         let viewModel = try MenuBarViewModel(
             runtime: runtime,

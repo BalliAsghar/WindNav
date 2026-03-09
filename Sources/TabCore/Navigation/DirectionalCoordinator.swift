@@ -154,14 +154,12 @@ final class DirectionalCoordinator {
     private let appTerminationPerformer: any AppTerminationPerformer
     private let windowClosePerformer: any WindowClosePerformer
     private let hudController: any HUDControlling
-    private let thumbnailService: any WindowThumbnailProviding
     private let appRingStateStore: AppRingStateStore
     private let appFocusMemoryStore: AppFocusMemoryStore
 
     private var config: TabConfig
     private var session: SessionState?
     private var quitRequestedPIDs = Set<pid_t>()
-    private var scheduledThumbnailRefresh: DispatchWorkItem?
 
     init(
         windowProvider: WindowProvider,
@@ -170,7 +168,6 @@ final class DirectionalCoordinator {
         appTerminationPerformer: any AppTerminationPerformer = NSRunningAppTerminationPerformer(),
         windowClosePerformer: any WindowClosePerformer = AXWindowClosePerformer(),
         hudController: any HUDControlling,
-        thumbnailService: any WindowThumbnailProviding = WindowThumbnailService(),
         config: TabConfig
     ) {
         self.windowProvider = windowProvider
@@ -179,7 +176,6 @@ final class DirectionalCoordinator {
         self.appTerminationPerformer = appTerminationPerformer
         self.windowClosePerformer = windowClosePerformer
         self.hudController = hudController
-        self.thumbnailService = thumbnailService
         self.appRingStateStore = AppRingStateStore()
         self.appFocusMemoryStore = AppFocusMemoryStore()
         self.config = config
@@ -208,7 +204,6 @@ final class DirectionalCoordinator {
             hudController.hide()
             session = nil
             quitRequestedPIDs.removeAll()
-            cancelScheduledThumbnailRefresh()
         }
 
         guard current.flow == .browse else { return }
@@ -229,7 +224,6 @@ final class DirectionalCoordinator {
     func cancelSession() {
         session = nil
         quitRequestedPIDs.removeAll()
-        cancelScheduledThumbnailRefresh()
         hudController.hide()
     }
 
@@ -429,10 +423,6 @@ final class DirectionalCoordinator {
     }
 
     private func showHUD(windows: [WindowSnapshot], selectedIndex: Int) {
-        let thumbnailsEnabled = config.appearance.showThumbnails
-            && config.directional.showThumbnails
-            && thumbnailService.canCaptureThumbnails()
-        let thumbnails = thumbnailsEnabled ? thumbnailService.cachedThumbnails(for: windows.map(\.windowId)) : [:]
         let windowTotalsByPID = Dictionary(grouping: windows, by: \.pid).mapValues(\.count)
         var nextWindowIndexByPID: [pid_t: Int] = [:]
 
@@ -447,9 +437,7 @@ final class DirectionalCoordinator {
                 pid: window.pid,
                 isSelected: index == selectedIndex,
                 isWindowlessApp: window.isWindowlessApp,
-                windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil,
-                thumbnail: thumbnails[window.windowId],
-                thumbnailAspectRatio: thumbnailsEnabled ? snapshotAspectRatio(window) : nil
+                windowIndexInApp: config.appearance.showWindowCount && totalForPID > 1 ? windowIndex : nil
             )
         }
 
@@ -457,40 +445,6 @@ final class DirectionalCoordinator {
             model: HUDModel(items: items, selectedIndex: selectedIndex),
             appearance: config.appearance
         )
-
-        guard thumbnailsEnabled else { return }
-        thumbnailService.requestThumbnails(
-            for: windows,
-            thumbnailWidth: config.appearance.thumbnailWidth
-        ) { [weak self] windowID, _ in
-            guard let self, let active = self.session else { return }
-            guard active.orderedWindows.contains(where: { $0.windowId == windowID }) else { return }
-            self.scheduleThumbnailRefresh()
-        }
-    }
-
-    private func snapshotAspectRatio(_ snapshot: WindowSnapshot) -> CGFloat? {
-        let width = snapshot.frame.width
-        let height = snapshot.frame.height
-        guard width > 1, height > 1 else { return nil }
-        return width / height
-    }
-
-    private func scheduleThumbnailRefresh() {
-        guard scheduledThumbnailRefresh == nil else { return }
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.scheduledThumbnailRefresh = nil
-            guard let active = self.session else { return }
-            self.showHUD(windows: active.orderedWindows, selectedIndex: active.selectedIndex)
-        }
-        scheduledThumbnailRefresh = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + (1.0 / 60.0), execute: workItem)
-    }
-
-    private func cancelScheduledThumbnailRefresh() {
-        scheduledThumbnailRefresh?.cancel()
-        scheduledThumbnailRefresh = nil
     }
 
     private func focusedWindowIndex(in windows: [WindowSnapshot]) async -> Int? {

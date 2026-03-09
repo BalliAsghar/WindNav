@@ -15,7 +15,7 @@ struct MenuBarPanelView: View {
     private let chipSymbolSize: CGFloat = 12
 
     private var allRequiredPermissionsGranted: Bool {
-        [.accessibility, .screenRecording].allSatisfy {
+        [.accessibility].allSatisfy {
             viewModel.permissionStatus(for: $0) == .granted
         }
     }
@@ -35,16 +35,6 @@ struct MenuBarPanelView: View {
                     set: { viewModel.setFeature(.directionalNavigation, enabled: $0) }
                 )
             )
-            featureDivider
-            featureToggleRow(
-                id: "feature.thumbnails",
-                title: MenuBarViewModel.FeatureToggle.thumbnails.rowTitle,
-                systemImage: "photo.on.rectangle",
-                isOn: Binding(
-                    get: { viewModel.isFeatureEnabled(.thumbnails) },
-                    set: { viewModel.setFeature(.thumbnails, enabled: $0) }
-                )
-            )
 
             if !allRequiredPermissionsGranted {
                 Divider()
@@ -56,16 +46,6 @@ struct MenuBarPanelView: View {
                         id: "permission.accessibility",
                         permission: .accessibility,
                         systemImage: "figure.roll"
-                    )
-                }
-                if viewModel.permissionStatus(for: .screenRecording) != .granted {
-                    if viewModel.permissionStatus(for: .accessibility) != .granted {
-                        featureDivider
-                    }
-                    permissionRow(
-                        id: "permission.screen",
-                        permission: .screenRecording,
-                        systemImage: "record.circle"
                     )
                 }
             }

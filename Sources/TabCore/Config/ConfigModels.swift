@@ -83,7 +83,6 @@ public struct DirectionalConfig: Equatable, Sendable {
     public var right: String
     public var up: String
     public var down: String
-    public var showThumbnails: Bool
     public var browseLeftRightMode: BrowseLeftRightMode
     public var commitOnModifierRelease: Bool
 
@@ -93,7 +92,6 @@ public struct DirectionalConfig: Equatable, Sendable {
         right: String,
         up: String,
         down: String,
-        showThumbnails: Bool,
         browseLeftRightMode: BrowseLeftRightMode,
         commitOnModifierRelease: Bool
     ) {
@@ -102,7 +100,6 @@ public struct DirectionalConfig: Equatable, Sendable {
         self.right = right
         self.up = up
         self.down = down
-        self.showThumbnails = showThumbnails
         self.browseLeftRightMode = browseLeftRightMode
         self.commitOnModifierRelease = commitOnModifierRelease
     }
@@ -113,7 +110,6 @@ public struct DirectionalConfig: Equatable, Sendable {
         right: "opt-cmd-right",
         up: "opt-cmd-up",
         down: "opt-cmd-down",
-        showThumbnails: false,
         browseLeftRightMode: .immediate,
         commitOnModifierRelease: true
     )
@@ -198,25 +194,19 @@ public struct AppearanceConfig: Equatable, Sendable {
     public var itemPadding: Int
     public var itemSpacing: Int
     public var showWindowCount: Bool
-    public var showThumbnails: Bool
-    public var thumbnailWidth: Int
 
     public init(
         theme: ThemeMode,
         iconSize: Int,
         itemPadding: Int,
         itemSpacing: Int,
-        showWindowCount: Bool,
-        showThumbnails: Bool,
-        thumbnailWidth: Int
+        showWindowCount: Bool
     ) {
         self.theme = theme
         self.iconSize = iconSize
         self.itemPadding = itemPadding
         self.itemSpacing = itemSpacing
         self.showWindowCount = showWindowCount
-        self.showThumbnails = showThumbnails
-        self.thumbnailWidth = thumbnailWidth
     }
 
     public static let `default` = AppearanceConfig(
@@ -224,9 +214,7 @@ public struct AppearanceConfig: Equatable, Sendable {
         iconSize: 22,
         itemPadding: 8,
         itemSpacing: 8,
-        showWindowCount: true,
-        showThumbnails: true,
-        thumbnailWidth: 220
+        showWindowCount: true
     )
 }
 

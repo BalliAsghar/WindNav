@@ -101,8 +101,15 @@ final class ConfigLoader {
         }
 
         if let directionalTable = table["directional"]?.table {
+            if let raw = directionalTable["show-thumbnails"] {
+                throw ConfigError.invalidValue(
+                    key: "directional.show-thumbnails",
+                    expected: "key removed; delete it from the config",
+                    actual: renderedValue(raw)
+                )
+            }
             logUnknownKeys(in: directionalTable, section: "directional", known: [
-                "enabled", "left", "right", "up", "down", "show-thumbnails", "browse-left-right-mode", "commit-on-modifier-release",
+                "enabled", "left", "right", "up", "down", "browse-left-right-mode", "commit-on-modifier-release",
             ])
             directional.enabled = try parseBoolIfPresent(
                 table: directionalTable,
@@ -134,13 +141,6 @@ final class ConfigLoader {
                 section: "directional",
                 defaultValue: directional.down
             )
-            directional.showThumbnails = try parseBoolIfPresent(
-                table: directionalTable,
-                key: "show-thumbnails",
-                section: "directional",
-                defaultValue: directional.showThumbnails
-            )
-
             if let modeRaw = directionalTable["browse-left-right-mode"]?.string {
                 guard let mode = DirectionalConfig.BrowseLeftRightMode(rawValue: modeRaw) else {
                     throw ConfigError.invalidValue(
@@ -281,9 +281,22 @@ final class ConfigLoader {
         }
 
         if let appearanceTable = table["appearance"]?.table {
+            if let raw = appearanceTable["show-thumbnails"] {
+                throw ConfigError.invalidValue(
+                    key: "appearance.show-thumbnails",
+                    expected: "key removed; delete it from the config",
+                    actual: renderedValue(raw)
+                )
+            }
+            if let raw = appearanceTable["thumbnail-width"] {
+                throw ConfigError.invalidValue(
+                    key: "appearance.thumbnail-width",
+                    expected: "key removed; delete it from the config",
+                    actual: renderedValue(raw)
+                )
+            }
             logUnknownKeys(in: appearanceTable, section: "appearance", known: [
                 "theme", "icon-size", "item-padding", "item-spacing", "show-window-count",
-                "show-thumbnails", "thumbnail-width",
             ])
 
             if let themeRaw = appearanceTable["theme"]?.string {
@@ -326,18 +339,6 @@ final class ConfigLoader {
                 key: "show-window-count",
                 section: "appearance",
                 defaultValue: appearance.showWindowCount
-            )
-            appearance.showThumbnails = try parseBoolIfPresent(
-                table: appearanceTable,
-                key: "show-thumbnails",
-                section: "appearance",
-                defaultValue: appearance.showThumbnails
-            )
-            appearance.thumbnailWidth = try parseIntIfPresent(
-                table: appearanceTable,
-                key: "thumbnail-width",
-                section: "appearance",
-                defaultValue: appearance.thumbnailWidth
             )
         }
 
@@ -411,7 +412,6 @@ final class ConfigLoader {
         right = "\(escape(config.directional.right))"
         up = "\(escape(config.directional.up))"
         down = "\(escape(config.directional.down))"
-        show-thumbnails = \(config.directional.showThumbnails)
         browse-left-right-mode = "\(config.directional.browseLeftRightMode.rawValue)"
         commit-on-modifier-release = \(config.directional.commitOnModifierRelease)
 
@@ -439,8 +439,6 @@ final class ConfigLoader {
         item-padding = \(config.appearance.itemPadding)
         item-spacing = \(config.appearance.itemSpacing)
         show-window-count = \(config.appearance.showWindowCount)
-        show-thumbnails = \(config.appearance.showThumbnails)
-        thumbnail-width = \(config.appearance.thumbnailWidth)
 
         [performance]
         log-level = "\(config.performance.logLevel.rawValue)"
@@ -470,14 +468,6 @@ final class ConfigLoader {
                 key: "appearance.item-spacing",
                 expected: "integer in range 0...24",
                 actual: "\(config.appearance.itemSpacing)"
-            )
-        }
-
-        if !(120...320).contains(config.appearance.thumbnailWidth) {
-            throw ConfigError.invalidValue(
-                key: "appearance.thumbnail-width",
-                expected: "integer in range 120...320",
-                actual: "\(config.appearance.thumbnailWidth)"
             )
         }
     }
