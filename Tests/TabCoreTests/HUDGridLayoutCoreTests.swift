@@ -361,6 +361,21 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         XCTAssertLessThanOrEqual(iconOnlySize.width, thumbnailSize.width)
     }
 
+    func testIconOnlyViewportUsesTighterFootprintForSmallSets() {
+        let contentView = HUDPanelContentView(frame: .zero)
+        let maximumSize = sharedMaximumPanelSize()
+        let iconOnlySize = contentView.apply(
+            model: makeModel(count: 2, selectedIndex: 0),
+            appearance: .default,
+            hud: defaultHUD,
+            maximumSize: maximumSize,
+            presentationMode: .iconOnly
+        )
+
+        XCTAssertLessThan(iconOnlySize.width, 300)
+        XCTAssertLessThan(iconOnlySize.height, 160)
+    }
+
     func testTwoItemIconOnlyHudDoesNotExceedThumbnailFootprint() {
         let contentView = HUDPanelContentView(frame: .zero)
         let maximumSize = sharedMaximumPanelSize()
@@ -424,6 +439,59 @@ final class HUDGridLayoutCoreTests: XCTestCase {
 
         XCTAssertFalse(tile.debugTitleIsHidden)
         XCTAssertEqual(tile.debugTitleString, "Example")
+    }
+
+    func testIconOnlySelectedTileUsesTranslucentPlate() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 126, height: 154))
+        let snapshot = makeSnapshot(index: 0)
+
+        tile.configure(
+            item: HUDItem(
+                id: "1",
+                label: "Ghostty",
+                title: "Terminal",
+                pid: snapshot.pid,
+                snapshot: snapshot,
+                isSelected: true,
+                thumbnailState: .unavailable
+            ),
+            appearance: .default,
+            hud: defaultHUD,
+            presentationMode: .iconOnly,
+            iconProvider: makeIconProvider()
+        )
+        tile.layoutSubtreeIfNeeded()
+
+        let backgroundColor = tile.debugBackgroundColor.usingColorSpace(.deviceRGB) ?? .clear
+        XCTAssertNotEqual(tile.debugBackgroundFrame, .zero)
+        XCTAssertGreaterThan(backgroundColor.alphaComponent, 0.08)
+        XCTAssertLessThan(backgroundColor.alphaComponent, 0.16)
+        XCTAssertLessThan(abs(backgroundColor.redComponent - backgroundColor.greenComponent), 0.05)
+        XCTAssertLessThan(abs(backgroundColor.greenComponent - backgroundColor.blueComponent), 0.05)
+    }
+
+    func testIconOnlySelectedTileKeepsLabelCloseToSelectionPlate() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 126, height: 154))
+        let snapshot = makeSnapshot(index: 0)
+
+        tile.configure(
+            item: HUDItem(
+                id: "1",
+                label: "Ghostty",
+                title: "Terminal",
+                pid: snapshot.pid,
+                snapshot: snapshot,
+                isSelected: true,
+                thumbnailState: .unavailable
+            ),
+            appearance: .default,
+            hud: defaultHUD,
+            presentationMode: .iconOnly,
+            iconProvider: makeIconProvider()
+        )
+        tile.layoutSubtreeIfNeeded()
+
+        XCTAssertLessThanOrEqual(tile.debugBackgroundFrame.minY - tile.debugTitleFrame.maxY, 3)
     }
 
     func testIconOnlyTileShowsBadgeForRepeatedAppWindow() {

@@ -30,6 +30,28 @@ final class HUDIconProviderCoreTests: XCTestCase {
         XCTAssertEqual(provider.cachedIconCount(), 2)
     }
 
+    func testProviderRasterizesToRequestedPixelDimensions() {
+        let provider = HUDIconProvider(source: CountingHUDIconSource())
+        let snapshot = makeSnapshot()
+
+        let icon = provider.icon(for: snapshot, pointSize: 112, scale: 2)
+
+        XCTAssertEqual(icon?.width, 224)
+        XCTAssertEqual(icon?.height, 224)
+    }
+
+    func testProviderCachesDistinctScaleBucketsSeparately() {
+        let source = CountingHUDIconSource()
+        let provider = HUDIconProvider(source: source)
+        let snapshot = makeSnapshot()
+
+        _ = provider.icon(for: snapshot, pointSize: 112, scale: 2)
+        _ = provider.icon(for: snapshot, pointSize: 112, scale: 3)
+
+        XCTAssertEqual(source.requests, 2)
+        XCTAssertEqual(provider.cachedIconCount(), 2)
+    }
+
     func testProviderReturnsNilWhenSourceHasNoIcon() {
         let provider = HUDIconProvider(source: EmptyHUDIconSource())
 

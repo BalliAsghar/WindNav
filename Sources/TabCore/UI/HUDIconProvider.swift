@@ -89,19 +89,39 @@ final class HUDIconProvider {
         }
 
         context.interpolationQuality = .high
+        context.setShouldAntialias(true)
+        context.setAllowsAntialiasing(true)
         let graphicsContext = NSGraphicsContext(cgContext: context, flipped: false)
+        let targetRect = NSRect(x: 0, y: 0, width: pixelSize, height: pixelSize)
 
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = graphicsContext
-        image.draw(
-            in: NSRect(x: 0, y: 0, width: pixelSize, height: pixelSize),
-            from: .zero,
-            operation: .copy,
-            fraction: 1
-        )
+        if let representation = bestRepresentation(for: image, pixelSize: pixelSize) {
+            representation.draw(in: targetRect)
+        } else {
+            image.draw(
+                in: targetRect,
+                from: .zero,
+                operation: .copy,
+                fraction: 1
+            )
+        }
         graphicsContext.flushGraphics()
         NSGraphicsContext.restoreGraphicsState()
 
         return context.makeImage()
+    }
+
+    private func bestRepresentation(for image: NSImage, pixelSize: Int) -> NSImageRep? {
+        let proposedRect = NSRect(x: 0, y: 0, width: pixelSize, height: pixelSize)
+        if let representation = image.bestRepresentation(for: proposedRect, context: nil, hints: nil) {
+            return representation
+        }
+
+        return image.representations.max { lhs, rhs in
+            let lhsPixels = Int(lhs.pixelsWide) * Int(lhs.pixelsHigh)
+            let rhsPixels = Int(rhs.pixelsWide) * Int(rhs.pixelsHigh)
+            return lhsPixels < rhsPixels
+        }
     }
 }

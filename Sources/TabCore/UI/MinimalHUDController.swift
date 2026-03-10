@@ -527,9 +527,15 @@ final class HUDThumbnailTileView: NSView {
             )
         case .iconOnly:
             let metrics = HUDIconStripMetrics(appearance: appearanceConfig)
+            let labelFrame = CGRect(
+                x: 0,
+                y: 0,
+                width: bounds.width,
+                height: metrics.labelHeight
+            )
             let plateFrame = CGRect(
                 x: bounds.midX - (metrics.selectionPlateSize / 2),
-                y: metrics.labelHeight + metrics.labelSpacing,
+                y: labelFrame.maxY + metrics.labelSpacing,
                 width: metrics.selectionPlateSize,
                 height: metrics.selectionPlateSize
             )
@@ -545,23 +551,18 @@ final class HUDThumbnailTileView: NSView {
             previewLayer.frame = .zero
             overlayLayer.frame = .zero
             iconLayer.frame = iconFrame
-            titleLayer.frame = CGRect(
-                x: 0,
-                y: 0,
-                width: bounds.width,
-                height: metrics.labelHeight
-            )
+            titleLayer.frame = labelFrame
             subtitleLayer.frame = .zero
             liveIndicatorLayer.frame = .zero
             let badgeText = (badgeLayer.string as? String) ?? ""
-            let badgeHeight: CGFloat = 18
-            let badgeMinWidth: CGFloat = 20
-            let badgePadding: CGFloat = 12
-            let badgeWidth = max(badgeMinWidth, CGFloat(badgeText.count) * 10 + badgePadding)
+            let badgeHeight: CGFloat = 16
+            let badgeMinWidth: CGFloat = 16
+            let badgePadding: CGFloat = 8
+            let badgeWidth = max(badgeMinWidth, CGFloat(badgeText.count) * 8 + badgePadding)
             let badgeAnchorFrame = isSelected ? plateFrame : iconFrame
             badgeLayer.frame = CGRect(
-                x: min(bounds.width - badgeWidth, badgeAnchorFrame.maxX - badgeWidth * 0.45),
-                y: min(bounds.height - badgeHeight, badgeAnchorFrame.maxY - badgeHeight * 0.25),
+                x: min(bounds.width - badgeWidth, badgeAnchorFrame.maxX - badgeWidth * 0.3),
+                y: min(bounds.height - badgeHeight, badgeAnchorFrame.maxY - badgeHeight * 0.18),
                 width: badgeWidth,
                 height: badgeHeight
             ).integral
@@ -602,7 +603,7 @@ final class HUDThumbnailTileView: NSView {
         case .thumbnails:
             HUDGridMetrics(appearance: appearance, hud: hud).iconSize
         case .iconOnly:
-            HUDIconStripMetrics(appearance: appearance).iconSize
+            HUDIconStripMetrics(appearance: appearance).iconRasterPointSize
         }
         let scale = window?.backingScaleFactor
             ?? NSScreen.main?.backingScaleFactor
@@ -619,8 +620,8 @@ final class HUDThumbnailTileView: NSView {
             titleLayer.isHidden = presentationMode == .iconOnly && !item.isSelected
             subtitleLayer.isHidden = true
             if presentationMode == .iconOnly {
-                titleLayer.font = NSFont.systemFont(ofSize: 15, weight: .medium)
-                titleLayer.fontSize = 15
+                titleLayer.font = NSFont.systemFont(ofSize: 14, weight: .regular)
+                titleLayer.fontSize = 14
             } else {
                 titleLayer.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
                 titleLayer.fontSize = 12
@@ -712,6 +713,14 @@ final class HUDThumbnailTileView: NSView {
         badgeLayer.frame
     }
 
+    var debugBackgroundFrame: CGRect {
+        backgroundLayer.frame
+    }
+
+    var debugBackgroundColor: NSColor {
+        NSColor(cgColor: backgroundLayer.backgroundColor ?? NSColor.clear.cgColor) ?? .clear
+    }
+
     private func clearThumbnailContents() {
         previewLayer.contents = nil
         liveIndicatorLayer.isHidden = true
@@ -795,8 +804,8 @@ final class HUDThumbnailTileView: NSView {
             badgeLayer.backgroundColor = chrome.badgeFillColor.cgColor
             badgeLayer.foregroundColor = chrome.badgeTextColor.cgColor
             badgeLayer.borderWidth = 0.5
-            badgeLayer.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
-            badgeLayer.cornerRadius = 9
+            badgeLayer.borderColor = NSColor.white.withAlphaComponent(0.1).cgColor
+            badgeLayer.cornerRadius = 5
             liveIndicatorLayer.isHidden = true
         }
     }
@@ -813,8 +822,8 @@ final class HUDThumbnailTileView: NSView {
                 targetTransform = transform
             case .nativeIconPlate:
                 var transform = CATransform3DIdentity
-                transform = CATransform3DTranslate(transform, 0, 4, 0)
-                transform = CATransform3DScale(transform, 1.024, 1.024, 1)
+                transform = CATransform3DTranslate(transform, 0, 1.5, 0)
+                transform = CATransform3DScale(transform, 1.01, 1.01, 1)
                 targetTransform = transform
             case .minimal:
                 targetTransform = CATransform3DIdentity
@@ -1125,17 +1134,17 @@ struct HUDVisualStyle {
         if isSelected {
             return HUDIconTileChromeStyle(
                 selectionStyle: .nativeIconPlate,
-                plateColor: NSColor(white: 0.02, alpha: 0.94),
-                plateBorderColor: NSColor.white.withAlphaComponent(0.08),
-                plateBorderWidth: 0.6,
-                plateShadowColor: NSColor.black.withAlphaComponent(0.4),
-                plateShadowOpacity: 0.24,
-                plateShadowRadius: 16,
-                plateShadowOffset: CGSize(width: 0, height: -4),
+                plateColor: NSColor.white.withAlphaComponent(0.10),
+                plateBorderColor: NSColor.white.withAlphaComponent(0.10),
+                plateBorderWidth: 0.8,
+                plateShadowColor: NSColor.black.withAlphaComponent(0.22),
+                plateShadowOpacity: 0.14,
+                plateShadowRadius: 14,
+                plateShadowOffset: CGSize(width: 0, height: -3),
                 plateCornerRadius: 18,
-                labelColor: NSColor.white.withAlphaComponent(0.82),
-                badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.9),
-                badgeTextColor: NSColor.white
+                labelColor: NSColor.white.withAlphaComponent(0.72),
+                badgeFillColor: NSColor.white.withAlphaComponent(0.14),
+                badgeTextColor: NSColor.white.withAlphaComponent(0.9)
             )
         }
 
@@ -1150,8 +1159,8 @@ struct HUDVisualStyle {
             plateShadowOffset: .zero,
             plateCornerRadius: 18,
             labelColor: NSColor.clear,
-            badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.6),
-            badgeTextColor: NSColor.white.withAlphaComponent(0.9)
+            badgeFillColor: NSColor.white.withAlphaComponent(0.12),
+            badgeTextColor: NSColor.white.withAlphaComponent(0.86)
         )
     }
 }
@@ -1480,14 +1489,15 @@ private struct HUDThumbnailMetricsPreset {
 }
 
 struct HUDIconStripMetrics {
-    let outerPadding: CGFloat = 18
-    let tileSpacing: CGFloat = 12
-    let tileWidth: CGFloat = 114
-    let tileHeight: CGFloat = 124
-    let iconSize: CGFloat = 82
-    let selectionPlateSize: CGFloat = 98
-    let labelHeight: CGFloat = 24
-    let labelSpacing: CGFloat = 6
+    let outerPadding: CGFloat = 10
+    let tileSpacing: CGFloat = 14
+    let tileWidth: CGFloat = 108
+    let tileHeight: CGFloat = 120
+    let iconSize: CGFloat = 84
+    let iconRasterPointSize: CGFloat = 112
+    let selectionPlateSize: CGFloat = 96
+    let labelHeight: CGFloat = 20
+    let labelSpacing: CGFloat = 2
 
     init(appearance _: AppearanceConfig) {}
 
