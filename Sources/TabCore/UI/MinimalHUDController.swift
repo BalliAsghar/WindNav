@@ -156,7 +156,7 @@ extension MinimalHUDController {
         )
         panel.level = .statusBar
         panel.isOpaque = false
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.backgroundColor = .clear
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.ignoresMouseEvents = true
@@ -180,11 +180,12 @@ final class HUDPanelContentView: NSVisualEffectView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        material = .hudWindow
+        material = .popover
         blendingMode = .behindWindow
         state = .active
         wantsLayer = true
-        layer?.masksToBounds = false
+        layer?.masksToBounds = true
+        layer?.cornerCurve = .continuous
         layer?.addSublayer(tintLayer)
 
         scrollView.drawsBackground = false
@@ -324,6 +325,10 @@ final class HUDPanelContentView: NSVisualEffectView {
         NSColor(cgColor: tintLayer.backgroundColor ?? NSColor.clear.cgColor) ?? .clear
     }
 
+    var debugMaterial: NSVisualEffectView.Material {
+        material
+    }
+
     var debugPanelShadowOpacity: Float {
         layer?.shadowOpacity ?? 0
     }
@@ -339,28 +344,13 @@ final class HUDPanelContentView: NSVisualEffectView {
         tintLayer.cornerRadius = style.cornerRadius
         tintLayer.cornerCurve = .continuous
         tintLayer.masksToBounds = true
+        layer?.cornerRadius = style.cornerRadius
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
         layer?.shadowColor = style.shadowColor.cgColor
         layer?.shadowOpacity = style.shadowOpacity
         layer?.shadowRadius = style.shadowRadius
         layer?.shadowOffset = style.shadowOffset
-        applyRoundedMask(radius: style.cornerRadius)
-    }
-
-    private func applyRoundedMask(radius: CGFloat) {
-        guard radius > 0 else {
-            maskImage = nil
-            return
-        }
-
-        let edgeLength = 2.0 * radius + 1.0
-        let mask = NSImage(size: NSSize(width: edgeLength, height: edgeLength), flipped: false) { rect in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
-            return true
-        }
-        mask.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
-        mask.resizingMode = .stretch
-        maskImage = mask
     }
 
     private func layoutResult(
@@ -1043,25 +1033,25 @@ struct HUDVisualStyle {
         switch presentationMode {
         case .thumbnails:
             return HUDPanelChromeStyle(
-                material: .hudWindow,
+                material: .popover,
                 blendingMode: .behindWindow,
                 cornerRadius: 24,
-                tintColor: NSColor.black.withAlphaComponent(0.13),
-                shadowColor: NSColor.black.withAlphaComponent(0.28),
-                shadowOpacity: 0.16,
-                shadowRadius: 16,
-                shadowOffset: CGSize(width: 0, height: -3)
+                tintColor: NSColor.white.withAlphaComponent(0.02),
+                shadowColor: NSColor.black.withAlphaComponent(0.10),
+                shadowOpacity: 0.04,
+                shadowRadius: 6,
+                shadowOffset: CGSize(width: 0, height: -1)
             )
         case .iconOnly:
             return HUDPanelChromeStyle(
-                material: .hudWindow,
+                material: .popover,
                 blendingMode: .behindWindow,
                 cornerRadius: 30,
-                tintColor: NSColor.black.withAlphaComponent(0.11),
-                shadowColor: NSColor.black.withAlphaComponent(0.24),
-                shadowOpacity: 0.13,
-                shadowRadius: 14,
-                shadowOffset: CGSize(width: 0, height: -2)
+                tintColor: NSColor.white.withAlphaComponent(0.015),
+                shadowColor: NSColor.black.withAlphaComponent(0.08),
+                shadowOpacity: 0.03,
+                shadowRadius: 5,
+                shadowOffset: CGSize(width: 0, height: -1)
             )
         }
     }

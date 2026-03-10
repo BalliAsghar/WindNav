@@ -98,9 +98,10 @@ final class HUDGridLayoutCoreTests: XCTestCase {
             presentationMode: .thumbnails
         )
 
-        XCTAssertLessThan(contentView.debugTintColor.alphaComponent, 0.16)
-        XCTAssertLessThan(contentView.debugPanelShadowOpacity, 0.2)
-        XCTAssertLessThan(contentView.debugPanelShadowRadius, 18)
+        XCTAssertEqual(contentView.debugMaterial, .popover)
+        XCTAssertLessThan(contentView.debugTintColor.alphaComponent, 0.03)
+        XCTAssertLessThan(contentView.debugPanelShadowOpacity, 0.05)
+        XCTAssertLessThan(contentView.debugPanelShadowRadius, 7)
     }
 
     func testPanelChromeUsesSofterTintAndShadowInIconOnlyMode() {
@@ -114,9 +115,10 @@ final class HUDGridLayoutCoreTests: XCTestCase {
             presentationMode: .iconOnly
         )
 
-        XCTAssertLessThan(contentView.debugTintColor.alphaComponent, 0.13)
-        XCTAssertLessThan(contentView.debugPanelShadowOpacity, 0.16)
-        XCTAssertLessThan(contentView.debugPanelShadowRadius, 16)
+        XCTAssertEqual(contentView.debugMaterial, .popover)
+        XCTAssertLessThan(contentView.debugTintColor.alphaComponent, 0.02)
+        XCTAssertLessThan(contentView.debugPanelShadowOpacity, 0.04)
+        XCTAssertLessThan(contentView.debugPanelShadowRadius, 6)
     }
 
     func testSelectedTileRevealScrollsForLowerRows() {
