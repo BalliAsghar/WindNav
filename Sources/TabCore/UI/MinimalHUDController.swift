@@ -1037,9 +1037,9 @@ struct HUDVisualStyle {
         if isSelected {
             return HUDTileChromeStyle(
                 selectionStyle: .neutralFocusPlate,
-                backgroundColor: NSColor(white: 0.12, alpha: 0.85),
-                borderColor: NSColor.white.withAlphaComponent(0.18),
-                borderWidth: 1,
+                backgroundColor: NSColor.controlAccentColor.withAlphaComponent(0.2),
+                borderColor: NSColor.controlAccentColor,
+                borderWidth: 3,
                 shadowColor: NSColor.black.withAlphaComponent(0.45),
                 shadowOpacity: 0.26,
                 shadowRadius: 18,

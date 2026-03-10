@@ -13,8 +13,8 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         )
 
         XCTAssertEqual(style.selectionStyle, .neutralFocusPlate)
-        XCTAssertEqual(style.borderWidth, 1)
-        XCTAssertGreaterThan(style.backgroundColor.alphaComponent, 0.8)
+        XCTAssertEqual(style.borderWidth, 3)
+        XCTAssertEqual(style.backgroundColor.alphaComponent, 0.2, accuracy: 0.01)
     }
 
     func testUnselectedTileChromeUsesMinimalBorderlessTreatment() {
