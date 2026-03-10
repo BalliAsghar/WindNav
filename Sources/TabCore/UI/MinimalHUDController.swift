@@ -1037,7 +1037,7 @@ struct HUDVisualStyle {
         if isSelected {
             return HUDTileChromeStyle(
                 selectionStyle: .neutralFocusPlate,
-                backgroundColor: NSColor(white: 0.06, alpha: 0.92),
+                backgroundColor: NSColor(white: 0.12, alpha: 0.85),
                 borderColor: NSColor.white.withAlphaComponent(0.18),
                 borderWidth: 1,
                 shadowColor: NSColor.black.withAlphaComponent(0.45),
@@ -1052,8 +1052,8 @@ struct HUDVisualStyle {
                 overlayColor: overlayColor(for: thumbnailState),
                 titleColor: titleColor,
                 subtitleColor: subtitleColor,
-                badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.9),
-                badgeTextColor: NSColor.white,
+                badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.25),
+                badgeTextColor: NSColor.white.withAlphaComponent(0.85),
                 liveIndicatorColor: NSColor.systemGreen.withAlphaComponent(0.82),
                 showsLiveIndicator: thumbnailState == .liveSurface
             )
