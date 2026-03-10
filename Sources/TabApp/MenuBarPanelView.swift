@@ -59,7 +59,7 @@ struct MenuBarPanelView: View {
                     permissionRow(
                         id: "permission.screen-recording",
                         permission: .screenRecording,
-                        systemImage: "rectangle.on.rectangle.badge.person.crop"
+                        systemImage: "record.circle"
                     )
                 }
             }
@@ -228,11 +228,22 @@ struct MenuBarPanelView: View {
         ZStack {
             Circle()
                 .fill(Color.accentColor)
-            Image(systemName: systemImage)
+            Image(nsImage: permissionSymbolImage(named: systemImage))
+                .renderingMode(.template)
                 .font(.system(size: chipSymbolSize, weight: .semibold))
                 .foregroundStyle(.white)
         }
         .frame(width: chipSize, height: chipSize)
+    }
+
+    private func permissionSymbolImage(named systemImage: String) -> NSImage {
+        NSImage(
+            systemSymbolName: systemImage,
+            accessibilityDescription: nil
+        ) ?? NSImage(
+            systemSymbolName: "questionmark",
+            accessibilityDescription: nil
+        )!
     }
 }
 
