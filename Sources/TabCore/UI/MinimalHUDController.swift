@@ -466,12 +466,12 @@ final class HUDThumbnailTileView: NSView {
 
         badgeLayer.alignmentMode = .center
         badgeLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
-        badgeLayer.cornerRadius = 9
+        badgeLayer.cornerRadius = 5
         badgeLayer.masksToBounds = true
-        badgeLayer.font = NSFont.systemFont(ofSize: 10, weight: .bold)
-        badgeLayer.fontSize = 10
-        badgeLayer.borderWidth = 0.5
-        badgeLayer.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
+        badgeLayer.font = NSFont.systemFont(ofSize: 9, weight: .semibold)
+        badgeLayer.fontSize = 9
+        badgeLayer.borderWidth = 1
+        badgeLayer.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
 
         titleLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
         titleLayer.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
@@ -760,6 +760,9 @@ final class HUDThumbnailTileView: NSView {
             subtitleLayer.foregroundColor = chrome.subtitleColor.cgColor
             badgeLayer.backgroundColor = chrome.badgeFillColor.cgColor
             badgeLayer.foregroundColor = chrome.badgeTextColor.cgColor
+            badgeLayer.borderWidth = 1
+            badgeLayer.borderColor = NSColor.white.withAlphaComponent(item.isSelected ? 0.12 : 0.08).cgColor
+            badgeLayer.cornerRadius = 5
             liveIndicatorLayer.backgroundColor = chrome.liveIndicatorColor.cgColor
             liveIndicatorLayer.isHidden = !chrome.showsLiveIndicator
         case .iconOnly:
@@ -791,6 +794,9 @@ final class HUDThumbnailTileView: NSView {
             subtitleLayer.foregroundColor = NSColor.clear.cgColor
             badgeLayer.backgroundColor = chrome.badgeFillColor.cgColor
             badgeLayer.foregroundColor = chrome.badgeTextColor.cgColor
+            badgeLayer.borderWidth = 0.5
+            badgeLayer.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
+            badgeLayer.cornerRadius = 9
             liveIndicatorLayer.isHidden = true
         }
     }
@@ -866,10 +872,10 @@ final class HUDThumbnailTileView: NSView {
         
         if let badgeText, !badgeText.isEmpty {
             let badgeHeight: CGFloat = 18
-            let badgeMinWidth: CGFloat = 20
-            let badgePadding: CGFloat = 12
-            let badgeWidth = max(badgeMinWidth, CGFloat(badgeText.count) * 10 + badgePadding)
-            let badgeSpacing: CGFloat = 6
+            let badgeMinWidth: CGFloat = 18
+            let badgePadding: CGFloat = 6
+            let badgeWidth = max(badgeMinWidth, CGFloat(badgeText.count) * 8 + badgePadding)
+            let badgeSpacing: CGFloat = 8
             
             let availableWidth = headerFrame.width - textX - 16
             titleWidth = availableWidth - badgeWidth - badgeSpacing
@@ -1058,8 +1064,8 @@ struct HUDVisualStyle {
                 overlayColor: overlayColor(for: thumbnailState),
                 titleColor: titleColor,
                 subtitleColor: subtitleColor,
-                badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.25),
-                badgeTextColor: NSColor.white.withAlphaComponent(0.85),
+                badgeFillColor: NSColor.white.withAlphaComponent(0.12),
+                badgeTextColor: NSColor.white.withAlphaComponent(0.94),
                 liveIndicatorColor: NSColor.systemGreen.withAlphaComponent(0.82),
                 showsLiveIndicator: thumbnailState == .liveSurface
             )
@@ -1082,8 +1088,8 @@ struct HUDVisualStyle {
             overlayColor: overlayColor(for: thumbnailState),
             titleColor: titleColor,
             subtitleColor: subtitleColor,
-            badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.6),
-            badgeTextColor: NSColor.white.withAlphaComponent(0.9),
+            badgeFillColor: NSColor.white.withAlphaComponent(0.08),
+            badgeTextColor: NSColor.white.withAlphaComponent(0.82),
             liveIndicatorColor: NSColor.systemGreen.withAlphaComponent(0.72),
             showsLiveIndicator: thumbnailState == .liveSurface
         )
