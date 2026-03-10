@@ -852,14 +852,14 @@ final class HUDThumbnailTileView: NSView {
     }
 
     private func makeHeaderLayout(metrics: HUDGridMetrics, headerFrame: CGRect, badgeText: String?) -> HUDFooterLayout {
+        let rowCenterY = headerFrame.midY
         let iconFrame = CGRect(
             x: headerFrame.minX,
-            y: headerFrame.minY + (headerFrame.height - metrics.iconSize) / 2,
+            y: rowCenterY - (metrics.iconSize / 2),
             width: metrics.iconSize,
             height: metrics.iconSize
         )
         let textX = iconFrame.maxX + 8
-        let iconHeight = metrics.iconSize
         
         var badgeFrame = CGRect.zero
         var titleWidth: CGFloat = 0
@@ -875,7 +875,7 @@ final class HUDThumbnailTileView: NSView {
             titleWidth = availableWidth - badgeWidth - badgeSpacing
             
             let badgeX = textX + titleWidth + badgeSpacing
-            let badgeY = headerFrame.minY + (iconHeight - badgeHeight) / 2
+            let badgeY = rowCenterY - (badgeHeight / 2)
             
             badgeFrame = CGRect(x: badgeX, y: badgeY, width: badgeWidth, height: badgeHeight)
         } else {
@@ -885,7 +885,7 @@ final class HUDThumbnailTileView: NSView {
         let titleHeight: CGFloat = 16
         let titleFrame = CGRect(
             x: textX,
-            y: headerFrame.minY + (iconHeight - titleHeight) / 2,
+            y: rowCenterY - (titleHeight / 2),
             width: titleWidth,
             height: titleHeight
         )

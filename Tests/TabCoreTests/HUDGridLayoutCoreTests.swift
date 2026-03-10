@@ -221,6 +221,58 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         XCTAssertEqual(tile.debugIconFrame, unselectedIconFrame)
     }
 
+    func testThumbnailTileCentersTitleRowWithIcon() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 220, height: 160))
+        let snapshot = makeSnapshot(index: 0)
+        let item = HUDItem(
+            id: "1",
+            label: "",
+            title: "Ghostty - Terminal",
+            pid: snapshot.pid,
+            snapshot: snapshot,
+            isSelected: false,
+            thumbnailState: .placeholder
+        )
+
+        tile.configure(
+            item: item,
+            appearance: .default,
+            hud: defaultHUD,
+            presentationMode: .thumbnails,
+            iconProvider: makeIconProvider()
+        )
+        tile.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(tile.debugTitleFrame.midY, tile.debugIconFrame.midY, accuracy: 0.5)
+    }
+
+    func testThumbnailTileCentersBadgeAndTitleWithIcon() {
+        let tile = HUDThumbnailTileView(frame: CGRect(x: 0, y: 0, width: 220, height: 160))
+        let snapshot = makeSnapshot(index: 0)
+        let item = HUDItem(
+            id: "1",
+            label: "",
+            title: "Ghostty - Terminal",
+            pid: snapshot.pid,
+            snapshot: snapshot,
+            isSelected: false,
+            windowIndexInApp: 2,
+            thumbnailState: .placeholder
+        )
+
+        tile.configure(
+            item: item,
+            appearance: .default,
+            hud: defaultHUD,
+            presentationMode: .thumbnails,
+            iconProvider: makeIconProvider()
+        )
+        tile.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(tile.debugTitleFrame.midY, tile.debugIconFrame.midY, accuracy: 0.5)
+        XCTAssertEqual(tile.debugBadgeFrame.midY, tile.debugIconFrame.midY, accuracy: 0.5)
+    }
+
     func testRelaxedMetricsProvideMoreBreathingRoom() {
         let metrics = HUDGridMetrics(appearance: .default, hud: defaultHUD)
 
