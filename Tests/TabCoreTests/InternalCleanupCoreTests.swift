@@ -167,6 +167,6 @@ final class InternalCleanupCoreTests: XCTestCase {
         XCTAssertEqual(model.items.map(\.windowIndexInApp), [1, 2])
         XCTAssertEqual(model.items.map(\.isSelected), [false, true])
         XCTAssertEqual(model.items.map(\.isWindowlessApp), [false, true])
-        XCTAssertEqual(model.items.map(\.label), ["Example", "Example"])
+        XCTAssertEqual(model.items.map(\.label), ["", ""])
     }
 }

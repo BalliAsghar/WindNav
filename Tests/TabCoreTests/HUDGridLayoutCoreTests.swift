@@ -9,8 +9,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
     func testSelectedTileChromeUsesNeutralFocusPlate() {
         let style = HUDVisualStyle.resolve(appearance: .default).tileChrome(
             isSelected: true,
-            thumbnailState: .freshStill,
-            showsSubtitle: true
+            thumbnailState: .freshStill
         )
 
         XCTAssertEqual(style.selectionStyle, .neutralFocusPlate)
@@ -21,8 +20,7 @@ final class HUDGridLayoutCoreTests: XCTestCase {
     func testUnselectedTileChromeUsesMinimalBorderlessTreatment() {
         let style = HUDVisualStyle.resolve(appearance: .default).tileChrome(
             isSelected: false,
-            thumbnailState: .freshStill,
-            showsSubtitle: true
+            thumbnailState: .freshStill
         )
 
         XCTAssertEqual(style.selectionStyle, .minimal)
@@ -165,7 +163,6 @@ final class HUDGridLayoutCoreTests: XCTestCase {
             iconProvider: makeIconProvider()
         )
         let titleFrameWithSubtitle = tile.debugTitleFrame
-        let subtitleFrameWithSubtitle = tile.debugSubtitleFrame
         let iconFrameWithSubtitle = tile.debugIconFrame
 
         tile.configure(
@@ -177,7 +174,6 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         )
 
         XCTAssertEqual(tile.debugTitleFrame, titleFrameWithSubtitle)
-        XCTAssertEqual(tile.debugSubtitleFrame, subtitleFrameWithSubtitle)
         XCTAssertEqual(tile.debugIconFrame, iconFrameWithSubtitle)
         XCTAssertFalse(tile.debugShowsSubtitle)
     }
@@ -203,7 +199,6 @@ final class HUDGridLayoutCoreTests: XCTestCase {
             iconProvider: makeIconProvider()
         )
         let unselectedTitleFrame = tile.debugTitleFrame
-        let unselectedSubtitleFrame = tile.debugSubtitleFrame
         let unselectedIconFrame = tile.debugIconFrame
 
         tile.configure(
@@ -223,7 +218,6 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         )
 
         XCTAssertEqual(tile.debugTitleFrame, unselectedTitleFrame)
-        XCTAssertEqual(tile.debugSubtitleFrame, unselectedSubtitleFrame)
         XCTAssertEqual(tile.debugIconFrame, unselectedIconFrame)
     }
 
@@ -231,8 +225,8 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         let metrics = HUDGridMetrics(appearance: .default, hud: defaultHUD)
 
         XCTAssertGreaterThanOrEqual(metrics.outerPadding, 18)
-        XCTAssertGreaterThanOrEqual(metrics.tileWidth, 144)
-        XCTAssertGreaterThanOrEqual(metrics.thumbnailHeight, 82)
+        XCTAssertGreaterThanOrEqual(metrics.tileWidth, 220)
+        XCTAssertGreaterThanOrEqual(metrics.thumbnailHeight, 140)
     }
 
     func testIconStripLayoutKeepsSmallSetsOnSingleRow() {

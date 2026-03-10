@@ -2,11 +2,11 @@
 import XCTest
 
 final class HUDMetadataCoreTests: XCTestCase {
-    func testMetadataFormatterUsesWindowTitleAsPrimaryAndAppNameAsSecondary() {
+    func testMetadataFormatterUsesCombinedAppNameAndWindowTitle() {
         let lines = HUDMetadataFormatter.lines(for: makeSnapshot(title: "YouTube", appName: "Google Chrome"))
 
-        XCTAssertEqual(lines.primary, "YouTube")
-        XCTAssertEqual(lines.secondary, "Google Chrome")
+        XCTAssertEqual(lines.primary, "Google Chrome - YouTube")
+        XCTAssertEqual(lines.secondary, "")
     }
 
     func testMetadataFormatterFallsBackToAppNameWhenWindowTitleMissing() {
@@ -44,8 +44,8 @@ final class HUDMetadataCoreTests: XCTestCase {
             hud: .default
         )
 
-        XCTAssertEqual(model.items.map(\.title), ["Docs", "Codex", "Ghostty"])
-        XCTAssertEqual(model.items.map(\.label), ["Codex", "", ""])
+        XCTAssertEqual(model.items.map(\.title), ["Codex - Docs", "Codex", "Ghostty"])
+        XCTAssertEqual(model.items.map(\.label), ["", "", ""])
     }
 
     private func makeSnapshot(

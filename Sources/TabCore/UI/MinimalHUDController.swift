@@ -408,7 +408,6 @@ final class HUDThumbnailTileView: NSView {
     private var currentSelectionStyle: HUDTileSelectionStyle = .minimal
     private var currentPresentationMode: HUDPresentationMode = .thumbnails
     private var isSelected = false
-    private var showsSubtitle = true
     private var footerLayout = HUDFooterLayout.zero
 
     override init(frame frameRect: NSRect) {
@@ -489,30 +488,36 @@ final class HUDThumbnailTileView: NSView {
         case .thumbnails:
             let metrics = HUDGridMetrics(appearance: appearanceConfig, hud: hudConfig)
             backgroundLayer.frame = bounds
-            let previewBounds = CGRect(
+            let headerY = metrics.innerPadding
+            let headerFrame = CGRect(
                 x: metrics.innerPadding,
-                y: bounds.height - metrics.thumbnailHeight - metrics.innerPadding,
+                y: bounds.height - headerY - metrics.headerHeight,
+                width: bounds.width - metrics.innerPadding * 2,
+                height: metrics.headerHeight
+            )
+            let thumbnailBounds = CGRect(
+                x: metrics.innerPadding,
+                y: metrics.innerPadding,
                 width: bounds.width - metrics.innerPadding * 2,
                 height: metrics.thumbnailHeight
             )
-            previewShadowLayer.frame = previewBounds
-            previewBackdropLayer.frame = previewBounds
-            previewLayer.frame = fittedPreviewFrame(in: previewBounds)
-            overlayLayer.frame = previewBounds
-            let footerY = metrics.innerPadding
-            footerLayout = makeFooterLayout(metrics: metrics, footerY: footerY)
+            previewShadowLayer.frame = thumbnailBounds
+            previewBackdropLayer.frame = thumbnailBounds
+            previewLayer.frame = fittedPreviewFrame(in: thumbnailBounds)
+            overlayLayer.frame = thumbnailBounds
+            footerLayout = makeHeaderLayout(metrics: metrics, headerFrame: headerFrame)
             iconLayer.frame = footerLayout.iconFrame
             titleLayer.frame = footerLayout.titleFrame
             subtitleLayer.frame = footerLayout.subtitleFrame
             liveIndicatorLayer.frame = CGRect(
                 x: bounds.width - metrics.innerPadding - 8,
-                y: footerY + 9,
+                y: headerY + 9,
                 width: 6,
                 height: 6
             )
             badgeLayer.frame = CGRect(
                 x: bounds.width - metrics.innerPadding - 20,
-                y: bounds.height - metrics.innerPadding - 18,
+                y: headerY + metrics.headerHeight - 12,
                 width: 18,
                 height: 12
             )
@@ -578,17 +583,13 @@ final class HUDThumbnailTileView: NSView {
         currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
         representedThumbnailIdentity = newIdentity
         isSelected = item.isSelected
-        let subtitleText: String
         let titleText: String
         switch presentationMode {
         case .thumbnails:
-            subtitleText = item.label
             titleText = item.title
         case .iconOnly:
-            subtitleText = ""
             titleText = item.isSelected ? WindowSnapshotSupport.appLabel(for: [item.snapshot]) : ""
         }
-        showsSubtitle = !subtitleText.isEmpty
         let iconPointSize = switch presentationMode {
         case .thumbnails:
             HUDGridMetrics(appearance: appearance, hud: hud).iconSize
@@ -606,9 +607,9 @@ final class HUDThumbnailTileView: NSView {
 
         withoutAnimations {
             titleLayer.string = titleText
-            subtitleLayer.string = subtitleText
+            subtitleLayer.string = ""
             titleLayer.isHidden = presentationMode == .iconOnly && !item.isSelected
-            subtitleLayer.isHidden = presentationMode == .iconOnly || !showsSubtitle
+            subtitleLayer.isHidden = true
             if presentationMode == .iconOnly {
                 titleLayer.font = NSFont.systemFont(ofSize: 15, weight: .medium)
                 titleLayer.fontSize = 15
@@ -715,8 +716,7 @@ final class HUDThumbnailTileView: NSView {
         case .thumbnails:
             let chrome = currentVisualStyle.tileChrome(
                 isSelected: item.isSelected,
-                thumbnailState: currentThumbnailState,
-                showsSubtitle: showsSubtitle
+                thumbnailState: currentThumbnailState
             )
             currentSelectionStyle = chrome.selectionStyle
             backgroundLayer.cornerRadius = 14
@@ -843,26 +843,26 @@ final class HUDThumbnailTileView: NSView {
         )
     }
 
-    private func makeFooterLayout(metrics: HUDGridMetrics, footerY: CGFloat) -> HUDFooterLayout {
+    private func makeHeaderLayout(metrics: HUDGridMetrics, headerFrame: CGRect) -> HUDFooterLayout {
         let iconFrame = CGRect(
-            x: metrics.innerPadding,
-            y: footerY + 3,
+            x: headerFrame.minX,
+            y: headerFrame.minY + (headerFrame.height - metrics.iconSize) / 2,
             width: metrics.iconSize,
             height: metrics.iconSize
         )
         let textX = iconFrame.maxX + 8
-        let textWidth = max(24, bounds.width - textX - metrics.innerPadding - 16)
-        let subtitleFrame = CGRect(
-            x: textX,
-            y: footerY + 1,
-            width: textWidth,
-            height: 14
-        )
+        let textWidth = max(24, headerFrame.width - textX - 16)
         let titleFrame = CGRect(
             x: textX,
-            y: footerY + 14,
+            y: headerFrame.minY + (headerFrame.height - 16) / 2,
             width: textWidth,
             height: 16
+        )
+        let subtitleFrame = CGRect(
+            x: textX,
+            y: headerFrame.minY + 2,
+            width: 0,
+            height: 0
         )
         return HUDFooterLayout(
             iconFrame: iconFrame,
@@ -1000,15 +1000,12 @@ struct HUDVisualStyle {
 
     func tileChrome(
         isSelected: Bool,
-        thumbnailState: ThumbnailState,
-        showsSubtitle: Bool
+        thumbnailState: ThumbnailState
     ) -> HUDTileChromeStyle {
         let titleColor = isSelected
             ? NSColor.white.withAlphaComponent(0.96)
             : NSColor.white.withAlphaComponent(0.88)
-        let subtitleColor = isSelected
-            ? NSColor.white.withAlphaComponent(0.68)
-            : NSColor.white.withAlphaComponent(showsSubtitle ? 0.52 : 0.0)
+        let subtitleColor = NSColor.white.withAlphaComponent(0.0)
 
         if isSelected {
             return HUDTileChromeStyle(
@@ -1288,6 +1285,7 @@ struct HUDGridMetrics {
     let tileWidth: CGFloat
     let tileHeight: CGFloat
     let thumbnailHeight: CGFloat
+    let headerHeight: CGFloat
     let iconSize: CGFloat
     let thumbnailSize: CGSize
 
@@ -1295,6 +1293,7 @@ struct HUDGridMetrics {
         let preset = HUDThumbnailMetricsPreset(hud.size)
         outerPadding = preset.outerPadding
         iconSize = preset.iconSize
+        headerHeight = preset.headerHeight
         innerPadding = preset.innerPadding
         tileSpacing = preset.tileSpacing
         rowSpacing = preset.rowSpacing
@@ -1310,7 +1309,7 @@ struct HUDGridMetrics {
     func maximumPanelSize(for visibleFrame: CGRect) -> CGSize {
         CGSize(
             width: max(tileWidth + outerPadding * 2, visibleFrame.width * 0.8),
-            height: max(tileHeight + outerPadding * 2, visibleFrame.height * 0.64)
+            height: max(tileHeight + outerPadding * 2, visibleFrame.height * 0.8)
         )
     }
 }
@@ -1324,22 +1323,44 @@ private struct HUDThumbnailMetricsPreset {
     let thumbnailHeight: CGFloat
     let tileHeight: CGFloat
     let iconSize: CGFloat
+    let headerHeight: CGFloat
 
     init(_ size: HUDThumbnailSizePreset) {
-        let scale: CGFloat = switch size {
-        case .small: 1
-        case .medium: 1.14
-        case .large: 1.28
+        switch size {
+        case .small:
+            outerPadding = 18
+            innerPadding = 12
+            tileSpacing = 1
+            rowSpacing = 12
+            iconSize = 16
+            let headerHeight = iconSize + 13
+            self.headerHeight = headerHeight
+            tileWidth = 220
+            thumbnailHeight = 140
+            tileHeight = headerHeight + innerPadding + thumbnailHeight + innerPadding
+        case .medium:
+            outerPadding = 18
+            innerPadding = 12
+            tileSpacing = 1
+            rowSpacing = 12
+            iconSize = 26
+            let headerHeight = iconSize + 14
+            self.headerHeight = headerHeight
+            tileWidth = 280
+            thumbnailHeight = 180
+            tileHeight = headerHeight + innerPadding + thumbnailHeight + innerPadding
+        case .large:
+            outerPadding = 28
+            innerPadding = 12
+            tileSpacing = 1
+            rowSpacing = 12
+            iconSize = 28
+            let headerHeight = iconSize + 16
+            self.headerHeight = headerHeight
+            tileWidth = 340
+            thumbnailHeight = 220
+            tileHeight = headerHeight + innerPadding + thumbnailHeight + innerPadding
         }
-
-        outerPadding = Self.scaled(18, by: scale)
-        innerPadding = Self.scaled(9, by: scale)
-        tileSpacing = Self.scaled(8, by: scale)
-        rowSpacing = max(Self.scaled(12, by: scale), tileSpacing + Self.scaled(2, by: scale))
-        iconSize = Self.scaled(22, by: scale)
-        tileWidth = max(Self.scaled(144, by: scale), iconSize * 6.45)
-        thumbnailHeight = max(Self.scaled(82, by: scale), tileWidth * 0.57)
-        tileHeight = thumbnailHeight + innerPadding * 2 + iconSize + Self.scaled(18, by: scale)
     }
 
     private static func scaled(_ value: CGFloat, by scale: CGFloat) -> CGFloat {

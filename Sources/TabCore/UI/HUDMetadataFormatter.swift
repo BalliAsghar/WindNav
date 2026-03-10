@@ -21,7 +21,7 @@ enum HUDMetadataFormatter {
             return HUDMetadataLines(primary: normalizedAppName, secondary: "")
         }
 
-        return HUDMetadataLines(primary: normalizedTitle, secondary: normalizedAppName)
+        return HUDMetadataLines(primary: "\(normalizedAppName) - \(normalizedTitle)", secondary: "")
     }
 
     private static func normalize(_ value: String?) -> String? {
