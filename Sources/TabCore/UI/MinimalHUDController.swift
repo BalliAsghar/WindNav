@@ -460,10 +460,12 @@ final class HUDThumbnailTileView: NSView {
 
         badgeLayer.alignmentMode = .center
         badgeLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
-        badgeLayer.cornerRadius = 6
+        badgeLayer.cornerRadius = 9
         badgeLayer.masksToBounds = true
-        badgeLayer.font = NSFont.systemFont(ofSize: 9, weight: .semibold)
-        badgeLayer.fontSize = 9
+        badgeLayer.font = NSFont.systemFont(ofSize: 10, weight: .bold)
+        badgeLayer.fontSize = 10
+        badgeLayer.borderWidth = 0.5
+        badgeLayer.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
 
         titleLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
         titleLayer.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
@@ -505,21 +507,17 @@ final class HUDThumbnailTileView: NSView {
             previewBackdropLayer.frame = thumbnailBounds
             previewLayer.frame = fittedPreviewFrame(in: thumbnailBounds)
             overlayLayer.frame = thumbnailBounds
-            footerLayout = makeHeaderLayout(metrics: metrics, headerFrame: headerFrame)
+            let badgeText = (badgeLayer.string as? String) ?? ""
+            footerLayout = makeHeaderLayout(metrics: metrics, headerFrame: headerFrame, badgeText: badgeText.isEmpty ? nil : badgeText)
             iconLayer.frame = footerLayout.iconFrame
             titleLayer.frame = footerLayout.titleFrame
             subtitleLayer.frame = footerLayout.subtitleFrame
+            badgeLayer.frame = footerLayout.badgeFrame
             liveIndicatorLayer.frame = CGRect(
                 x: bounds.width - metrics.innerPadding - 8,
                 y: headerY + 9,
                 width: 6,
                 height: 6
-            )
-            badgeLayer.frame = CGRect(
-                x: bounds.width - metrics.innerPadding - 20,
-                y: headerY + metrics.headerHeight - 12,
-                width: 18,
-                height: 12
             )
         case .iconOnly:
             let metrics = HUDIconStripMetrics(appearance: appearanceConfig)
@@ -549,13 +547,17 @@ final class HUDThumbnailTileView: NSView {
             )
             subtitleLayer.frame = .zero
             liveIndicatorLayer.frame = .zero
-            let badgeSize = CGSize(width: 18, height: 14)
+            let badgeText = (badgeLayer.string as? String) ?? ""
+            let badgeHeight: CGFloat = 18
+            let badgeMinWidth: CGFloat = 20
+            let badgePadding: CGFloat = 12
+            let badgeWidth = max(badgeMinWidth, CGFloat(badgeText.count) * 10 + badgePadding)
             let badgeAnchorFrame = isSelected ? plateFrame : iconFrame
             badgeLayer.frame = CGRect(
-                x: min(bounds.width - badgeSize.width, badgeAnchorFrame.maxX - badgeSize.width * 0.45),
-                y: min(bounds.height - badgeSize.height, badgeAnchorFrame.maxY - badgeSize.height * 0.25),
-                width: badgeSize.width,
-                height: badgeSize.height
+                x: min(bounds.width - badgeWidth, badgeAnchorFrame.maxX - badgeWidth * 0.45),
+                y: min(bounds.height - badgeHeight, badgeAnchorFrame.maxY - badgeHeight * 0.25),
+                width: badgeWidth,
+                height: badgeHeight
             ).integral
         }
     }
@@ -843,7 +845,7 @@ final class HUDThumbnailTileView: NSView {
         )
     }
 
-    private func makeHeaderLayout(metrics: HUDGridMetrics, headerFrame: CGRect) -> HUDFooterLayout {
+    private func makeHeaderLayout(metrics: HUDGridMetrics, headerFrame: CGRect, badgeText: String?) -> HUDFooterLayout {
         let iconFrame = CGRect(
             x: headerFrame.minX,
             y: headerFrame.minY + (headerFrame.height - metrics.iconSize) / 2,
@@ -851,12 +853,35 @@ final class HUDThumbnailTileView: NSView {
             height: metrics.iconSize
         )
         let textX = iconFrame.maxX + 8
-        let textWidth = max(24, headerFrame.width - textX - 16)
+        let iconHeight = metrics.iconSize
+        
+        var badgeFrame = CGRect.zero
+        var titleWidth: CGFloat = 0
+        
+        if let badgeText, !badgeText.isEmpty {
+            let badgeHeight: CGFloat = 18
+            let badgeMinWidth: CGFloat = 20
+            let badgePadding: CGFloat = 12
+            let badgeWidth = max(badgeMinWidth, CGFloat(badgeText.count) * 10 + badgePadding)
+            let badgeSpacing: CGFloat = 6
+            
+            let availableWidth = headerFrame.width - textX - 16
+            titleWidth = availableWidth - badgeWidth - badgeSpacing
+            
+            let badgeX = textX + titleWidth + badgeSpacing
+            let badgeY = headerFrame.minY + (iconHeight - badgeHeight) / 2
+            
+            badgeFrame = CGRect(x: badgeX, y: badgeY, width: badgeWidth, height: badgeHeight)
+        } else {
+            titleWidth = headerFrame.width - textX - 16
+        }
+        
+        let titleHeight: CGFloat = 16
         let titleFrame = CGRect(
             x: textX,
-            y: headerFrame.minY + (headerFrame.height - 16) / 2,
-            width: textWidth,
-            height: 16
+            y: headerFrame.minY + (iconHeight - titleHeight) / 2,
+            width: titleWidth,
+            height: titleHeight
         )
         let subtitleFrame = CGRect(
             x: textX,
@@ -867,7 +892,8 @@ final class HUDThumbnailTileView: NSView {
         return HUDFooterLayout(
             iconFrame: iconFrame,
             titleFrame: titleFrame,
-            subtitleFrame: subtitleFrame
+            subtitleFrame: subtitleFrame,
+            badgeFrame: badgeFrame
         )
     }
 }
@@ -876,8 +902,9 @@ private struct HUDFooterLayout {
     let iconFrame: CGRect
     let titleFrame: CGRect
     let subtitleFrame: CGRect
+    let badgeFrame: CGRect
 
-    static let zero = HUDFooterLayout(iconFrame: .zero, titleFrame: .zero, subtitleFrame: .zero)
+    static let zero = HUDFooterLayout(iconFrame: .zero, titleFrame: .zero, subtitleFrame: .zero, badgeFrame: .zero)
 }
 
 struct HUDGridRow: Equatable {
@@ -1025,8 +1052,8 @@ struct HUDVisualStyle {
                 overlayColor: overlayColor(for: thumbnailState),
                 titleColor: titleColor,
                 subtitleColor: subtitleColor,
-                badgeFillColor: NSColor.white.withAlphaComponent(0.16),
-                badgeTextColor: NSColor.white.withAlphaComponent(0.9),
+                badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.9),
+                badgeTextColor: NSColor.white,
                 liveIndicatorColor: NSColor.systemGreen.withAlphaComponent(0.82),
                 showsLiveIndicator: thumbnailState == .liveSurface
             )
@@ -1049,8 +1076,8 @@ struct HUDVisualStyle {
             overlayColor: overlayColor(for: thumbnailState),
             titleColor: titleColor,
             subtitleColor: subtitleColor,
-            badgeFillColor: NSColor.white.withAlphaComponent(0.08),
-            badgeTextColor: NSColor.white.withAlphaComponent(0.76),
+            badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.6),
+            badgeTextColor: NSColor.white.withAlphaComponent(0.9),
             liveIndicatorColor: NSColor.systemGreen.withAlphaComponent(0.72),
             showsLiveIndicator: thumbnailState == .liveSurface
         )
@@ -1095,8 +1122,8 @@ struct HUDVisualStyle {
                 plateShadowOffset: CGSize(width: 0, height: -4),
                 plateCornerRadius: 18,
                 labelColor: NSColor.white.withAlphaComponent(0.82),
-                badgeFillColor: NSColor.white.withAlphaComponent(0.18),
-                badgeTextColor: NSColor.white.withAlphaComponent(0.92)
+                badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.9),
+                badgeTextColor: NSColor.white
             )
         }
 
@@ -1111,8 +1138,8 @@ struct HUDVisualStyle {
             plateShadowOffset: .zero,
             plateCornerRadius: 18,
             labelColor: NSColor.clear,
-            badgeFillColor: NSColor.black.withAlphaComponent(0.68),
-            badgeTextColor: NSColor.white.withAlphaComponent(0.88)
+            badgeFillColor: NSColor.controlAccentColor.withAlphaComponent(0.6),
+            badgeTextColor: NSColor.white.withAlphaComponent(0.9)
         )
     }
 }
