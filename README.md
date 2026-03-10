@@ -44,6 +44,27 @@ The default macOS app switcher is limited. WindNav gives you:
 - Accessibility permission for directional navigation and switching
 - Screen Recording permission only when HUD thumbnails are enabled
 
+## Downloading
+
+- Open the [GitHub Releases page](https://github.com/BalliAsghar/WindNav/releases).
+- Download the latest `WindNav.app` release artifact.
+- Move `WindNav.app` to `/Applications` and launch it.
+
+### Run locally
+
+Build and run the app from source during development:
+
+```bash
+swift build
+swift run TabApp
+```
+
+If you want a local `.app` bundle in `dist/`, package it with:
+
+```bash
+./scripts/package_app.sh
+```
+
 ## Configuration
 
 WindNav is configured via a TOML file located at:
