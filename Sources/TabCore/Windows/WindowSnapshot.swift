@@ -16,6 +16,7 @@ public struct WindowSnapshot: Equatable, Sendable {
     public let isOnCurrentDisplay: Bool
     public let canCaptureThumbnail: Bool
     public let revision: UInt64
+    public let aspectRatio: CGFloat
 
     public init(
         windowId: UInt32,
@@ -57,6 +58,7 @@ public struct WindowSnapshot: Equatable, Sendable {
             frame: frame,
             isWindowlessApp: isWindowlessApp
         )
+        self.aspectRatio = frame.width > 0 && frame.height > 0 ? frame.width / frame.height : 1.0
         self.revision = revision
     }
 

@@ -224,12 +224,14 @@ final class HUDPanelContentView: NSVisualEffectView {
         currentHUD = hud
         currentPresentationMode = presentationMode
         currentVisualStyle = HUDVisualStyle.resolve(appearance: appearance)
+        let aspectRatios = model.items.map { $0.snapshot.aspectRatio }
         currentLayout = layoutResult(
             itemCount: model.items.count,
             appearance: appearance,
             hud: hud,
             maximumSize: maximumSize,
-            presentationMode: presentationMode
+            presentationMode: presentationMode,
+            aspectRatios: aspectRatios
         )
         applyPanelStyle(currentVisualStyle.panel(for: presentationMode))
 
@@ -281,12 +283,14 @@ final class HUDPanelContentView: NSVisualEffectView {
         presentationMode: HUDPresentationMode
     ) -> CGSize {
         let itemCount = currentModel?.items.count ?? 0
+        let aspectRatios = currentModel?.items.map { $0.snapshot.aspectRatio } ?? []
         return layoutResult(
             itemCount: itemCount,
             appearance: appearance,
             hud: hud,
             maximumSize: maximumSize,
-            presentationMode: presentationMode
+            presentationMode: presentationMode,
+            aspectRatios: aspectRatios
         ).viewportSize
     }
 
@@ -352,14 +356,16 @@ final class HUDPanelContentView: NSVisualEffectView {
         appearance: AppearanceConfig,
         hud: HUDConfig,
         maximumSize: CGSize,
-        presentationMode: HUDPresentationMode
+        presentationMode: HUDPresentationMode,
+        aspectRatios: [CGFloat]? = nil
     ) -> HUDLayoutResult {
         switch presentationMode {
         case .thumbnails:
             let result = HUDGridLayout.layout(
                 itemCount: itemCount,
                 metrics: HUDGridMetrics(appearance: appearance, hud: hud),
-                maximumSize: maximumSize
+                maximumSize: maximumSize,
+                aspectRatios: aspectRatios
             )
             return HUDLayoutResult(
                 viewportSize: result.viewportSize,
@@ -1148,7 +1154,8 @@ enum HUDGridLayout {
     static func layout(
         itemCount: Int,
         metrics: HUDGridMetrics,
-        maximumSize: CGSize
+        maximumSize: CGSize,
+        aspectRatios: [CGFloat]? = nil
     ) -> HUDGridLayoutResult {
         guard itemCount > 0 else {
             let emptySize = CGSize(
@@ -1162,71 +1169,142 @@ enum HUDGridLayout {
                 rows: []
             )
         }
-
-        let usableWidth = max(metrics.tileWidth, maximumSize.width - metrics.outerPadding * 2)
-        let maxColumns = max(
-            1,
-            Int(((usableWidth + metrics.tileSpacing) / (metrics.tileWidth + metrics.tileSpacing)).rounded(.down))
-        )
-
-        var rowTileIndices: [[Int]] = []
-        var nextIndex = 0
-        while nextIndex < itemCount {
-            let endIndex = min(itemCount, nextIndex + maxColumns)
-            rowTileIndices.append(Array(nextIndex..<endIndex))
-            nextIndex = endIndex
-        }
-
-        let rowWidths = rowTileIndices.map { indices in
-            CGFloat(indices.count) * metrics.tileWidth
-                + CGFloat(max(indices.count - 1, 0)) * metrics.tileSpacing
-        }
-        let contentWidth = min(
-            maximumSize.width,
-            (rowWidths.max() ?? metrics.tileWidth) + metrics.outerPadding * 2
-        )
-
-        var tileFrames = Array(repeating: CGRect.zero, count: itemCount)
-        var rows: [HUDGridRow] = []
-        var currentY = metrics.outerPadding
-
-        for (rowIndex, indices) in rowTileIndices.enumerated() {
-            let rowWidth = rowWidths[rowIndex]
-            let rowX = metrics.outerPadding + max(
-                0,
-                ((contentWidth - metrics.outerPadding * 2 - rowWidth) / 2).rounded()
+        
+        let useDynamicWidth = aspectRatios != nil && aspectRatios!.count >= itemCount
+        
+        if !useDynamicWidth {
+            let usableWidth = max(metrics.tileWidth, maximumSize.width - metrics.outerPadding * 2)
+            let maxColumns = max(
+                1,
+                Int(((usableWidth + metrics.tileSpacing) / (metrics.tileWidth + metrics.tileSpacing)).rounded(.down))
             )
-            let rowFrame = CGRect(
-                x: rowX,
-                y: currentY,
-                width: rowWidth,
-                height: metrics.tileHeight
-            )
-            rows.append(HUDGridRow(tileIndices: indices, frame: rowFrame))
 
-            for (columnIndex, tileIndex) in indices.enumerated() {
-                tileFrames[tileIndex] = CGRect(
-                    x: rowX + CGFloat(columnIndex) * (metrics.tileWidth + metrics.tileSpacing),
-                    y: currentY,
-                    width: metrics.tileWidth,
-                    height: metrics.tileHeight
-                )
+            var rowTileIndices: [[Int]] = []
+            var nextIndex = 0
+            while nextIndex < itemCount {
+                let endIndex = min(itemCount, nextIndex + maxColumns)
+                rowTileIndices.append(Array(nextIndex..<endIndex))
+                nextIndex = endIndex
             }
 
-            currentY += metrics.tileHeight + metrics.rowSpacing
+            let rowWidths = rowTileIndices.map { indices in
+                CGFloat(indices.count) * metrics.tileWidth
+                    + CGFloat(max(indices.count - 1, 0)) * metrics.tileSpacing
+            }
+            let contentWidth = min(
+                maximumSize.width,
+                (rowWidths.max() ?? metrics.tileWidth) + metrics.outerPadding * 2
+            )
+
+            var tileFrames = Array(repeating: CGRect.zero, count: itemCount)
+            var rows: [HUDGridRow] = []
+            var currentY = metrics.outerPadding
+
+            for (rowIndex, indices) in rowTileIndices.enumerated() {
+                let rowWidth = rowWidths[rowIndex]
+                let rowX = metrics.outerPadding + max(
+                    0,
+                    ((contentWidth - metrics.outerPadding * 2 - rowWidth) / 2).rounded()
+                )
+                let rowFrame = CGRect(
+                    x: rowX,
+                    y: currentY,
+                    width: rowWidth,
+                    height: metrics.tileHeight
+                )
+                rows.append(HUDGridRow(tileIndices: indices, frame: rowFrame))
+
+                for (columnIndex, tileIndex) in indices.enumerated() {
+                    tileFrames[tileIndex] = CGRect(
+                        x: rowX + CGFloat(columnIndex) * (metrics.tileWidth + metrics.tileSpacing),
+                        y: currentY,
+                        width: metrics.tileWidth,
+                        height: metrics.tileHeight
+                    )
+                }
+
+                currentY += metrics.tileHeight + metrics.rowSpacing
+            }
+
+            let documentHeight = metrics.outerPadding * 2
+                + CGFloat(rowTileIndices.count) * metrics.tileHeight
+                + CGFloat(max(rowTileIndices.count - 1, 0)) * metrics.rowSpacing
+            let viewportSize = CGSize(
+                width: contentWidth,
+                height: min(maximumSize.height, documentHeight)
+            )
+
+            return HUDGridLayoutResult(
+                viewportSize: viewportSize,
+                documentSize: CGSize(width: contentWidth, height: documentHeight),
+                tileFrames: tileFrames,
+                rows: rows
+            )
         }
-
-        let documentHeight = metrics.outerPadding * 2
-            + CGFloat(rowTileIndices.count) * metrics.tileHeight
-            + CGFloat(max(rowTileIndices.count - 1, 0)) * metrics.rowSpacing
-        let viewportSize = CGSize(
-            width: contentWidth,
-            height: min(maximumSize.height, documentHeight)
-        )
-
+        
+        var tileFrames = Array(repeating: CGRect.zero, count: itemCount)
+        var rows: [HUDGridRow] = []
+        var currentX = metrics.outerPadding
+        var currentY = metrics.outerPadding
+        var rowStartIndex = 0
+        var rowMaxHeight: CGFloat = 0
+        var rowWidth: CGFloat = 0
+        
+        let minTileWidth = metrics.tileWidth * 0.7
+        let maxTileWidth = metrics.tileWidth * 1.5
+        
+        for index in 0..<itemCount {
+            let aspectRatio = aspectRatios![index]
+            let tileWidth = max(minTileWidth, min(maxTileWidth, metrics.thumbnailHeight * aspectRatio + metrics.innerPadding * 2))
+            let tileHeight = metrics.tileHeight
+            
+            if currentX + tileWidth > maximumSize.width - metrics.outerPadding && index > rowStartIndex {
+                let rowIndices = Array(rowStartIndex..<index)
+                let rowFrame = CGRect(
+                    x: metrics.outerPadding,
+                    y: currentY,
+                    width: rowWidth,
+                    height: rowMaxHeight
+                )
+                rows.append(HUDGridRow(tileIndices: rowIndices, frame: rowFrame))
+                
+                currentX = metrics.outerPadding
+                currentY += rowMaxHeight + metrics.rowSpacing
+                rowStartIndex = index
+                rowWidth = 0
+                rowMaxHeight = 0
+            }
+            
+            tileFrames[index] = CGRect(
+                x: currentX,
+                y: currentY,
+                width: tileWidth,
+                height: tileHeight
+            )
+            
+            currentX += tileWidth + metrics.tileSpacing
+            rowWidth += tileWidth + (index > rowStartIndex ? metrics.tileSpacing : 0)
+            rowMaxHeight = max(rowMaxHeight, tileHeight)
+        }
+        
+        if rowStartIndex < itemCount {
+            let rowIndices = Array(rowStartIndex..<itemCount)
+            let rowFrame = CGRect(
+                x: metrics.outerPadding,
+                y: currentY,
+                width: rowWidth,
+                height: rowMaxHeight
+            )
+            rows.append(HUDGridRow(tileIndices: rowIndices, frame: rowFrame))
+        }
+        
+        let documentHeight = currentY + rowMaxHeight + metrics.outerPadding
+        let contentWidth = rows.map { $0.frame.width }.max() ?? metrics.tileWidth
+        let viewportWidth = min(maximumSize.width, contentWidth + metrics.outerPadding * 2)
+        
         return HUDGridLayoutResult(
-            viewportSize: viewportSize,
-            documentSize: CGSize(width: contentWidth, height: documentHeight),
+            viewportSize: CGSize(width: viewportWidth, height: min(maximumSize.height, documentHeight)),
+            documentSize: CGSize(width: contentWidth + metrics.outerPadding * 2, height: documentHeight),
             tileFrames: tileFrames,
             rows: rows
         )
