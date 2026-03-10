@@ -87,6 +87,38 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         XCTAssertLessThan(size.width, maximumSize.width)
     }
 
+    func testPanelChromeUsesSofterTintAndShadowInThumbnailMode() {
+        let contentView = HUDPanelContentView(frame: .zero)
+
+        _ = contentView.apply(
+            model: makeModel(count: 2, selectedIndex: 0),
+            appearance: .default,
+            hud: defaultHUD,
+            maximumSize: CGSize(width: 900, height: 500),
+            presentationMode: .thumbnails
+        )
+
+        XCTAssertLessThan(contentView.debugTintColor.alphaComponent, 0.16)
+        XCTAssertLessThan(contentView.debugPanelShadowOpacity, 0.2)
+        XCTAssertLessThan(contentView.debugPanelShadowRadius, 18)
+    }
+
+    func testPanelChromeUsesSofterTintAndShadowInIconOnlyMode() {
+        let contentView = HUDPanelContentView(frame: .zero)
+
+        _ = contentView.apply(
+            model: makeModel(count: 2, selectedIndex: 0),
+            appearance: .default,
+            hud: defaultHUD,
+            maximumSize: CGSize(width: 900, height: 500),
+            presentationMode: .iconOnly
+        )
+
+        XCTAssertLessThan(contentView.debugTintColor.alphaComponent, 0.13)
+        XCTAssertLessThan(contentView.debugPanelShadowOpacity, 0.16)
+        XCTAssertLessThan(contentView.debugPanelShadowRadius, 16)
+    }
+
     func testSelectedTileRevealScrollsForLowerRows() {
         let contentView = HUDPanelContentView(frame: .zero)
         let metrics = HUDGridMetrics(appearance: .default, hud: defaultHUD)
@@ -468,6 +500,11 @@ final class HUDGridLayoutCoreTests: XCTestCase {
         XCTAssertLessThan(backgroundColor.alphaComponent, 0.16)
         XCTAssertLessThan(abs(backgroundColor.redComponent - backgroundColor.greenComponent), 0.05)
         XCTAssertLessThan(abs(backgroundColor.greenComponent - backgroundColor.blueComponent), 0.05)
+        let borderColor = tile.debugBackgroundBorderColor.usingColorSpace(.deviceRGB) ?? .clear
+        XCTAssertGreaterThanOrEqual(tile.debugBackgroundBorderWidth, 3)
+        XCTAssertGreaterThan(borderColor.alphaComponent, 0.9)
+        XCTAssertGreaterThan(borderColor.blueComponent, borderColor.redComponent)
+        XCTAssertGreaterThan(borderColor.blueComponent, borderColor.greenComponent)
     }
 
     func testIconOnlySelectedTileKeepsLabelCloseToSelectionPlate() {

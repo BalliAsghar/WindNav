@@ -320,6 +320,18 @@ final class HUDPanelContentView: NSVisualEffectView {
         scrollView.contentView.bounds.origin
     }
 
+    var debugTintColor: NSColor {
+        NSColor(cgColor: tintLayer.backgroundColor ?? NSColor.clear.cgColor) ?? .clear
+    }
+
+    var debugPanelShadowOpacity: Float {
+        layer?.shadowOpacity ?? 0
+    }
+
+    var debugPanelShadowRadius: CGFloat {
+        layer?.shadowRadius ?? 0
+    }
+
     private func applyPanelStyle(_ style: HUDPanelChromeStyle) {
         material = style.material
         blendingMode = style.blendingMode
@@ -721,6 +733,14 @@ final class HUDThumbnailTileView: NSView {
         NSColor(cgColor: backgroundLayer.backgroundColor ?? NSColor.clear.cgColor) ?? .clear
     }
 
+    var debugBackgroundBorderWidth: CGFloat {
+        backgroundLayer.borderWidth
+    }
+
+    var debugBackgroundBorderColor: NSColor {
+        NSColor(cgColor: backgroundLayer.borderColor ?? NSColor.clear.cgColor) ?? .clear
+    }
+
     private func clearThumbnailContents() {
         previewLayer.contents = nil
         liveIndicatorLayer.isHidden = true
@@ -1026,22 +1046,22 @@ struct HUDVisualStyle {
                 material: .hudWindow,
                 blendingMode: .behindWindow,
                 cornerRadius: 24,
-                tintColor: NSColor.black.withAlphaComponent(0.24),
-                shadowColor: NSColor.black.withAlphaComponent(0.55),
-                shadowOpacity: 0.34,
-                shadowRadius: 26,
-                shadowOffset: CGSize(width: 0, height: -8)
+                tintColor: NSColor.black.withAlphaComponent(0.13),
+                shadowColor: NSColor.black.withAlphaComponent(0.28),
+                shadowOpacity: 0.16,
+                shadowRadius: 16,
+                shadowOffset: CGSize(width: 0, height: -3)
             )
         case .iconOnly:
             return HUDPanelChromeStyle(
                 material: .hudWindow,
                 blendingMode: .behindWindow,
                 cornerRadius: 30,
-                tintColor: NSColor.black.withAlphaComponent(0.18),
-                shadowColor: NSColor.black.withAlphaComponent(0.48),
-                shadowOpacity: 0.28,
-                shadowRadius: 24,
-                shadowOffset: CGSize(width: 0, height: -6)
+                tintColor: NSColor.black.withAlphaComponent(0.11),
+                shadowColor: NSColor.black.withAlphaComponent(0.24),
+                shadowOpacity: 0.13,
+                shadowRadius: 14,
+                shadowOffset: CGSize(width: 0, height: -2)
             )
         }
     }
@@ -1135,12 +1155,12 @@ struct HUDVisualStyle {
             return HUDIconTileChromeStyle(
                 selectionStyle: .nativeIconPlate,
                 plateColor: NSColor.white.withAlphaComponent(0.10),
-                plateBorderColor: NSColor.white.withAlphaComponent(0.10),
-                plateBorderWidth: 0.8,
+                plateBorderColor: NSColor.controlAccentColor,
+                plateBorderWidth: 3,
                 plateShadowColor: NSColor.black.withAlphaComponent(0.22),
-                plateShadowOpacity: 0.14,
-                plateShadowRadius: 14,
-                plateShadowOffset: CGSize(width: 0, height: -3),
+                plateShadowOpacity: 0.08,
+                plateShadowRadius: 8,
+                plateShadowOffset: CGSize(width: 0, height: -1),
                 plateCornerRadius: 18,
                 labelColor: NSColor.white.withAlphaComponent(0.72),
                 badgeFillColor: NSColor.white.withAlphaComponent(0.14),
