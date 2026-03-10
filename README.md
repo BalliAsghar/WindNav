@@ -17,15 +17,16 @@
 
 ## Keyboard Controls
 
-| Action            | Shortcut            |
-| ----------------- | ------------------- |
-| Open app switcher | `Cmd + Tab`         |
-| Navigate left     | `Cmd + Opt + Left`  |
-| Navigate right    | `Cmd + Opt + Right` |
-| Navigate up       | `Cmd + Opt + Up`    |
-| Navigate down     | `Cmd + Opt + Down`  |
+| Action              | Shortcut            |
+| ------------------- | ------------------- |
+| Open app switcher   | `Cmd + Tab`         |
+| Navigate left       | `Cmd + Opt + Left`  |
+| Navigate right      | `Cmd + Opt + Right` |
+| Browse HUD forward  | `Cmd + Opt + Up`    |
+| Browse HUD backward | `Cmd + Opt + Down`  |
 
 > All keyboard shortcuts are fully customizable in the configuration file.
+> `Cmd + Opt + Up/Down` opens the directional browse HUD, previews the current selection, and commits on modifier release when configured.
 
 ## Why WindNav?
 
@@ -39,12 +40,15 @@ The default macOS app switcher is limited. WindNav gives you:
 
 ## System Requirements
 
-- macOS 14.0 (Sonoma) or later
-- Accessibility permissions (for app switching and keyboard navigation)
+- macOS 15.0 or later
+- Accessibility permission for directional navigation and switching
+- Screen Recording permission only when HUD thumbnails are enabled
 
 ## Configuration
 
 WindNav is configured via a TOML file located at:
+
+**Note:** If the config file does not exist, WindNav will create one with default settings on first launch.
 
 ```
 ~/.config/windnav/config.toml
@@ -65,6 +69,14 @@ down = "opt-cmd-down"
 browse-left-right-mode = "immediate"
 commit-on-modifier-release = true
 
+[hud]
+thumbnails = true
+size = "small" # Options: "small", "medium", "large"
+
+[onboarding]
+permission-explainer-shown = false
+launch-at-login-enabled = false
+
 [visibility]
 show-minimized = true
 show-hidden = true
@@ -81,24 +93,25 @@ exclude-bundle-ids = []
 
 [appearance]
 theme = "system"
-icon-size = 22
-item-padding = 8
-item-spacing = 8
 show-window-count = true
 
-[onboarding]
-permission-explainer-shown = false
-launch-at-login-enabled = true
+[performance]
+log-level = "info"
+log-color = "auto"
 ```
 
 ### Configuration Sections
 
-| Section       | Description                             |
-| ------------- | --------------------------------------- |
-| `activation`  | Keyboard shortcuts to open the switcher |
-| `directional` | Navigation controls and behavior        |
-| `visibility`  | Which windows to show/hide              |
-| `ordering`    | App ordering and pinned apps            |
-| `filters`     | Apps to exclude from the switcher       |
-| `appearance`  | Visual customization options            |
-| `onboarding`  | First-run and startup settings          |
+| Section       | Description                                  |
+| ------------- | -------------------------------------------- |
+| `activation`  | Keyboard shortcut used to open the switcher  |
+| `directional` | Directional hotkeys and browse behavior      |
+| `hud`         | HUD thumbnail visibility and size            |
+| `onboarding`  | First-run and launch-at-login state          |
+| `visibility`  | Which windows and windowless apps to include |
+| `ordering`    | Pinned app ordering and unpinned handling    |
+| `filters`     | Apps and bundle IDs to exclude               |
+| `appearance`  | Theme mode and window-count badges           |
+| `performance` | Logging verbosity and ANSI color mode        |
+
+Older config keys that were removed now fail validation. If you have an existing config, delete deprecated keys such as `directional.show-thumbnails`, `appearance.show-thumbnails`, `appearance.icon-size`, `appearance.item-padding`, and `appearance.item-spacing`.
