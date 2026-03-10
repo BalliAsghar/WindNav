@@ -134,5 +134,3 @@ log-color = "auto"
 | `filters`     | Apps and bundle IDs to exclude               |
 | `appearance`  | Theme mode and window-count badges           |
 | `performance` | Logging verbosity and ANSI color mode        |
-
-Older config keys that were removed now fail validation. If you have an existing config, delete deprecated keys such as `directional.show-thumbnails`, `appearance.show-thumbnails`, `appearance.icon-size`, `appearance.item-padding`, and `appearance.item-spacing`.
