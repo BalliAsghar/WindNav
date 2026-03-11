@@ -401,7 +401,6 @@ final class HUDThumbnailTileView: NSView {
     private let previewLayer = CALayer()
     private let overlayLayer = CALayer()
     private let iconLayer = CALayer()
-    private let liveIndicatorLayer = CALayer()
     private let badgeLayer = CATextLayer()
     private let titleLayer = CATextLayer()
     private let subtitleLayer = CATextLayer()
@@ -428,7 +427,6 @@ final class HUDThumbnailTileView: NSView {
         layer?.addSublayer(previewLayer)
         layer?.addSublayer(overlayLayer)
         layer?.addSublayer(iconLayer)
-        layer?.addSublayer(liveIndicatorLayer)
         layer?.addSublayer(badgeLayer)
         layer?.addSublayer(titleLayer)
         layer?.addSublayer(subtitleLayer)
@@ -462,9 +460,6 @@ final class HUDThumbnailTileView: NSView {
         iconLayer.contentsGravity = .resizeAspectFill
         iconLayer.borderWidth = 0.5
         iconLayer.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
-
-        liveIndicatorLayer.cornerRadius = 3
-        liveIndicatorLayer.isHidden = true
 
         badgeLayer.alignmentMode = .center
         badgeLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
@@ -521,12 +516,6 @@ final class HUDThumbnailTileView: NSView {
             titleLayer.frame = footerLayout.titleFrame
             subtitleLayer.frame = footerLayout.subtitleFrame
             badgeLayer.frame = footerLayout.badgeFrame
-            liveIndicatorLayer.frame = CGRect(
-                x: bounds.width - metrics.innerPadding - 8,
-                y: headerY + 9,
-                width: 6,
-                height: 6
-            )
         case .iconOnly:
             let metrics = HUDIconStripMetrics(appearance: appearanceConfig)
             let labelFrame = CGRect(
@@ -555,7 +544,6 @@ final class HUDThumbnailTileView: NSView {
             iconLayer.frame = iconFrame
             titleLayer.frame = labelFrame
             subtitleLayer.frame = .zero
-            liveIndicatorLayer.frame = .zero
             let badgeText = (badgeLayer.string as? String) ?? ""
             let badgeHeight: CGFloat = 16
             let badgeMinWidth: CGFloat = 16
@@ -733,7 +721,6 @@ final class HUDThumbnailTileView: NSView {
 
     private func clearThumbnailContents() {
         previewLayer.contents = nil
-        liveIndicatorLayer.isHidden = true
         currentThumbnailState = .placeholder
     }
 
@@ -782,8 +769,6 @@ final class HUDThumbnailTileView: NSView {
             badgeLayer.borderWidth = 1
             badgeLayer.borderColor = NSColor.white.withAlphaComponent(item.isSelected ? 0.12 : 0.08).cgColor
             badgeLayer.cornerRadius = 5
-            liveIndicatorLayer.backgroundColor = chrome.liveIndicatorColor.cgColor
-            liveIndicatorLayer.isHidden = !chrome.showsLiveIndicator
         case .iconOnly:
             let chrome = currentVisualStyle.iconTileChrome(isSelected: item.isSelected)
             currentSelectionStyle = chrome.selectionStyle
@@ -816,7 +801,6 @@ final class HUDThumbnailTileView: NSView {
             badgeLayer.borderWidth = 0.5
             badgeLayer.borderColor = NSColor.white.withAlphaComponent(0.1).cgColor
             badgeLayer.cornerRadius = 5
-            liveIndicatorLayer.isHidden = true
         }
     }
 
@@ -1005,8 +989,6 @@ struct HUDTileChromeStyle {
     let subtitleColor: NSColor
     let badgeFillColor: NSColor
     let badgeTextColor: NSColor
-    let liveIndicatorColor: NSColor
-    let showsLiveIndicator: Bool
 }
 
 struct HUDIconTileChromeStyle {
@@ -1084,9 +1066,7 @@ struct HUDVisualStyle {
                 titleColor: titleColor,
                 subtitleColor: subtitleColor,
                 badgeFillColor: NSColor.white.withAlphaComponent(0.12),
-                badgeTextColor: NSColor.white.withAlphaComponent(0.94),
-                liveIndicatorColor: NSColor.systemGreen.withAlphaComponent(0.82),
-                showsLiveIndicator: thumbnailState == .liveSurface
+                badgeTextColor: NSColor.white.withAlphaComponent(0.94)
             )
         }
 
@@ -1108,9 +1088,7 @@ struct HUDVisualStyle {
             titleColor: titleColor,
             subtitleColor: subtitleColor,
             badgeFillColor: NSColor.white.withAlphaComponent(0.08),
-            badgeTextColor: NSColor.white.withAlphaComponent(0.82),
-            liveIndicatorColor: NSColor.systemGreen.withAlphaComponent(0.72),
-            showsLiveIndicator: thumbnailState == .liveSurface
+            badgeTextColor: NSColor.white.withAlphaComponent(0.82)
         )
     }
 
