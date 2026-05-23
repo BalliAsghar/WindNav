@@ -23,6 +23,8 @@ final class DirectionalCoordinatorCoreTests: XCTestCase {
 
         await harness.coordinator.commitOrEndSessionOnModifierRelease(commitTimestamp: .now())
         XCTAssertEqual(harness.focus.calls.count, 1)
+        XCTAssertEqual(harness.focus.calls.first?.windowId, 10)
+        XCTAssertEqual(harness.focus.calls.first?.pid, 1001)
         XCTAssertEqual(harness.hud.hideCalls, 1)
     }
 
@@ -205,10 +207,10 @@ private final class DirectionalFakeFocusedWindowProvider: FocusedWindowProvider 
 
 @MainActor
 private final class DirectionalFakeFocusPerformer: FocusPerformer {
-    var calls: [(windowId: UInt32, pid: pid_t)] = []
+    var calls: [WindowSnapshot] = []
 
-    func focus(windowId: UInt32, pid: pid_t) async throws {
-        calls.append((windowId: windowId, pid: pid))
+    func focus(_ target: WindowSnapshot) async throws {
+        calls.append(target)
     }
 }
 

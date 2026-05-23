@@ -18,6 +18,8 @@ final class NavigationCoordinatorCoreTests: XCTestCase {
 
         XCTAssertEqual(harness.focus.calls.count, 1)
         XCTAssertEqual(harness.focus.calls.first?.windowId, 20)
+        XCTAssertEqual(harness.focus.calls.first?.pid, 1002)
+        XCTAssertEqual(harness.focus.calls.first?.appName, "Beta")
         XCTAssertEqual(harness.hud.hideCalls, 1)
     }
 
@@ -145,10 +147,10 @@ private final class FakeFocusedWindowProvider: FocusedWindowProvider {
 
 @MainActor
 private final class FakeFocusPerformer: FocusPerformer {
-    var calls: [(windowId: UInt32, pid: pid_t)] = []
+    var calls: [WindowSnapshot] = []
 
-    func focus(windowId: UInt32, pid: pid_t) async throws {
-        calls.append((windowId: windowId, pid: pid))
+    func focus(_ target: WindowSnapshot) async throws {
+        calls.append(target)
     }
 }
 

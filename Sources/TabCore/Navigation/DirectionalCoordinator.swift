@@ -217,7 +217,7 @@ final class DirectionalCoordinator {
 
         let selected = current.orderedWindows[current.selectedIndex]
         do {
-            try await focusPerformer.focus(windowId: selected.windowId, pid: selected.pid)
+            try await focusPerformer.focus(selected)
             appFocusMemoryStore.recordFocused(window: selected)
             Logger.info(.navigation, "commit-focus-latency-ms=\(msSince(commitTimestamp)) target=\(selected.windowId)")
         } catch {
@@ -295,7 +295,7 @@ final class DirectionalCoordinator {
             Logger.info(.ui, "hud-selection-latency-ms=\(msSince(hotkeyTimestamp))")
 
             do {
-                try await focusPerformer.focus(windowId: target.windowId, pid: target.pid)
+                try await focusPerformer.focus(target)
                 appFocusMemoryStore.recordFocused(window: target)
             } catch {
                 Logger.error(.navigation, "Failed to focus directional target \(target.windowId): \(error.localizedDescription)")
@@ -350,7 +350,7 @@ final class DirectionalCoordinator {
 
             if shouldFocusNow {
                 do {
-                    try await focusPerformer.focus(windowId: target.windowId, pid: target.pid)
+                    try await focusPerformer.focus(target)
                     appFocusMemoryStore.recordFocused(window: target)
                     needsCommitOnRelease = false
                 } catch {

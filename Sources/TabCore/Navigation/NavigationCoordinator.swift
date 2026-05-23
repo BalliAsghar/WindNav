@@ -120,7 +120,7 @@ final class NavigationCoordinator {
             }
 
             do {
-                try await focusPerformer.focus(windowId: resolvedTarget.windowId, pid: resolvedTarget.pid)
+                try await focusPerformer.focus(resolvedTarget)
                 updateHistory(resolvedTarget.windowId)
                 Logger.info(.navigation, "commit-focus-latency-ms=\(msSince(commitTimestamp)) target=\(resolvedTarget.windowId)")
             } catch {
