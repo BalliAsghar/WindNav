@@ -5,6 +5,7 @@ import CoreVideo
 import Foundation
 import QuartzCore
 import ScreenCaptureKit
+import os
 
 final class ThumbnailSurface: @unchecked Sendable {
     enum Storage {
@@ -463,6 +464,7 @@ final class ScreenCaptureKitLiveStream: NSObject, @unchecked Sendable, SCStreamO
     private let outputQueue = DispatchQueue(label: "windnav.capture.live", qos: .userInitiated)
 
     private var stream: SCStream?
+    private var stopped = false
 
     init(
         window: SCWindow,
@@ -508,17 +510,34 @@ final class ScreenCaptureKitLiveStream: NSObject, @unchecked Sendable, SCStreamO
     }
 
     func stop() async {
+        stopped = true
         guard let stream else { return }
-        await withCheckedContinuation { continuation in
-            stream.stopCapture { _ in
-                continuation.resume(returning: ())
-            }
-        }
         self.stream = nil
+
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                let resumed = OSAllocatedUnfairLock(initialState: false)
+                stream.stopCapture { _ in
+                    if resumed.withLock({ let old = $0; $0 = true; return old }) == false {
+                        continuation.resume()
+                    }
+                }
+
+                DispatchQueue.global().asyncAfter(deadline: .now() + 3.0) {
+                    if resumed.withLock({ let old = $0; $0 = true; return old }) == false {
+                        Logger.error(.capture, "SCStream.stopCapture timed out after 3s, forcing continuation")
+                        continuation.resume()
+                    }
+                }
+            }
+        } onCancel: {
+            // If the enclosing task is cancelled, the stream is already being torn down.
+            // stopCapture's completion or the timeout will handle the continuation.
+        }
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .screen, let pixelBuffer = sampleBuffer.tabPixelBuffer() else {
+        guard !stopped, type == .screen, let pixelBuffer = sampleBuffer.tabPixelBuffer() else {
             return
         }
         onFrame(ThumbnailSurface(pixelBuffer: pixelBuffer))

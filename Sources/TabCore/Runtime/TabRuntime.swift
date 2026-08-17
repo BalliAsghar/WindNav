@@ -33,6 +33,11 @@ public final class TabRuntime {
     private var directionalCoordinator: DirectionalCoordinator?
     private var modifierEventTap: CFMachPort?
     private var arrowKeyEventTap: CFMachPort?
+    private var modifierRunLoopSource: CFRunLoopSource?
+    private var arrowKeyRunLoopSource: CFRunLoopSource?
+    private var modifierReArmPolicy = EventTapReArmPolicy()
+    private var arrowReArmPolicy = EventTapReArmPolicy()
+    private var wakeObserver: (any NSObjectProtocol)?
     private var config: TabConfig?
     private var inputSession: InputSession?
     nonisolated(unsafe) private let captureState = SessionCaptureState()
@@ -81,6 +86,17 @@ public final class TabRuntime {
             Logger.error(.runtime, "Startup aborted: initialization error")
             NSApp.terminate(nil)
         }
+        
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.handleSystemWake()
+            }
+        }
     }
 
     public func applyConfig(_ updated: TabConfig) throws {
@@ -112,6 +128,12 @@ public final class TabRuntime {
         removeArrowKeyMonitor()
         hotkeys.unregisterAll()
         SystemHotkeyOverride.restoreSystemCmdTab()
+        
+        if let observer = wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            wakeObserver = nil
+        }
+        
         Logger.info(.runtime, "Tab++ runtime stopped")
     }
 
@@ -307,8 +329,8 @@ public final class TabRuntime {
                     runtime.handleModifierFlagsChanged(modifiers)
                 }
             } else if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
-                if let tap = runtime.modifierEventTap {
-                    CGEvent.tapEnable(tap: tap, enable: true)
+                DispatchQueue.main.async {
+                    runtime.reArmModifierTap()
                 }
             }
             return Unmanaged.passUnretained(event)
@@ -329,15 +351,21 @@ public final class TabRuntime {
         }
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        modifierRunLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         return true
     }
 
     private func removeModifierMonitor() {
+        if let source = modifierRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            modifierRunLoopSource = nil
+        }
         guard let tap = modifierEventTap else { return }
         CFMachPortInvalidate(tap)
         modifierEventTap = nil
+        modifierReArmPolicy.reset()
     }
 
     private func installArrowKeyMonitorIfNeeded() -> Bool {
@@ -372,8 +400,8 @@ public final class TabRuntime {
                     }
                 }
             } else if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
-                if let tap = runtime.arrowKeyEventTap {
-                    CGEvent.tapEnable(tap: tap, enable: true)
+                DispatchQueue.main.async {
+                    runtime.reArmArrowKeyTap()
                 }
             }
 
@@ -395,15 +423,69 @@ public final class TabRuntime {
         }
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        arrowKeyRunLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         return true
     }
 
     private func removeArrowKeyMonitor() {
+        if let source = arrowKeyRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            arrowKeyRunLoopSource = nil
+        }
         guard let tap = arrowKeyEventTap else { return }
         CFMachPortInvalidate(tap)
         arrowKeyEventTap = nil
+        arrowReArmPolicy.reset()
+    }
+
+    private func reArmModifierTap() {
+        switch modifierReArmPolicy.shouldReArm() {
+        case .reArm:
+            if let tap = modifierEventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+                Logger.info(.hotkey, "Re-armed modifier event tap")
+            }
+        case .throttled:
+            Logger.info(.hotkey, "Throttled modifier event tap re-arm")
+        case .recreate:
+            Logger.info(.hotkey, "Recreating modifier event tap after repeated disables")
+            removeModifierMonitor()
+            if !installModifierMonitorIfNeeded() {
+                Logger.error(.hotkey, "Failed to recreate modifier monitor")
+            }
+        }
+    }
+
+    private func reArmArrowKeyTap() {
+        switch arrowReArmPolicy.shouldReArm() {
+        case .reArm:
+            if let tap = arrowKeyEventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+                Logger.info(.hotkey, "Re-armed arrow key event tap")
+            }
+        case .throttled:
+            Logger.info(.hotkey, "Throttled arrow key event tap re-arm")
+        case .recreate:
+            Logger.info(.hotkey, "Recreating arrow key event tap after repeated disables")
+            removeArrowKeyMonitor()
+            if !installArrowKeyMonitorIfNeeded() {
+                Logger.error(.hotkey, "Failed to recreate arrow key monitor")
+            }
+        }
+    }
+
+    private func handleSystemWake() {
+        Logger.info(.runtime, "System wake detected, re-arming event taps")
+        modifierReArmPolicy.reset()
+        arrowReArmPolicy.reset()
+        if let tap = modifierEventTap {
+            CGEvent.tapEnable(tap: tap, enable: true)
+        }
+        if let tap = arrowKeyEventTap {
+            CGEvent.tapEnable(tap: tap, enable: true)
+        }
     }
 
     private func handleModifierFlagsChanged(_ flags: NSEvent.ModifierFlags) {
@@ -510,3 +592,41 @@ private final class SessionCaptureState {
         lock.unlock()
     }
 }
+
+internal enum ReArmDecision {
+    case reArm
+    case throttled
+    case recreate
+}
+
+@MainActor
+internal class EventTapReArmPolicy {
+    var lastReArmTime: DispatchTime = .now()
+    var disableCount: Int = 0
+    var reArmCooldown: TimeInterval = 0.5
+    var maxDisablesBeforeRecreate: Int = 5
+
+    func shouldReArm() -> ReArmDecision {
+        if disableCount >= maxDisablesBeforeRecreate {
+            disableCount = 0
+            return .recreate
+        }
+
+        let now = DispatchTime.now()
+        let elapsed = Double(now.uptimeNanoseconds - lastReArmTime.uptimeNanoseconds) / 1_000_000_000
+
+        if elapsed < reArmCooldown {
+            return .throttled
+        }
+
+        lastReArmTime = .now()
+        disableCount += 1
+        return .reArm
+    }
+
+    func reset() {
+        disableCount = 0
+        lastReArmTime = .now()
+    }
+}
+
