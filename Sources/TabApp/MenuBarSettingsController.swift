@@ -8,6 +8,7 @@ final class MenuBarSettingsController: NSObject, NSPopoverDelegate {
     private let statusItem: NSStatusItem
     private let popover = NSPopover()
     private let viewModel: MenuBarViewModel
+    private let hostingController: NSHostingController<MenuBarPanelView>
 
     private var localClickMonitor: Any?
     private var globalClickMonitor: Any?
@@ -20,6 +21,7 @@ final class MenuBarSettingsController: NSObject, NSPopoverDelegate {
             settingsStore: settingsStore,
             alertPresenter: alertPresenter
         )
+        self.hostingController = NSHostingController(rootView: MenuBarPanelView(viewModel: viewModel))
         super.init()
 
         viewModel.reconcileLaunchAtLoginStateOnStartup()
@@ -58,9 +60,7 @@ final class MenuBarSettingsController: NSObject, NSPopoverDelegate {
         popover.animates = false
         popover.behavior = .applicationDefined
         popover.delegate = self
-        popover.contentViewController = NSHostingController(
-            rootView: MenuBarPanelView(viewModel: viewModel)
-        )
+        popover.contentViewController = hostingController
     }
 
     private func showPopover() {
@@ -68,6 +68,12 @@ final class MenuBarSettingsController: NSObject, NSPopoverDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         viewModel.refreshFromDiskIfPossible()
+        // macOS 27 positions the popover from `contentSize` (default 320×320) before the
+        // hosting controller reports its size, then shrinks it bottom-anchored, leaving a gap
+        // under the menu bar. Size it explicitly first.
+        popover.contentSize = hostingController.sizeThatFits(
+            in: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        )
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         startEventMonitors()
